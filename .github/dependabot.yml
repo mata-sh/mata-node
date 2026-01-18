@@ -1,0 +1,27 @@
+version: 2
+
+updates:
+  - package-ecosystem: "composer"
+    directory: "/"
+
+    # Keep noise low
+    schedule:
+      interval: "monthly"
+
+    # Only one open PR at a time
+    open-pull-requests-limit: 1
+
+    # Clear labeling
+    labels:
+      - "dependencies"
+
+    # Conservative commit messages
+    commit-message:
+      prefix: "deps"
+
+    # Reduce churn: ignore non-security minor/major bumps
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"

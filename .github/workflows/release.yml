@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          tools: composer
+          coverage: none
+
+      - name: Validate composer.json
+        run: composer validate --strict
+
+      - name: Install dependencies (from lockfile)
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Ensure composer.lock is up to date
+        run: git diff --exit-code composer.lock
+
+      - name: Dependency security audit
+        run: composer audit
+
+      - name: Code style (PHP-CS-Fixer)
+        run: vendor/bin/php-cs-fixer fix --dry-run --diff
+
+      - name: Static analysis (PHPStan, level 5)
+        run: vendor/bin/phpstan analyse --level=5
+
+      - name: Unit tests (PHPUnit)
+        run: vendor/bin/phpunit

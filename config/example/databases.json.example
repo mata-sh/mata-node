@@ -1,0 +1,26 @@
+{
+    "primary": {
+        "host": "localhost",
+        "username": "root",
+        "password": "",
+        "database": "mata_primary",
+        "port": "3306",
+        "description": "example description"
+    },
+    "analytics": {
+        "host": "localhost",
+        "username": "root",
+        "password": "",
+        "database": "mata_analytics",
+        "port": "3306",
+        "description": "example description"
+    },
+    "reporting": {
+        "host": "localhost",
+        "username": "root",
+        "password": "",
+        "database": "mata_reporting",
+        "port": "3306",
+        "description": "example description"
+    }
+}

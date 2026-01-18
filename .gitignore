@@ -1,0 +1,35 @@
+# file endings
+*.save
+*.bin
+*.env
+*.code-workspace
+*.log
+*.sql
+*.txt
+*.tar.gz
+*.zip
+*.dat
+*.cache
+*.lock
+.htpasswd
+.htaccess
+
+# folder
+.git/
+.vscode/
+vendor/
+temp/
+trash/
+logs/
+
+config/*.json
+config/*/*.json
+
+# config files
+php.ini
+config/*.json
+Dockerfile
+docker-compose.yaml
+xdebug.ini
+
+TODO.md

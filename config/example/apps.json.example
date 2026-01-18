@@ -1,0 +1,46 @@
+{
+    "example-app": {
+        "title": "Example Application",
+        "url": "https://example.com/app",
+        "path": "example-app",
+        "sessions_path": "example-app/temp/sessions",
+        "logs": [
+            "example-app/logs/error.log",
+            "example-app/logs/app.log"
+        ],
+        "configs": [
+            "example-app/config/config.env",
+            "example-app/config/security.config.env",
+            "example-app/config/mail.config.env"
+        ],
+        "cronjob-heartbeat": "example-app/includes/heartbeat.log",
+        "description": "Full-featured example with all optional fields",
+        "composer": {
+            "json": "example-app/composer.json",
+            "lock": "example-app/composer.lock"
+        }
+    },
+    "minimal-app": {
+        "title": "Minimal Application",
+        "url": "https://example.com/minimal",
+        "path": "minimal-app",
+        "logs": [
+            "minimal-app/logs/error.log"
+        ],
+        "configs": [
+            "minimal-app/config/config.env"
+        ]
+    },
+    "composer-enabled": {
+        "title": "Composer Auto-detect",
+        "url": "https://example.com/composer",
+        "path": "composer-app",
+        "logs": [
+            "composer-app/logs/error.log"
+        ],
+        "configs": [
+            "composer-app/config/config.env"
+        ],
+        "composer": true
+    }
+}

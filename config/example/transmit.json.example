@@ -1,0 +1,19 @@
+{
+    "transmit_config": [
+        "APP_ENV",
+        "DOMAIN",
+        "DIR",
+        "SESSION_PATH",
+        "MAINTENANCE_ENABLED",
+        "DEV_BLOCK_IPS_ENABLED",
+        "DISPLAY_ERRORS",
+        "LOG_LEVEL",
+        "LOG_HELPER_IMPORTANT",
+        "LOG_HELPER"
+    ], 
+    "check_disk_space_enabled": "on", 
+    "check_disk_space_path": "/",
+    "errorlog_readout_limit": 200,
+    "system_filecount_cache_max_age": 1800
+}
+    
