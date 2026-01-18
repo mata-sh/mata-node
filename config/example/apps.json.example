@@ -17,7 +17,8 @@
         "description": "Full-featured example with all optional fields",
         "composer": {
             "json": "example-app/composer.json",
-            "lock": "example-app/composer.lock"
+            "lock": "example-app/composer.lock",
+            "bin": "example-app/composer.phar"
         }
     },
     "minimal-app": {

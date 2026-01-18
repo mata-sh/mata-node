@@ -321,12 +321,16 @@ class AppWatcher
 
     private function resolveComposerPaths(array $config): ?array
     {
+        $binPath = null;
+        $jsonPath = null;
+        $lockPath = null;
 
         // composer: [json: path, lock: path]
         $composerConfig = $config['composer'] ?? null;
         if (is_array($composerConfig)) {
             $jsonPath = $composerConfig['json'] ?? null;
             $lockPath = $composerConfig['lock'] ?? null;
+            $binPath = $composerConfig['bin'] ?? null;
         }
 
         // composer-json: path, composer-lock: path
@@ -345,13 +349,18 @@ class AppWatcher
                 return null;
             }
 
-            $jsonPath = rtrim($basePath, '/') . '/composer.json';
-            $lockPath = rtrim($basePath, '/') . '/composer.lock';
+            $jsonPath ??= rtrim($basePath, '/') . '/composer.json';
+            $lockPath ??= rtrim($basePath, '/') . '/composer.lock';
+        }
+
+        if ($jsonPath === null || $lockPath === null) {
+            return null;
         }
 
         return [
             'json' => $jsonPath ? $this->tools->normalizePath($jsonPath, $this->rootPath) : null,
             'lock' => $lockPath ? $this->tools->normalizePath($lockPath, $this->rootPath) : null,
+            'bin' => $binPath ? $this->tools->normalizePath($binPath, $this->rootPath) : null,
         ];
     }
 
@@ -359,6 +368,7 @@ class AppWatcher
     {
         $jsonPath = $paths['json'] ?? null;
         $lockPath = $paths['lock'] ?? null;
+        $binPath = $paths['bin'] ?? null;
 
         if (!$jsonPath || !is_readable($jsonPath)) {
             return [
@@ -375,7 +385,8 @@ class AppWatcher
         }
 
         $workingDir = dirname($jsonPath);
-        $cmd = 'composer audit --format=json --no-ansi --no-interaction --working-dir=' . escapeshellarg($workingDir);
+        $composerCmd = $this->buildComposerCommand($binPath);
+        $cmd = $composerCmd . ' audit --format=json --no-ansi --no-interaction --working-dir=' . escapeshellarg($workingDir);
 
         $descriptorSpec = [
             1 => ['pipe', 'w'],
@@ -421,6 +432,20 @@ class AppWatcher
             'stdout' => $stdout,
             'stderr' => $stderr,
         ];
+    }
+
+    private function buildComposerCommand(?string $binPath): string
+    {
+        if (!$binPath) {
+            return 'composer';
+        }
+
+        $normalized = strtolower($binPath);
+        if (str_ends_with($normalized, '.phar')) {
+            return 'php ' . escapeshellarg($binPath);
+        }
+
+        return escapeshellarg($binPath);
     }
 
     /**
