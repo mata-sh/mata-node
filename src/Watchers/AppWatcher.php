@@ -155,8 +155,8 @@ class AppWatcher
             'environment' => $this->appsConfig[$app]['APP_ENV'],
             'maintenance' => $this->appsConfig[$app]['MAINTENANCE_ENABLED'],
             'status' => $status,
-            'session_count_last_hour' => $this->getSessionCount($app, filter: 3600),
-            'session_count_last_day' => $this->getSessionCount($app, filter: 86400),
+            'session_count_last_hour' => $this->getSessionCount($app, maxAgeSeconds: 3600),
+            'session_count_last_day' => $this->getSessionCount($app, maxAgeSeconds: 86400),
             'session_count_total' => $this->getSessionCount($app),
             'session_path' => $this->appsConfig[$app]['SESSION_PATH'],
             'logs' => $this->getAppLogs($app),
@@ -219,25 +219,47 @@ class AppWatcher
         return json_encode($result);
     }
 
-    public function getSessionCount($app, string $path = '', $filter = 0): int
+    public function getSessionCount(string $app, int $maxAgeSeconds = 0): int
     {
         $now = time();
         $count = 0;
         $app = strtolower($app);
 
-        $sessionPath = $this->watcherConfig[$app]['SESSION_PATH']
-            ?? $this->watcherConfig[$app]['path'] . '/includes/appsessions';
+        $sessionPath = $this->watcherConfig[$app]['sessions']['path'] ?? '';
+        if (empty($sessionPath)) {
+            return 0;
+        }
 
-        $rootSessionPath = $this->rootPath . DIRECTORY_SEPARATOR . $sessionPath;
+        $sessionsDirPath = $this->rootPath . DIRECTORY_SEPARATOR . $sessionPath;
 
-        $files = glob("{$rootSessionPath}/sess_*");
+        if (!is_dir($sessionsDirPath)) {
+            return 0;
+        }
 
-        if ($filter > 0) {
+        $allFiles = scandir($sessionsDirPath);
+        if ($allFiles === false) {
+            return 0;
+        }
+
+        $files = [];
+        foreach ($allFiles as $filename) {
+            if ($filename === '.' || $filename === '..') {
+                continue;
+            }
+
+            $filenameRegex = $this->watcherConfig[$app]['sessions']['filename_regex'] ?? '';
+            // If no regex provided, match all files; otherwise filter by regex
+            if (empty($filenameRegex) || preg_match($filenameRegex, $filename)) {
+                $files[] = $sessionsDirPath . DIRECTORY_SEPARATOR . $filename;
+            }
+        }
+
+        if ($maxAgeSeconds > 0) {
             foreach ($files as $file) {
                 if (is_file($file)) {
                     $mtime = filemtime($file);
                     $age = $now - $mtime;
-                    if ($age >= 0 && $age <= $filter) {
+                    if ($age >= 0 && $age <= $maxAgeSeconds) {
                         ++$count;
                     }
                 }

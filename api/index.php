@@ -217,7 +217,7 @@ $router->get('/{app}/session-count/', function ($app) use ($appWatcher) {
 
 $router->get('/{app}/session-count/{filter}', function ($app, $filter) use ($appWatcher) {
     $appWatcher->loadAppConfig($app);
-    echo $appWatcher->getSessionCount(app: $app, filter: $filter);
+    echo $appWatcher->getSessionCount(app: $app, maxAgeSeconds: (int) $filter);
 });
 
 $router->get('/{app}/logs/{filter}', function ($app, $filter) use ($appWatcher) {

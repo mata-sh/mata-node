@@ -3,7 +3,11 @@
         "title": "Example Application",
         "url": "https://example.com/app",
         "path": "example-app",
-        "sessions_path": "example-app/temp/sessions",
+        "sessions": {
+            "type": "file",
+            "path": "example-app/temp/sessions",
+            "filename_regex": ""
+        },
         "logs": [
             "example-app/logs/error.log",
             "example-app/logs/app.log"
