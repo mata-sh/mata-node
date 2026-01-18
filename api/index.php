@@ -140,6 +140,7 @@ $router->before('GET|POST', '/.*', function () use ($auth, $log, $rateLimiterSer
             'limit' => $status['limit'],
             'reset_at' => $status['reset_at'],
         ]);
+
         exit;
     }
 
@@ -168,6 +169,7 @@ $router->before('GET|POST', '/.*', function () use ($auth, $log, $rateLimiterSer
             'error' => 'Unauthorized',
             'message' => $authResult['error'],
         ]);
+
         exit;
     }
 
@@ -198,11 +200,11 @@ $router->get('/apps/composer-audit', function () use ($appWatcher) {
     echo $appWatcher->getAppsComposerAudit();
 });
 
-$router->get('/{app}/readme/', function ($app) use ($appWatcher) {
+$router->get('/{app}/readme', function ($app) use ($appWatcher) {
     echo $appWatcher->getAppReadme($app);
 });
 
-$router->get('/{app}/errorlog/', function ($app) use ($appWatcher) {
+$router->get('/{app}/errorlog', function ($app) use ($appWatcher) {
     echo $appWatcher->getAppErrorlog($app);
 });
 
@@ -210,7 +212,7 @@ $router->get('/{app}/errorlog/', function ($app) use ($appWatcher) {
 //     echo $appWatcher->getAppsLibrariesJson();
 // });
 
-$router->get('/{app}/session-count/', function ($app) use ($appWatcher) {
+$router->get('/{app}/session-count', function ($app) use ($appWatcher) {
     $appWatcher->loadAppConfig($app);
     echo $appWatcher->getSessionCount(app: $app);
 });
@@ -220,20 +222,20 @@ $router->get('/{app}/session-count/{filter}', function ($app, $filter) use ($app
     echo $appWatcher->getSessionCount(app: $app, maxAgeSeconds: (int) $filter);
 });
 
-$router->get('/{app}/logs/{filter}', function ($app, $filter) use ($appWatcher) {
+$router->get('/{app}/logs', function ($app) use ($appWatcher) {
     $appWatcher->loadAppConfig($app);
-    echo $appWatcher->getLogs(app: $app, filter: $filter);
+    echo $appWatcher->getLogEntries(app: $app);
 });
 
-$router->get('/{app}/app-config/', function ($app) use ($appWatcher) {
+$router->get('/{app}/app-config', function ($app) use ($appWatcher) {
     echo $appWatcher->loadAppConfig($app);
 });
 
-$router->get('/{app}/app-status/', function ($app) use ($appWatcher) {
+$router->get('/{app}/app-status', function ($app) use ($appWatcher) {
     echo $appWatcher->getAppStatus($app);
 });
 
-$router->get('/{app}/libraries/', function ($app) use ($appWatcher) {
+$router->get('/{app}/libraries', function ($app) use ($appWatcher) {
     echo $appWatcher->getAppLibraries($app);
 });
 

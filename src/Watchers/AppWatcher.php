@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Mata\Watchers;
 
 use Mata\Utils\Tools;
+use Mata\Watchers\LogParsers\LogParserFactory;
 use RuntimeException;
 
 // use Alerts\LogAlert;
@@ -18,6 +19,7 @@ class AppWatcher
     private array $watcherConfig;
     private array $transmitConfig;
     private array $appsConfig;
+    private array $parserCache = [];
 
     public function __construct(Tools $tools, string $rootPath, array $watcherConfig, array $transmitConfig)
     {
@@ -145,7 +147,7 @@ class AppWatcher
         $app = strtolower($app);
         $this->loadAppConfig($app);
 
-        $status = $this->analyzeErrorLog($this->rootPath . '/' . $this->watcherConfig[$app]['logs'][0], 3600);
+        $status = $this->getLogStats($this->rootPath . '/' . $this->watcherConfig[$app]['logs'][0]);
 
         return [
             'path' => $this->watcherConfig[$app]['path'],
@@ -173,7 +175,7 @@ class AppWatcher
         $app = strtolower($app);
         $this->loadAppConfig($app);
 
-        return json_encode($this->analyzeErrorLog($this->rootPath . '/' . $this->watcherConfig[$app]['logs'][0], 60));
+        return json_encode($this->getLogStats($this->rootPath . '/' . $this->watcherConfig[$app]['logs'][0]));
 
     }
 
@@ -271,7 +273,7 @@ class AppWatcher
         return count($files);
     }
 
-    public function getLogs(string $app, string $filter = '', int $limit = 50): string
+    public function getLogEntries(string $app, string $filter = '', int $limit = 50): string
     {
         $app = strtolower($app);
         $this->loadAppConfig($app);
@@ -281,26 +283,11 @@ class AppWatcher
             return '';
         }
 
-        $grepPattern = '';
+        $parser = $this->getLogParser($app, $logFile);
+        $grepPattern = $parser->getGrepPattern($filter);
 
-        switch ($filter) {
-            case 'errors':
-                $grepPattern = "grep 'PHP Fatal error\\|PHP Parse error\\|PHP Error'";
-
-                break;
-
-            case 'warnings':
-                $grepPattern = "grep 'PHP Warning'";
-
-                break;
-
-            default:
-                $grepPattern = 'cat';
-
-                break;
-        }
-
-        $cmd = 'tail -n 20000 ' . escapeshellarg($logFile) . " | {$grepPattern} | tail -n " . (int) $limit;
+        $grepCmd = $grepPattern ? "grep '{$grepPattern}'" : 'cat';
+        $cmd = 'tail -n 20000 ' . escapeshellarg($logFile) . " | {$grepCmd} | tail -n " . (int) $limit;
         $output = shell_exec($cmd);
 
         $lines = $output ? explode("\n", trim($output)) : [];
@@ -308,24 +295,12 @@ class AppWatcher
         return json_encode($lines);
     }
 
-    public function analyzeErrorLog(string $logFile, int|string $filter): array
+    public function getLogStats(string $logFile): array
     {
-        $result = [
-            'fatal' => 0,
-            'warnings' => 0,
-            'total' => 0,
-        ];
-        $cutoff = time() - $filter;
+        $app = $this->extractAppFromPath($logFile);
+        $parser = $this->getLogParser($app, $logFile);
 
-        $warningCount = (int) shell_exec("grep -c 'PHP Warning' " . escapeshellarg($logFile));
-        $errorCount = (int) shell_exec("grep -c 'PHP Fatal error\\|PHP Parse error\\|PHP Error' " . escapeshellarg($logFile));
-        $totalLines = (int) shell_exec('wc -l < ' . escapeshellarg($logFile));
-
-        return [
-            'fatal' => $errorCount,
-            'warnings' => $warningCount,
-            'total' => $totalLines,
-        ];
+        return $parser->analyzeLog($logFile);
     }
 
     private function isComposerAutoEnabled(mixed $composerConfig): bool
@@ -516,66 +491,70 @@ class AppWatcher
         return json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
     }
 
+    /**
+     * Get appropriate log parser for an app.
+     *
+     * Checks config for log_format override, otherwise auto-detects.
+     */
+    private function getLogParser(string $app, string $logFile): object
+    {
+        // Check cache first
+        if (isset($this->parserCache[$app])) {
+            return $this->parserCache[$app];
+        }
+
+        $parser = null;
+
+        // Check if config specifies log_format
+        $configFormat = $this->watcherConfig[$app]['log_format'] ?? null;
+
+        if ($configFormat !== null) {
+            // Use specified format
+            $parser = LogParserFactory::getParser($configFormat);
+
+            if ($parser === null) {
+                error_log("Invalid log_format '{$configFormat}' for app '{$app}', using auto-detection");
+            }
+        }
+
+        // Fall back to auto-detection
+        if ($parser === null) {
+            $parser = LogParserFactory::detectFormat($logFile);
+        }
+
+        // Cache parser for this app
+        $this->parserCache[$app] = $parser;
+
+        return $parser;
+    }
+
+    /**
+     * Extract app name from log file path.
+     *
+     * Matches path against watcherConfig to find app name.
+     */
+    private function extractAppFromPath(string $logFile): string
+    {
+        foreach ($this->watcherConfig as $app => $config) {
+            if (!isset($config['logs'])) {
+                continue;
+            }
+
+            foreach ($config['logs'] as $log) {
+                if (str_contains($logFile, $log)) {
+                    return $app;
+                }
+            }
+        }
+
+        return '';
+    }
+
     public function errorlogToJson(string $errorlogFile, int $maxLines = 100): string
     {
-        if (!file_exists($errorlogFile) || !is_readable($errorlogFile)) {
-            throw new RuntimeException("errorlog not found or unreadable: {$errorlogFile}");
-        }
+        $app = $this->extractAppFromPath($errorlogFile);
+        $parser = $this->getLogParser($app, $errorlogFile);
 
-        $escapedLogFile = escapeshellarg($errorlogFile);
-        $escapedLines = intval($maxLines);
-
-        $output = shell_exec("tail -n {$escapedLines} {$escapedLogFile}");
-        if ($output === null) {
-            throw new RuntimeException('failed to read log using tail');
-        }
-
-        $lines = explode("\n", trim($output));
-        $logEntries = [];
-        $currentEntry = '';
-
-        $entryStartPattern = '/^\[\d{2}-[A-Za-z]{3}-\d{4} \d{2}:\d{2}:\d{2} [^\]]+\]/';
-
-        foreach ($lines as $line) {
-            if (preg_match($entryStartPattern, $line)) {
-                if ($currentEntry !== '') {
-                    $logEntries[] = $currentEntry;
-                }
-                $currentEntry = $line;
-            } else {
-                $currentEntry .= "\n" . $line;
-            }
-        }
-
-        if ($currentEntry !== '') {
-            $logEntries[] = $currentEntry;
-        }
-
-        $parsedEntries = [];
-
-        foreach ($logEntries as $entry) {
-            if (preg_match('/^\[(.*?)\] PHP ([\w\s]+): (.+)$/s', $entry, $matches)) {
-
-                $timestamp = $matches[1];
-                $type = trim($matches[2]);
-                $message = trim($matches[3]);
-
-                $normalizedType = match (true) {
-                    stripos($type, 'warning') !== false => 'Warning',
-                    stripos($type, 'error') !== false => 'Error',
-                    stripos($type, 'deprecated') !== false => 'Deprecated',
-                    default => 'Other'
-                };
-
-                $parsedEntries[] = [
-                    'timestamp' => $timestamp,
-                    'type' => $normalizedType,
-                    'message' => $message,
-                ];
-            }
-        }
-
-        return json_encode($parsedEntries, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-
+        return $parser->parseToJson($errorlogFile, $maxLines);
     }
 }
