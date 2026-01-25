@@ -43,8 +43,8 @@ chmod -R 755 /var/www/html/config
 echo "🔒 Securing users.json files..."
 find /var/www/html/config -name "users.json" -type f -exec chown www-data:www-data {} \; -exec chmod 600 {} \; 2>/dev/null || true
 
-# If vendor doesn't exist, run composer install
-if [ ! -d "/var/www/html/vendor" ]; then
+# If vendor autoload doesn't exist, run composer install
+if [ ! -f "/var/www/html/vendor/autoload.php" ]; then
     echo "📦 Installing Composer dependencies..."
     composer install --no-interaction --optimize-autoloader
 fi
