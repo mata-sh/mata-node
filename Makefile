@@ -34,9 +34,9 @@ help:
 	@echo ""
 	@echo "$(COLOR_BOLD)Docker Dev Environment:$(COLOR_RESET)"
 	@echo "  $(COLOR_CYAN)Setup:$(COLOR_RESET)"
-	@echo "    $(COLOR_GREEN)make docker-setup$(COLOR_RESET)  - Docker environment setup only"
+	@echo "    $(COLOR_GREEN)make docker-setup$(COLOR_RESET)  - Docker environment setup only (optional - dev-start does this automatically)"
 	@echo "  $(COLOR_CYAN)Development:$(COLOR_RESET)"
-	@echo "    $(COLOR_GREEN)make dev-start$(COLOR_RESET)           - Start full Docker environment"
+	@echo "    $(COLOR_GREEN)make dev-start$(COLOR_RESET)           - Start full Docker environment (auto-runs setup if needed)"
 	@echo "    $(COLOR_GREEN)make dev-logs$(COLOR_RESET)      - Start dev and follow logs"
 	@echo "    $(COLOR_GREEN)make dev-stop$(COLOR_RESET)      - Stop development"
 	@echo "    $(COLOR_GREEN)make dev-recreate$(COLOR_RESET)  - Recreate containers (reload env files)"
@@ -235,17 +235,27 @@ docker-setup:
 	@echo "$(COLOR_YELLOW)2.$(COLOR_RESET) Edit $(COLOR_BOLD)config/config.env$(COLOR_RESET) - set DOMAIN, APP_ENV, WATCHER_ENCRYPTION_SECRET"
 	@echo "    $(COLOR_BLUE)Note:$(COLOR_RESET) DB_HOST is auto-set to 'mata-db' for Docker networking"
 	@echo "$(COLOR_YELLOW)3.$(COLOR_RESET) Start containers: $(COLOR_CYAN)make dev-start$(COLOR_RESET)"
-	@echo "$(COLOR_YELLOW)4.$(COLOR_RESET) Login at http://localhost:8080 with $(COLOR_CYAN)dev/password$(COLOR_RESET) or $(COLOR_CYAN)admin/password$(COLOR_RESET)"
+	@echo "$(COLOR_YELLOW)4.$(COLOR_RESET) Login at http://localhost:3310 with $(COLOR_CYAN)dev/password$(COLOR_RESET) or $(COLOR_CYAN)admin/password$(COLOR_RESET)"
 
 ## Development (Docker)
 
-# Start development environment
+# Start development environment (auto-runs docker-setup if needed)
 dev-start:
 	@echo "$(COLOR_BLUE)🚀 Starting docker development environment...$(COLOR_RESET)"
+	@# Check if setup is needed
+	@if [ ! -f .env ] || [ ! -f config/config.env ] || [ ! -f config/mail.config.env ]; then \
+		echo "$(COLOR_YELLOW)⚠️  Setup files missing. Running docker-setup first...$(COLOR_RESET)"; \
+		echo ""; \
+		$(MAKE) docker-setup; \
+		echo ""; \
+	fi
 	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 	@echo ""
 	@echo "$(COLOR_GREEN)✅ Development environment running!$(COLOR_RESET)"
-	@echo "$(COLOR_CYAN)🌐 http://localhost:$${WEB_PORT:-8080}$(COLOR_RESET)"
+	@# Read actual port from .env file or use default
+	@PORT=$$(grep -E '^WEB_PORT=' .env 2>/dev/null | cut -d '=' -f2 || echo "3310"); \
+	echo "$(COLOR_CYAN)🌐 API: http://localhost:$$PORT$(COLOR_RESET)"; \
+	echo "$(COLOR_CYAN)🩺 Health: http://localhost:$$PORT/health$(COLOR_RESET)"
 	@echo "$(COLOR_YELLOW)👤 Login: dev/password or admin/password$(COLOR_RESET)"
 
 # Start dev environment and follow logs
@@ -425,10 +435,10 @@ docker-help:
 	@echo "$(COLOR_BOLD)$(COLOR_CYAN)Docker Development Commands:$(COLOR_RESET)"
 	@echo ""
 	@echo "$(COLOR_BOLD)Setup:$(COLOR_RESET)"
-	@echo "  $(COLOR_GREEN)make docker-setup$(COLOR_RESET)    - First-time environment setup"
+	@echo "  $(COLOR_GREEN)make docker-setup$(COLOR_RESET)    - First-time environment setup (optional)"
 	@echo ""
 	@echo "$(COLOR_BOLD)Development:$(COLOR_RESET)"
-	@echo "  $(COLOR_GREEN)make dev-start$(COLOR_RESET)             - Start development environment"
+	@echo "  $(COLOR_GREEN)make dev-start$(COLOR_RESET)             - Start development environment (auto-setup if needed)"
 	@echo "  $(COLOR_GREEN)make dev-logs$(COLOR_RESET)        - Start dev and follow logs"
 	@echo "  $(COLOR_GREEN)make dev-stop$(COLOR_RESET)        - Stop development environment"
 	@echo "  $(COLOR_GREEN)make dev-restart$(COLOR_RESET)     - Restart development containers"
