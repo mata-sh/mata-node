@@ -2,6 +2,10 @@
 ARG PHP_VERSION=8.3
 ARG COMPOSER_VERSION=latest
 
+# Composer stage (allows variable expansion)
+FROM composer:${COMPOSER_VERSION} AS composer
+
+# Main stage
 FROM php:${PHP_VERSION}-apache
 
 # Install system dependencies including development tools
@@ -30,8 +34,7 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
 #     && docker-php-ext-enable xdebug
 
 # Install Composer
-ARG COMPOSER_VERSION
-COPY --from=composer:${COMPOSER_VERSION} /usr/bin/composer /usr/bin/composer
+COPY --from=composer /usr/bin/composer /usr/bin/composer
 
 # Set working directory
 WORKDIR /var/www/html
