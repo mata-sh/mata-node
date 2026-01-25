@@ -9,8 +9,19 @@
             "filename_regex": ""
         },
         "logs": [
-            "example-app/logs/error.log",
-            "example-app/logs/app.log"
+            {
+                "type": "php_error_log",
+                "paths": [
+                    "example-app/logs/error.log"
+                ]
+            },
+            {
+                "type": "monolog",
+                "paths": [
+                    "example-app/logs/app.log",
+                    "example-app/logs/debug.log"
+                ]
+            }
         ],
         "configs": [
             "example-app/config/config.env",
@@ -18,7 +29,7 @@
             "example-app/config/mail.config.env"
         ],
         "cronjob-heartbeat": "example-app/includes/heartbeat.log",
-        "description": "Full-featured example with all optional fields",
+        "description": "Full-featured example with new log format specifying parser types",
         "composer": {
             "json": "example-app/composer.json",
             "lock": "example-app/composer.lock",
@@ -34,7 +45,53 @@
         ],
         "configs": [
             "minimal-app/config/config.env"
-        ]
+        ],
+        "description": "Old format (simple array) - uses auto-detection"
+    },
+    "auto-detect-app": {
+        "title": "Auto-detect Log Format",
+        "url": "https://example.com/autodetect",
+        "path": "autodetect-app",
+        "logs": [
+            {
+                "paths": [
+                    "autodetect-app/logs/error.log",
+                    "autodetect-app/logs/app.log"
+                ]
+            }
+        ],
+        "configs": [
+            "autodetect-app/config/config.env"
+        ],
+        "description": "New format without type specified - uses auto-detection"
+    },
+    "mixed-logs-app": {
+        "title": "Mixed Log Types",
+        "url": "https://example.com/mixed",
+        "path": "mixed-app",
+        "logs": [
+            {
+                "type": "json",
+                "paths": [
+                    "mixed-app/logs/structured.log"
+                ]
+            },
+            {
+                "type": "monolog",
+                "paths": [
+                    "mixed-app/logs/application.log"
+                ]
+            },
+            {
+                "paths": [
+                    "mixed-app/logs/legacy.log"
+                ]
+            }
+        ],
+        "configs": [
+            "mixed-app/config/config.env"
+        ],
+        "description": "Multiple log groups with different parsers + auto-detect"
     },
     "composer-enabled": {
         "title": "Composer Auto-detect",
@@ -46,6 +103,7 @@
         "configs": [
             "composer-app/config/config.env"
         ],
-        "composer": true
+        "composer": true,
+        "description": "Old format with composer auto-detect"
     }
 }

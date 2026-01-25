@@ -8,6 +8,7 @@ use Mata\Utils\Tools;
 use Mata\Watchers\AppWatcher;
 use Mata\Watchers\LogParsers\LogParserFactory;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
 
 /**
  * Integration tests for log parsing system with AppWatcher.
@@ -26,6 +27,7 @@ class LogParserIntegrationTest extends TestCase
     private string $fixturesPath;
     private string $rootPath;
     private Tools $tools;
+    private ?string $previousErrorLog = null;
 
     protected function setUp(): void
     {
@@ -39,6 +41,10 @@ class LogParserIntegrationTest extends TestCase
 
     protected function tearDown(): void
     {
+        if ($this->previousErrorLog !== null) {
+            ini_set('error_log', $this->previousErrorLog);
+            $this->previousErrorLog = null;
+        }
         LogParserFactory::clearCache();
     }
 
@@ -46,10 +52,10 @@ class LogParserIntegrationTest extends TestCase
     {
         $transmitConfig = [];
 
-        return new AppWatcher($this->tools, $this->rootPath, $watcherConfig, $transmitConfig);
+        return new AppWatcher($this->tools, new NullLogger(), $this->rootPath, $watcherConfig, $transmitConfig);
     }
 
-    public function testErrorlogToJsonWithPhpErrorLog(): void
+    public function testGetLogEntriesWithPhpErrorLog(): void
     {
         $watcherConfig = [
             'testapp' => [
@@ -58,23 +64,20 @@ class LogParserIntegrationTest extends TestCase
         ];
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
-        $logFile = $this->fixturesPath . '/php_error.log';
-
-        $result = $appWatcher->errorlogToJson($logFile, 100);
+        $result = $appWatcher->getLogEntries('testapp', '', 10);
 
         $this->assertJson($result);
         $parsed = json_decode($result, true);
         $this->assertIsArray($parsed);
-        $this->assertNotEmpty($parsed);
+        $this->assertArrayHasKey('logs/php_error.log', $parsed);
+        $this->assertNotEmpty($parsed['logs/php_error.log']);
 
-        // Verify structure
-        $firstEntry = $parsed[0];
-        $this->assertArrayHasKey('timestamp', $firstEntry);
-        $this->assertArrayHasKey('type', $firstEntry);
-        $this->assertArrayHasKey('message', $firstEntry);
+        $firstEntry = $parsed['logs/php_error.log'][0] ?? '';
+        $this->assertMatchesRegularExpression('/^\[\d{2}-[A-Za-z]{3}-\d{4}/', $firstEntry);
+        $this->assertStringContainsString('PHP', $firstEntry);
     }
 
-    public function testErrorlogToJsonWithMonologLog(): void
+    public function testGetLogEntriesWithMonologLog(): void
     {
         $watcherConfig = [
             'testapp' => [
@@ -83,23 +86,19 @@ class LogParserIntegrationTest extends TestCase
         ];
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
-        $logFile = $this->fixturesPath . '/monolog.log';
-
-        $result = $appWatcher->errorlogToJson($logFile, 100);
+        $result = $appWatcher->getLogEntries('testapp', '', 10);
 
         $this->assertJson($result);
         $parsed = json_decode($result, true);
         $this->assertIsArray($parsed);
-        $this->assertNotEmpty($parsed);
+        $this->assertArrayHasKey('logs/monolog.log', $parsed);
+        $this->assertNotEmpty($parsed['logs/monolog.log']);
 
-        // Verify Monolog-specific structure
-        $firstEntry = $parsed[0];
-        $this->assertArrayHasKey('channel', $firstEntry);
-        $this->assertArrayHasKey('level', $firstEntry);
-        $this->assertEquals('app', $firstEntry['channel']);
+        $firstEntry = $parsed['logs/monolog.log'][0] ?? '';
+        $this->assertMatchesRegularExpression('/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] \w+\.\w+:/', $firstEntry);
     }
 
-    public function testErrorlogToJsonWithJsonLog(): void
+    public function testGetLogEntriesWithJsonLog(): void
     {
         $watcherConfig = [
             'testapp' => [
@@ -108,41 +107,44 @@ class LogParserIntegrationTest extends TestCase
         ];
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
-        $logFile = $this->fixturesPath . '/json.log';
-
-        $result = $appWatcher->errorlogToJson($logFile, 100);
+        $result = $appWatcher->getLogEntries('testapp', '', 10);
 
         $this->assertJson($result);
         $parsed = json_decode($result, true);
         $this->assertIsArray($parsed);
-        $this->assertNotEmpty($parsed);
+        $this->assertArrayHasKey('logs/json.log', $parsed);
+        $this->assertNotEmpty($parsed['logs/json.log']);
 
-        // Verify JSON-specific structure
-        $firstEntry = $parsed[0];
-        $this->assertArrayHasKey('context', $firstEntry);
-        $this->assertIsArray($firstEntry['context']);
+        $firstEntry = $parsed['logs/json.log'][0] ?? '';
+        $decoded = json_decode($firstEntry, true);
+        $this->assertIsArray($decoded);
+        $this->assertArrayHasKey('context', $decoded);
     }
 
-    public function testErrorlogToJsonWithConfiguredFormat(): void
+    public function testGetLogEntriesWithConfiguredFormat(): void
     {
         $watcherConfig = [
             'testapp' => [
-                'logs' => ['logs/php_error.log'],
-                'log_format' => 'monolog', // Force monolog parser
+                'logs' => [
+                    [
+                        'type' => 'monolog',
+                        'paths' => ['logs/php_error.log'],
+                    ],
+                ],
             ],
         ];
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
-        $logFile = $this->fixturesPath . '/php_error.log';
-
-        $result = $appWatcher->errorlogToJson($logFile, 100);
+        $result = $appWatcher->getLogEntries('testapp', 'errors', 50);
 
         $this->assertJson($result);
-        // Parser will try to parse PHP error log as Monolog, might produce empty or different results
-        // This tests that config override is respected
+        $parsed = json_decode($result, true);
+        $this->assertIsArray($parsed);
+        $this->assertArrayHasKey('logs/php_error.log', $parsed);
+        $this->assertEmpty($parsed['logs/php_error.log']);
     }
 
-    public function testGetLogsWithAutoDetection(): void
+    public function testGetLogEntriesWithAutoDetection(): void
     {
         $watcherConfig = [
             'testapp' => [
@@ -156,9 +158,10 @@ class LogParserIntegrationTest extends TestCase
         $this->assertJson($result);
         $parsed = json_decode($result, true);
         $this->assertIsArray($parsed);
+        $this->assertArrayHasKey('logs/php_error.log', $parsed);
     }
 
-    public function testGetLogsWithMonologFormat(): void
+    public function testGetLogEntriesWithMonologFormat(): void
     {
         $watcherConfig = [
             'testapp' => [
@@ -174,12 +177,15 @@ class LogParserIntegrationTest extends TestCase
         $this->assertIsArray($parsed);
 
         // Should filter for errors using Monolog pattern
-        foreach ($parsed as $line) {
+        foreach ($parsed['logs/monolog.log'] as $line) {
+            if ($line === '') {
+                continue;
+            }
             $this->assertMatchesRegularExpression('/ERROR:|CRITICAL:|EMERGENCY:|ALERT:/', $line);
         }
     }
 
-    public function testGetLogsWithJsonFormat(): void
+    public function testGetLogEntriesWithJsonFormat(): void
     {
         $watcherConfig = [
             'testapp' => [
@@ -195,12 +201,15 @@ class LogParserIntegrationTest extends TestCase
         $this->assertIsArray($parsed);
 
         // Should filter for warnings using JSON pattern
-        foreach ($parsed as $line) {
+        foreach ($parsed['logs/json.log'] as $line) {
+            if ($line === '') {
+                continue;
+            }
             $this->assertStringContainsString('"level":"warning"', $line);
         }
     }
 
-    public function testAnalyzeErrorLogWithPhpErrorLog(): void
+    public function testGetLogStatsWithPhpErrorLog(): void
     {
         $watcherConfig = [
             'testapp' => [
@@ -209,9 +218,9 @@ class LogParserIntegrationTest extends TestCase
         ];
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
-        $logFile = $this->fixturesPath . '/php_error.log';
-
-        $result = $appWatcher->getLogStats($logFile);
+        $resultJson = $appWatcher->getAppLogStatus('testapp');
+        $this->assertJson($resultJson);
+        $result = json_decode($resultJson, true);
 
         $this->assertIsArray($result);
         $this->assertArrayHasKey('fatal', $result);
@@ -221,7 +230,7 @@ class LogParserIntegrationTest extends TestCase
         $this->assertGreaterThan(0, $result['warnings']);
     }
 
-    public function testAnalyzeErrorLogWithMonologLog(): void
+    public function testGetLogStatsWithMonologLog(): void
     {
         $watcherConfig = [
             'testapp' => [
@@ -230,9 +239,9 @@ class LogParserIntegrationTest extends TestCase
         ];
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
-        $logFile = $this->fixturesPath . '/monolog.log';
-
-        $result = $appWatcher->getLogStats($logFile);
+        $resultJson = $appWatcher->getAppLogStatus('testapp');
+        $this->assertJson($resultJson);
+        $result = json_decode($resultJson, true);
 
         $this->assertIsArray($result);
         $this->assertArrayHasKey('fatal', $result);
@@ -240,7 +249,7 @@ class LogParserIntegrationTest extends TestCase
         $this->assertArrayHasKey('total', $result);
     }
 
-    public function testAnalyzeErrorLogWithJsonLog(): void
+    public function testGetLogStatsWithJsonLog(): void
     {
         $watcherConfig = [
             'testapp' => [
@@ -249,9 +258,9 @@ class LogParserIntegrationTest extends TestCase
         ];
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
-        $logFile = $this->fixturesPath . '/json.log';
-
-        $result = $appWatcher->getLogStats($logFile);
+        $resultJson = $appWatcher->getAppLogStatus('testapp');
+        $this->assertJson($resultJson);
+        $result = json_decode($resultJson, true);
 
         $this->assertIsArray($result);
         $this->assertArrayHasKey('fatal', $result);
@@ -268,12 +277,11 @@ class LogParserIntegrationTest extends TestCase
         ];
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
-        $logFile = $this->fixturesPath . '/php_error.log';
 
         // Multiple calls should use cached parser
-        $result1 = $appWatcher->errorlogToJson($logFile, 100);
-        $result2 = $appWatcher->errorlogToJson($logFile, 100);
-        $result3 = $appWatcher->errorlogToJson($logFile, 100);
+        $result1 = $appWatcher->getLogEntries('testapp', 'errors', 50);
+        $result2 = $appWatcher->getLogEntries('testapp', 'errors', 50);
+        $result3 = $appWatcher->getLogEntries('testapp', 'errors', 50);
 
         // Results should be consistent
         $this->assertEquals($result1, $result2);
@@ -296,52 +304,71 @@ class LogParserIntegrationTest extends TestCase
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
 
-        // Test each app uses correct parser
-        $phpResult = $appWatcher->errorlogToJson($this->fixturesPath . '/php_error.log', 10);
-        $monologResult = $appWatcher->errorlogToJson($this->fixturesPath . '/monolog.log', 10);
-        $jsonResult = $appWatcher->errorlogToJson($this->fixturesPath . '/json.log', 10);
+        $phpResult = $appWatcher->getLogEntries('phpapp', 'errors', 10);
+        $monologResult = $appWatcher->getLogEntries('monologapp', 'errors', 10);
+        $jsonResult = $appWatcher->getLogEntries('jsonapp', 'errors', 10);
 
         $this->assertJson($phpResult);
         $this->assertJson($monologResult);
         $this->assertJson($jsonResult);
 
-        // Verify each has correct structure
         $phpParsed = json_decode($phpResult, true);
         $monologParsed = json_decode($monologResult, true);
         $jsonParsed = json_decode($jsonResult, true);
 
-        // PHP log shouldn't have channel
-        $this->assertArrayNotHasKey('channel', $phpParsed[0]);
+        $this->assertArrayHasKey('logs/php_error.log', $phpParsed);
+        $this->assertArrayHasKey('logs/monolog.log', $monologParsed);
+        $this->assertArrayHasKey('logs/json.log', $jsonParsed);
 
-        // Monolog should have channel
-        $this->assertArrayHasKey('channel', $monologParsed[0]);
+        foreach ($phpParsed['logs/php_error.log'] as $line) {
+            if ($line === '') {
+                continue;
+            }
+            $this->assertMatchesRegularExpression('/PHP (Fatal error|Parse error|Error)/', $line);
+        }
 
-        // JSON should have context
-        $this->assertArrayHasKey('context', $jsonParsed[0]);
+        foreach ($monologParsed['logs/monolog.log'] as $line) {
+            if ($line === '') {
+                continue;
+            }
+            $this->assertMatchesRegularExpression('/\.ERROR:|\.CRITICAL:|\.EMERGENCY:|\.ALERT:/', $line);
+        }
+
+        foreach ($jsonParsed['logs/json.log'] as $line) {
+            if ($line === '') {
+                continue;
+            }
+            $this->assertMatchesRegularExpression('/\"level\":\"(error|critical|emergency|alert)\"/', $line);
+        }
     }
 
-    public function testInvalidLogFormatConfigFallsBackToAutoDetect(): void
+    public function testInvalidLogTypeConfigFallsBackToAutoDetect(): void
     {
+        $this->redirectErrorLog();
         $watcherConfig = [
             'testapp' => [
-                'logs' => ['logs/php_error.log'],
-                'log_format' => 'invalid_format', // Invalid format
+                'logs' => [
+                    [
+                        'type' => 'invalid_format',
+                        'paths' => ['logs/php_error.log'],
+                    ],
+                ],
             ],
         ];
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
-        $logFile = $this->fixturesPath . '/php_error.log';
 
-        // Should fall back to auto-detection
-        $result = $appWatcher->errorlogToJson($logFile, 100);
+        // Should fall back to default parser
+        $result = $appWatcher->getLogEntries('testapp', 'errors', 50);
 
         $this->assertJson($result);
         $parsed = json_decode($result, true);
         $this->assertIsArray($parsed);
-        $this->assertNotEmpty($parsed);
+        $this->assertArrayHasKey('logs/php_error.log', $parsed);
+        $this->assertNotEmpty($parsed['logs/php_error.log']);
     }
 
-    public function testGetLogsWithNoFilter(): void
+    public function testGetLogEntriesWithNoFilter(): void
     {
         $watcherConfig = [
             'testapp' => [
@@ -355,10 +382,11 @@ class LogParserIntegrationTest extends TestCase
         $this->assertJson($result);
         $parsed = json_decode($result, true);
         $this->assertIsArray($parsed);
-        $this->assertNotEmpty($parsed);
+        $this->assertArrayHasKey('logs/php_error.log', $parsed);
+        $this->assertNotEmpty($parsed['logs/php_error.log']);
     }
 
-    public function testGetLogsRespectsLimit(): void
+    public function testGetLogEntriesRespectsLimit(): void
     {
         $watcherConfig = [
             'testapp' => [
@@ -372,10 +400,11 @@ class LogParserIntegrationTest extends TestCase
         $this->assertJson($result);
         $parsed = json_decode($result, true);
         $this->assertIsArray($parsed);
-        $this->assertLessThanOrEqual(3, count($parsed));
+        $this->assertArrayHasKey('logs/php_error.log', $parsed);
+        $this->assertLessThanOrEqual(3, count($parsed['logs/php_error.log']));
     }
 
-    public function testErrorlogToJsonHandlesMultilineEntries(): void
+    public function testGetLogEntriesIncludesStackTraceLines(): void
     {
         $watcherConfig = [
             'testapp' => [
@@ -384,31 +413,34 @@ class LogParserIntegrationTest extends TestCase
         ];
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
-        $logFile = $this->fixturesPath . '/php_error.log';
-
-        $result = $appWatcher->errorlogToJson($logFile, 100);
+        $result = $appWatcher->getLogEntries('testapp', '', 50);
         $parsed = json_decode($result, true);
 
-        // Find entry with stack trace
-        $stackTraceEntry = null;
-        foreach ($parsed as $entry) {
-            if (str_contains($entry['message'], 'Stack trace')) {
-                $stackTraceEntry = $entry;
-
-                break;
+        $stackTraceFound = false;
+        $stackFrameFound = false;
+        foreach ($parsed['logs/php_error.log'] as $line) {
+            if (str_contains($line, 'Stack trace')) {
+                $stackTraceFound = true;
+            }
+            if (str_contains($line, '#0')) {
+                $stackFrameFound = true;
             }
         }
 
-        $this->assertNotNull($stackTraceEntry);
-        $this->assertStringContainsString('#0', $stackTraceEntry['message']);
+        $this->assertTrue($stackTraceFound);
+        $this->assertTrue($stackFrameFound);
     }
 
     public function testFormatOverrideInConfig(): void
     {
         $watcherConfig = [
             'testapp' => [
-                'logs' => ['logs/monolog.log'],
-                'log_format' => 'monolog', // Explicit format
+                'logs' => [
+                    [
+                        'type' => 'monolog',
+                        'paths' => ['logs/monolog.log'],
+                    ],
+                ],
             ],
         ];
 
@@ -419,10 +451,22 @@ class LogParserIntegrationTest extends TestCase
         $parsed = json_decode($result, true);
 
         // Should use Monolog grep pattern
-        foreach ($parsed as $line) {
-            if (!empty($line)) {
+        foreach ($parsed['logs/monolog.log'] as $line) {
+            if ($line !== '') {
                 $this->assertMatchesRegularExpression('/ERROR:|CRITICAL:|EMERGENCY:|ALERT:/', $line);
             }
         }
+    }
+
+    private function redirectErrorLog(): void
+    {
+        if ($this->previousErrorLog !== null) {
+            return;
+        }
+
+        $this->previousErrorLog = ini_get('error_log') ?: '';
+        $tempPath = sys_get_temp_dir() . '/mata-node-test-error.log';
+        ini_set('error_log', $tempPath);
+        ini_set('log_errors', '1');
     }
 }

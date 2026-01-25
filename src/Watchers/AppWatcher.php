@@ -6,6 +6,7 @@ namespace Mata\Watchers;
 
 use Mata\Utils\Tools;
 use Mata\Watchers\LogParsers\LogParserFactory;
+use Psr\Log\LoggerInterface;
 use RuntimeException;
 
 // use Alerts\LogAlert;
@@ -14,6 +15,7 @@ use RuntimeException;
 class AppWatcher
 {
     private Tools $tools;
+    private LoggerInterface $logger;
 
     private string $rootPath;
     private array $watcherConfig;
@@ -21,9 +23,10 @@ class AppWatcher
     private array $appsConfig;
     private array $parserCache = [];
 
-    public function __construct(Tools $tools, string $rootPath, array $watcherConfig, array $transmitConfig)
+    public function __construct(Tools $tools, LoggerInterface $logger, string $rootPath, array $watcherConfig, array $transmitConfig)
     {
         $this->tools = $tools;
+        $this->logger = $logger;
         $this->rootPath = $rootPath;
         $this->watcherConfig = $watcherConfig;
         $this->transmitConfig = $transmitConfig;
@@ -121,33 +124,12 @@ class AppWatcher
         return json_encode($result);
     }
 
-    public function getAppErrorlog($app)
-    {
-
-        $errorlogFile = $this->watcherConfig[$app]['logs'][0];
-
-        try {
-            $result[$app] = json_decode(
-                $this->errorlogToJson(
-                    $this->rootPath . '/' . $errorlogFile,
-                    $this->transmitConfig['errorlog_readout_limit']
-                )
-            );
-        } catch (RuntimeException $e) {
-            error_log($e->getMessage());
-
-            return json_encode(['error' => "Failed to read log using tail: {$e->getMessage()}"]);
-        }
-
-        return json_encode($result);
-    }
-
     public function getAppInfo(string $app): array
     {
         $app = strtolower($app);
         $this->loadAppConfig($app);
 
-        $status = $this->getLogStats($this->rootPath . '/' . $this->watcherConfig[$app]['logs'][0]);
+        $status = $this->getLogStats($app);
 
         return [
             'path' => $this->watcherConfig[$app]['path'],
@@ -170,12 +152,12 @@ class AppWatcher
         ];
     }
 
-    public function getAppStatus($app)
+    public function getAppLogStatus($app)
     {
         $app = strtolower($app);
         $this->loadAppConfig($app);
 
-        return json_encode($this->getLogStats($this->rootPath . '/' . $this->watcherConfig[$app]['logs'][0]));
+        return json_encode($this->getLogStats($app));
 
     }
 
@@ -273,34 +255,127 @@ class AppWatcher
         return count($files);
     }
 
-    public function getLogEntries(string $app, string $filter = '', int $limit = 50): string
+    public function getLogEntries(string $app, string $filter = '', ?int $limit = null): string
     {
         $app = strtolower($app);
         $this->loadAppConfig($app);
-        $logFile = $this->rootPath . '/' . $this->watcherConfig[$app]['logs'][0];
+        $limit ??= $this->transmitConfig['errorlog_readout_limit'] ?? 50;
 
-        if (!is_readable($logFile)) {
-            return '';
+        $logs = $this->watcherConfig[$app]['logs'] ?? [];
+        if (empty($logs)) {
+            return json_encode([]);
         }
 
-        $parser = $this->getLogParser($app, $logFile);
-        $grepPattern = $parser->getGrepPattern($filter);
+        $entries = [];
+        foreach ($logs as $logGroup) {
+            $paths = [];
+            $type = '';
 
-        $grepCmd = $grepPattern ? "grep '{$grepPattern}'" : 'cat';
-        $cmd = 'tail -n 20000 ' . escapeshellarg($logFile) . " | {$grepCmd} | tail -n " . (int) $limit;
-        $output = shell_exec($cmd);
+            // app config supports an array of paths and optionally porser-types or a single path
+            if (is_string($logGroup)) {
+                $paths = [$logGroup];
+            } elseif (is_array($logGroup)) {
+                $type = $logGroup['type'] ?? '';
+                $paths = $logGroup['paths'] ?? [];
+            }
 
-        $lines = $output ? explode("\n", trim($output)) : [];
+            if (empty($paths)) {
+                continue;
+            }
 
-        return json_encode($lines);
+            foreach ($paths as $logPath) {
+                if (!is_string($logPath) || $logPath === '') {
+                    continue;
+                }
+
+                $logFile = $this->rootPath . '/' . $logPath;
+
+                if (!is_readable($logFile)) {
+                    $this->logger->warning('Log file not found or unreadable', [
+                        'app' => $app,
+                        'log' => $logFile,
+                    ]);
+                    $entries[$logPath] = [];
+
+                    continue;
+                }
+
+                // parser can be declader via app config or auto-detected
+                $parser = $type !== ''
+                    ? $this->getLogParserByType($type)
+                    : $this->getLogParserByLogfile($logFile);
+                $grepPattern = $parser->getGrepPattern($filter);
+
+                $grepCmd = $grepPattern ? "grep '{$grepPattern}'" : 'cat';
+                $cmd = 'tail -n 20000 ' . escapeshellarg($logFile) . " | {$grepCmd} | tail -n " . (int) $limit;
+                $output = shell_exec($cmd);
+
+                $lines = $output ? explode("\n", trim($output)) : [];
+                $entries[$logPath] = $lines;
+            }
+        }
+
+        return json_encode($entries);
     }
 
-    public function getLogStats(string $logFile): array
+    public function getLogStats(string $app): array
     {
-        $app = $this->extractAppFromPath($logFile);
-        $parser = $this->getLogParser($app, $logFile);
+        $app = strtolower($app);
+        $this->loadAppConfig($app);
 
-        return $parser->analyzeLog($logFile);
+        $logs = $this->watcherConfig[$app]['logs'] ?? [];
+        $totals = [
+            'fatal' => 0,
+            'warnings' => 0,
+            'total' => 0,
+        ];
+
+        if (empty($logs)) {
+            return $totals;
+        }
+
+        foreach ($logs as $logGroup) {
+            $paths = [];
+            $type = '';
+
+            if (is_string($logGroup)) {
+                $paths = [$logGroup];
+            } elseif (is_array($logGroup)) {
+                $type = $logGroup['type'] ?? '';
+                $paths = $logGroup['paths'] ?? [];
+            }
+
+            if (empty($paths)) {
+                continue;
+            }
+
+            foreach ($paths as $logPath) {
+                if (!is_string($logPath) || $logPath === '') {
+                    continue;
+                }
+
+                $logFile = $this->rootPath . '/' . $logPath;
+                if (!is_readable($logFile)) {
+                    $this->logger->warning('Log file not found or unreadable', [
+                        'app' => $app,
+                        'log' => $logFile,
+                    ]);
+
+                    continue;
+                }
+
+                $parser = $type !== ''
+                    ? $this->getLogParserByType($type)
+                    : $this->getLogParserByLogfile($logFile);
+
+                $stats = $parser->analyzeLog($logFile);
+                $totals['fatal'] += (int) ($stats['fatal'] ?? 0);
+                $totals['warnings'] += (int) ($stats['warnings'] ?? 0);
+                $totals['total'] += (int) ($stats['total'] ?? 0);
+            }
+        }
+
+        return $totals;
     }
 
     private function isComposerAutoEnabled(mixed $composerConfig): bool
@@ -492,69 +567,40 @@ class AppWatcher
     }
 
     /**
-     * Get appropriate log parser for an app.
-     *
-     * Checks config for log_format override, otherwise auto-detects.
+     * Get appropriate log parser for a log type.
      */
-    private function getLogParser(string $app, string $logFile): object
+    private function getLogParserByType(string $type): object
     {
-        // Check cache first
-        if (isset($this->parserCache[$app])) {
-            return $this->parserCache[$app];
+        $cacheKey = "type:{$type}";
+        if (isset($this->parserCache[$cacheKey])) {
+            return $this->parserCache[$cacheKey];
         }
 
-        $parser = null;
-
-        // Check if config specifies log_format
-        $configFormat = $this->watcherConfig[$app]['log_format'] ?? null;
-
-        if ($configFormat !== null) {
-            // Use specified format
-            $parser = LogParserFactory::getParser($configFormat);
-
-            if ($parser === null) {
-                error_log("Invalid log_format '{$configFormat}' for app '{$app}', using auto-detection");
-            }
-        }
-
-        // Fall back to auto-detection
+        $parser = LogParserFactory::getParser($type);
         if ($parser === null) {
-            $parser = LogParserFactory::detectFormat($logFile);
+            error_log("Invalid log type '{$type}', using default parser");
+            $parser = LogParserFactory::getParser('php_error_log');
         }
 
-        // Cache parser for this app
-        $this->parserCache[$app] = $parser;
+        $this->parserCache[$cacheKey] = $parser;
 
         return $parser;
     }
 
     /**
-     * Extract app name from log file path.
-     *
-     * Matches path against watcherConfig to find app name.
+     * Get appropriate log parser by inspecting a log file.
      */
-    private function extractAppFromPath(string $logFile): string
+    private function getLogParserByLogfile(string $logFile): object
     {
-        foreach ($this->watcherConfig as $app => $config) {
-            if (!isset($config['logs'])) {
-                continue;
-            }
-
-            foreach ($config['logs'] as $log) {
-                if (str_contains($logFile, $log)) {
-                    return $app;
-                }
-            }
+        $cacheKey = "file:{$logFile}";
+        if (isset($this->parserCache[$cacheKey])) {
+            return $this->parserCache[$cacheKey];
         }
 
-        return '';
-    }
+        $parser = LogParserFactory::detectFormat($logFile);
 
-    public function errorlogToJson(string $errorlogFile, int $maxLines = 100): string
-    {
-        $app = $this->extractAppFromPath($errorlogFile);
-        $parser = $this->getLogParser($app, $errorlogFile);
+        $this->parserCache[$cacheKey] = $parser;
 
-        return $parser->parseToJson($errorlogFile, $maxLines);
+        return $parser;
     }
 }

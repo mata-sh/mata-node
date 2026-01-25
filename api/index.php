@@ -109,7 +109,7 @@ $watcherConfig = json_decode(file_get_contents($paths->appPath . '/config/apps.j
 $databasesConfig = json_decode(file_get_contents($paths->appPath . '/config/databases.json'), true);
 $transmitConfig = json_decode(file_get_contents($paths->appPath . '/config/transmit.json'), true);
 
-$appWatcher = new AppWatcher($tools, $paths->rootPath, $watcherConfig, $transmitConfig);
+$appWatcher = new AppWatcher($tools, $log, $paths->rootPath, $watcherConfig, $transmitConfig);
 $serverWatcher = new ServerWatcher($paths->rootPath, $paths->cachePath, $transmitConfig);
 $databaseWatcher = new DatabaseWatcher($databasesConfig);
 
@@ -204,14 +204,6 @@ $router->get('/{app}/readme', function ($app) use ($appWatcher) {
     echo $appWatcher->getAppReadme($app);
 });
 
-$router->get('/{app}/errorlog', function ($app) use ($appWatcher) {
-    echo $appWatcher->getAppErrorlog($app);
-});
-
-// $router->get('/apps/libraries/json', function() use ($appWatcher) {
-//     echo $appWatcher->getAppsLibrariesJson();
-// });
-
 $router->get('/{app}/session-count', function ($app) use ($appWatcher) {
     $appWatcher->loadAppConfig($app);
     echo $appWatcher->getSessionCount(app: $app);
@@ -223,30 +215,20 @@ $router->get('/{app}/session-count/{filter}', function ($app, $filter) use ($app
 });
 
 $router->get('/{app}/logs', function ($app) use ($appWatcher) {
-    $appWatcher->loadAppConfig($app);
     echo $appWatcher->getLogEntries(app: $app);
+});
+
+$router->get('/{app}/logs-status', function ($app) use ($appWatcher) {
+    echo $appWatcher->getAppLogStatus($app);
 });
 
 $router->get('/{app}/app-config', function ($app) use ($appWatcher) {
     echo $appWatcher->loadAppConfig($app);
 });
 
-$router->get('/{app}/app-status', function ($app) use ($appWatcher) {
-    echo $appWatcher->getAppStatus($app);
-});
-
 $router->get('/{app}/libraries', function ($app) use ($appWatcher) {
     echo $appWatcher->getAppLibraries($app);
 });
-
-
-// $router->get('/app/(\w+)/status', function($app) use ($watcher) {
-//     echo json_encode($watcher->getAppStatus($app));
-// });
-
-// $router->get('/app/(\w+)/logs', function($app) use ($watcher) {
-//     echo json_encode($watcher->getAppLogs($app));
-// });
 
 // Database Watcher
 $router->get('/server-databases', function () use ($databaseWatcher) {
