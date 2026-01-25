@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Mata\Core;
 
 use Mata\Config\Dto\ApplicationConfig;
-use Mata\Services\Foundation\RateLimiterService;
+use Mata\Services\RateLimiterService;
 use Mata\Utils\PathResolver;
 
 /**

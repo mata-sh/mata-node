@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Mata\Factory;
 
 use Mata\Config\Dto\RateLimitingConfig;
-use Mata\Services\Foundation\RateLimiterService;
+use Mata\Services\RateLimiterService;
 use MataSh\RateLimiter\RateLimiter;
 use Psr\Log\LoggerInterface;
 use Redis;

@@ -10,7 +10,7 @@ class ServerWatcher
     private string $cachePath;
     private bool $isDiskSpaceCheckEnabled;
     private string $diskSpaceCheckPath;
-    private string $filecountCacheMaxAge;
+    private int $filecountCacheMaxAge;
 
     public function __construct(string $rootPath, string $cachePath, array $transmitConfig)
     {
@@ -19,7 +19,7 @@ class ServerWatcher
 
         $this->diskSpaceCheckPath = $transmitConfig['check_disk_space_path'] ?? '/';
         $this->isDiskSpaceCheckEnabled = ($transmitConfig['check_disk_space_enabled'] ?? true) !== 'off';
-        $this->filecountCacheMaxAge = $transmitConfig['system_filecount_cache_max_age'] ?? '1800';
+        $this->filecountCacheMaxAge = $transmitConfig['system_filecount_cache_max_age'] ?? 1800;
     }
 
     public function getServerData()

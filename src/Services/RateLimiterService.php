@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Mata\Services\Foundation;
+namespace Mata\Services;
 
 use Mata\Config\Dto\RateLimitingConfig;
 use MataSh\RateLimiter\RateLimiter;
