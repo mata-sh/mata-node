@@ -14,7 +14,7 @@ mkdir -p \
 
 # Copy config files from examples if they don't exist
 echo "📋 Checking for config files..."
-for file in config.env db.config.env mail.config.env; do
+for file in config.env mail.config.env; do
     if [ ! -f "/var/www/html/config/$file" ]; then
         if [ -f "/var/www/html/config/example/${file}.example" ]; then
             cp "/var/www/html/config/example/${file}.example" "/var/www/html/config/$file"

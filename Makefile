@@ -211,7 +211,7 @@ docker-setup:
 	fi
 	@mkdir -p config temp/api_cache logs config/dev
 	@echo "$(COLOR_BLUE)📋 Creating config files from examples...$(COLOR_RESET)"
-	@for file in config.env db.config.env mail.config.env; do \
+	@for file in config.env mail.config.env; do \
 		if [ ! -f "config/$$file" ]; then \
 			cp "config/example/$${file}.example" "config/$$file"; \
 			chmod 600 "config/$$file"; \
@@ -256,7 +256,6 @@ dev-start:
 	@PORT=$$(grep -E '^WEB_PORT=' .env 2>/dev/null | cut -d '=' -f2 || echo "3310"); \
 	echo "$(COLOR_CYAN)🌐 API: http://localhost:$$PORT$(COLOR_RESET)"; \
 	echo "$(COLOR_CYAN)🩺 Health: http://localhost:$$PORT/health$(COLOR_RESET)"
-	@echo "$(COLOR_YELLOW)👤 Login: dev/password or admin/password$(COLOR_RESET)"
 
 # Start dev environment and follow logs
 dev-logs:

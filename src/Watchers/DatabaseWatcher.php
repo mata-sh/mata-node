@@ -7,25 +7,16 @@ namespace Mata\Watchers;
 use InvalidArgumentException;
 use Mata\Config\Dto\DatabaseConfig;
 use Mata\Core\Database;
+use PDOException;
 
 class DatabaseWatcher
 {
     private array $connections = [];
+    private array $configs = [];
 
     public function __construct(array $databasesConfig)
     {
-        foreach ($databasesConfig as $name => $config) {
-            $this->connections[$name] = new Database(
-                new DatabaseConfig(
-                    host: $config['host'],
-                    username: $config['username'],
-                    password: $config['password'],
-                    database: $config['database'],
-                    port: $config['port'],
-                    description: $config['description'] ?? ''
-                )
-            );
-        }
+        $this->configs = $databasesConfig;
     }
 
     /**
@@ -35,11 +26,36 @@ class DatabaseWatcher
      */
     private function getConnection(string $databaseName): Database
     {
-        if (!isset($this->connections[$databaseName])) {
+        if (!isset($this->configs[$databaseName])) {
             throw new InvalidArgumentException(
                 "Database connection '{$databaseName}' not found. "
-                . 'Available: ' . implode(', ', array_keys($this->connections))
+                . 'Available: ' . implode(', ', array_keys($this->configs))
             );
+        }
+
+        if (!isset($this->connections[$databaseName])) {
+            $config = $this->configs[$databaseName];
+            try {
+                $this->connections[$databaseName] = new Database(
+                    new DatabaseConfig(
+                        host: $config['host'],
+                        username: $config['username'],
+                        password: $config['password'],
+                        database: $config['database'],
+                        port: $config['port'],
+                        description: $config['description'] ?? ''
+                    )
+                );
+            } catch (PDOException $error) {
+                $host = $config['host'] ?? 'unknown';
+                $port = $config['port'] ?? 'unknown';
+                $database = $config['database'] ?? 'unknown';
+                throw new PDOException(
+                    "Failed to connect to database '{$databaseName}' ({$database} on {$host}:{$port}): {$error->getMessage()}",
+                    (int) $error->getCode(),
+                    $error
+                );
+            }
         }
 
         return $this->connections[$databaseName];

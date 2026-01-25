@@ -42,7 +42,6 @@ project/
 │
 ├── config/                           # Application configuration
 │   ├── config.env                    # App settings
-│   ├── db.config.env                 # Database connection
 │   ├── mail.config.env               # Email configuration
 │   ├── dev/                          # Development JSON configs
 │   │   └── users.json                # Dev user credentials
@@ -99,7 +98,6 @@ DB_PASSWORD=secret
 
 Files:
 - `config/config.env` - General app settings
-- `config/db.config.env` - Database connection details
 - `config/mail.config.env` - Email configuration
 
 #### 3. Environment-Specific Data (`config/{env}/*.json`)
@@ -397,25 +395,6 @@ echo "WEB_PORT=8081" >> .env
 
 # Or stop conflicting service
 lsof -ti:8080 | xargs kill -9
-```
-
-### Database Connection Fails
-
-**Problem**: `SQLSTATE[HY000] [2002] Connection refused`
-
-**Checklist**:
-1. Is DB container running? `docker-compose ps`
-2. Check DB logs: `docker-compose logs db`
-3. Verify credentials in `.env` match `config/db.config.env`
-4. Wait for MySQL to fully start (can take 30s)
-
-**Solution**:
-```bash
-# Restart database
-docker-compose restart db
-
-# Check MySQL is ready
-docker-compose exec db mysqladmin ping -h localhost -u root -p
 ```
 
 ### OPcache Not Clearing (Dev)
