@@ -16,5 +16,7 @@ final class EnvironmentConfig
         public readonly string $env,
         public readonly string $domain,
         public readonly string $dir,
+        public readonly string $tempDir,
+        public readonly string $cacheDir,
     ) {}
 }

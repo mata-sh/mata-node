@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Bramus\Router\Router;
 use Mata\Config\EnvConfigFatalException;
 use Mata\Config\EnvConfigManager;
+use Mata\Config\LogConfigurator;
 use Mata\Core\App;
 use Mata\Core\Auth;
 use Mata\Factory\RateLimiterFactory;
@@ -14,10 +15,6 @@ use Mata\Utils\Tools;
 use Mata\Watchers\AppWatcher;
 use Mata\Watchers\DatabaseWatcher;
 use Mata\Watchers\ServerWatcher;
-use Monolog\Formatter\LineFormatter;
-use Monolog\Handler\StreamHandler;
-use Monolog\Level;
-use Monolog\Logger;
 use Symfony\Component\Mailer\Mailer;
 use Symfony\Component\Mailer\Transport;
 
@@ -38,18 +35,13 @@ $tools = new Tools($paths->appPath);
 ini_set('display_errors', 0);
 ini_set('display_startup_errors', 0);
 ini_set('log_errors', 1);
-ini_set('error_log', $paths->logsPath . '/php-error.log');
+ini_set('error_log', $paths->bootLogPath);
 
 // ************************************************************************************************
-// Monolog
+// Monolog (boot logger: errors only)
 // ************************************************************************************************
-$dateFormat = 'Y-m-d H:i:s';
-$output = "[%datetime%] %channel%.%level_name%: %message% %context% %extra%\n";
-$formatter = new LineFormatter($output, $dateFormat, true, true);
-$handler = new StreamHandler($paths->logsPath . '/app.log', Level::Debug);
-$handler->setFormatter($formatter);
-$log = new Logger('app');
-$log->pushHandler($handler);
+$logConfigurator = new LogConfigurator();
+$log = $logConfigurator->createBootLogger($paths);
 
 // ************************************************************************************************
 // Config Initialization
@@ -78,7 +70,17 @@ try {
     exit('Application initialization failed!');
 }
 
+// ************************************************************************************************
+// Setting Environment & configurable Paths
+// ************************************************************************************************
 $environment = $appConfig->environment->env;
+$paths->applyConfig($appConfig);
+
+// ************************************************************************************************
+// Apply Configured Monolog Settings
+// ************************************************************************************************
+ini_set('error_log', $paths->logsPath . '/php-error.log');
+$log = $logConfigurator->createConfiguredLogger($appConfig->logging, $paths, 'app');
 
 // ************************************************************************************************
 // Authentication Setup

@@ -62,6 +62,8 @@ final class EnvConfigLoader
             env: $this->getEnv('APP_ENV', 'prod'),
             domain: $this->getEnv('DOMAIN', ''),
             dir: $this->getEnv('DIR', ''),
+            tempDir: $this->getEnv('TEMP_DIR', ''),
+            cacheDir: $this->getEnv('CACHE_DIR', ''),
         );
     }
 
@@ -199,6 +201,7 @@ final class EnvConfigLoader
                 'message' => 'Log file path not configured - logs may not be written to file',
             ];
         }
+
         if (empty($config->logging->level)) {
             $warnings[] = [
                 'identifier' => 'config.logging.level.missing',
