@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Mata\Watchers;
 
-use InvalidArgumentException;
 use Mata\Config\Dto\DatabaseConfig;
 use Mata\Core\Database;
+use Mata\Watchers\Exceptions\DatabaseWatcherException;
 use PDOException;
 
 class DatabaseWatcher
@@ -22,19 +22,17 @@ class DatabaseWatcher
     /**
      * Get a database connection by name.
      *
-     * @throws InvalidArgumentException if the database name doesn't exist
+     * @throws DatabaseWatcherException if the database name doesn't exist
      */
     private function getConnection(string $databaseName): Database
     {
         if (!isset($this->configs[$databaseName])) {
-            throw new InvalidArgumentException(
-                "Database connection '{$databaseName}' not found. "
-                . 'Available: ' . implode(', ', array_keys($this->configs))
-            );
+            throw DatabaseWatcherException::notFound($databaseName, array_keys($this->configs));
         }
 
         if (!isset($this->connections[$databaseName])) {
             $config = $this->configs[$databaseName];
+
             try {
                 $this->connections[$databaseName] = new Database(
                     new DatabaseConfig(
@@ -50,10 +48,13 @@ class DatabaseWatcher
                 $host = $config['host'] ?? 'unknown';
                 $port = $config['port'] ?? 'unknown';
                 $database = $config['database'] ?? 'unknown';
-                throw new PDOException(
-                    "Failed to connect to database '{$databaseName}' ({$database} on {$host}:{$port}): {$error->getMessage()}",
-                    (int) $error->getCode(),
-                    $error
+
+                throw DatabaseWatcherException::connectionFailed(
+                    $databaseName,
+                    (string) $host,
+                    (string) $port,
+                    (string) $database,
+                    $error->getMessage()
                 );
             }
         }

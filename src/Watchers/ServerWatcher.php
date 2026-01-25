@@ -22,7 +22,7 @@ class ServerWatcher
         $this->filecountCacheMaxAge = $transmitConfig['system_filecount_cache_max_age'] ?? 1800;
     }
 
-    public function getServerData()
+    public function getServerData(): array
     {
 
         $diskSpaceCapacity = 0;
@@ -52,7 +52,7 @@ class ServerWatcher
         $data['ram_used'] = $data['ram_capacity'] - $data['ram_used'];
 
         // error_log(print_r($data,true));
-        return json_encode($data);
+        return $data;
     }
 
     public function getSystemFilecount($maxAgeCache): int
@@ -72,12 +72,12 @@ class ServerWatcher
         return $count;
     }
 
-    public function getPhpProcesses()
+    public function getPhpProcesses(): array
     {
         // Get all running PHP processes
         $rawOutput = shell_exec('ps -eo user,pid,ppid,%cpu,%mem,etime,args | grep "[p]hp"');
         if (!$rawOutput) {
-            return '';
+            return [];
         }
 
         $lines = explode("\n", trim($rawOutput));
@@ -99,7 +99,7 @@ class ServerWatcher
             }
         }
 
-        return json_encode($data);
+        return $data;
     }
 
     private function getDiskStats($path = '/')

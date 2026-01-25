@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Mata\Watchers;
 
 use Mata\Utils\Tools;
+use Mata\Watchers\Exceptions\AppWatcherException;
 use Mata\Watchers\LogParsers\LogParserFactory;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
@@ -32,24 +33,25 @@ class AppWatcher
         $this->transmitConfig = $transmitConfig;
     }
 
-    public function getApps()
+    public function getApps(): array
     {
         $result = [];
         foreach ($this->watcherConfig as $app => $config) {
             $result[$app] = $this->getAppInfo($app);
         }
 
-        return json_encode($result);
+        return $result;
     }
 
-    public function getApp($app)
+    public function getApp(string $app): array
     {
+        $result = [];
         $result[$app] = $this->getAppInfo($app);
 
-        return json_encode($result);
+        return $result;
     }
 
-    public function getAppsComposerAudit(): string
+    public function getAppsComposerAudit(): array
     {
         $result = [];
         foreach ($this->watcherConfig as $app => $config) {
@@ -61,73 +63,63 @@ class AppWatcher
             $result[$app] = $this->composerAudit($paths);
         }
 
-        return json_encode($result);
+        return $result;
     }
 
-    public function getAppsLibrariesJson()
+    public function getAppsLibraries(): array
     {
         $result = [];
         foreach ($this->watcherConfig as $app => $config) {
             $paths = $this->resolveComposerPaths($config);
             if ($paths !== null && !empty($paths['lock'])) {
-                $result[$app] = $this->composerLibrariesToJson($paths['lock']);
+                $result[$app] = $this->composerLibrariesToArray($paths['lock']);
             }
         }
 
         return $result;
     }
 
-    public function getAppsLibraries()
+    public function getAppLibraries(string $app): array
     {
-        $result = [];
-        foreach ($this->watcherConfig as $app => $config) {
-            $paths = $this->resolveComposerPaths($config);
-            if ($paths !== null && !empty($paths['lock'])) {
-                $result[$app] = json_decode(
-                    $this->composerLibrariesToJson($paths['lock'])
-                );
-            }
-        }
-
-        return json_encode($result);
-    }
-
-    public function getAppLibraries(string $app): string
-    {
-        $app = strtolower($app);
-        if (!isset($this->watcherConfig[$app])) {
-            return json_encode(['error' => 'Unknown app']);
-        }
+        $app = $this->requireAppKey($app);
 
         $paths = $this->resolveComposerPaths($this->watcherConfig[$app]);
         if ($paths === null || empty($paths['lock'])) {
-            return json_encode(['error' => 'Composer configuration not found']);
+            throw new AppWatcherException(
+                message: 'Composer configuration not found',
+                error: 'Composer configuration not found',
+                httpStatus: 404,
+                context: ['app' => $app]
+            );
         }
 
-        return $this->composerLibrariesToJson($paths['lock']);
+        return $this->composerLibrariesToArray($paths['lock']);
     }
 
-    public function getAppReadme($app)
+    public function getAppReadme(string $app): array
     {
+        $app = $this->requireAppKey($app);
         $readmeFile = $this->watcherConfig[$app]['readme'] ?? $this->watcherConfig[$app]['path'] . '/README.md';
 
         try {
-            $result[$app] = json_decode(
-                $this->readmeToJson($this->rootPath . '/' . $readmeFile)
-            );
+            $result[$app] = $this->readmeToString($this->rootPath . '/' . $readmeFile);
         } catch (RuntimeException $e) {
-            error_log($e->getMessage());
-
-            return '{}';
+            throw new AppWatcherException(
+                message: $e->getMessage(),
+                error: 'Readme not found',
+                httpStatus: 404,
+                context: ['app' => $app, 'readme' => $readmeFile],
+                previous: $e
+            );
         }
 
-        return json_encode($result);
+        return $result;
     }
 
     public function getAppInfo(string $app): array
     {
-        $app = strtolower($app);
-        $this->loadAppConfig($app);
+        $app = $this->requireAppKey($app);
+        $this->ensureAppConfigLoaded($app);
 
         $status = $this->getLogStats($app);
 
@@ -152,17 +144,18 @@ class AppWatcher
         ];
     }
 
-    public function getAppLogStatus($app)
+    public function getAppLogStatus(string $app): array
     {
-        $app = strtolower($app);
-        $this->loadAppConfig($app);
+        $app = $this->requireAppKey($app);
+        $this->ensureAppConfigLoaded($app);
 
-        return json_encode($this->getLogStats($app));
+        return $this->getLogStats($app);
 
     }
 
-    public function getAppLogs($app)
+    public function getAppLogs(string $app): array
     {
+        $app = $this->requireAppKey($app);
         $logs = [];
         foreach ($this->watcherConfig[$app]['logs'] as $log) {
             $filePath = $this->rootPath . DIRECTORY_SEPARATOR . $log;
@@ -179,13 +172,36 @@ class AppWatcher
             }
         }
 
-        return json_encode($logs);
+        return $logs;
     }
 
-    public function loadAppConfig($app)
+    public function loadAppConfig(string $app): array
     {
+        $app = $this->requireAppKey($app);
+        $this->ensureAppConfigLoaded($app);
+
+        return $this->appsConfig[$app];
+    }
+
+    private function requireAppKey(string $app): string
+    {
+        $normalized = strtolower($app);
+        if (!isset($this->watcherConfig[$normalized])) {
+            $this->logger->warning('Unknown app requested', ['app' => $normalized]);
+
+            throw AppWatcherException::notFound($normalized);
+        }
+
+        return $normalized;
+    }
+
+    private function ensureAppConfigLoaded(string $app): void
+    {
+        if (isset($this->appsConfig[$app])) {
+            return;
+        }
+
         $result = [];
-        $app = strtolower($app);
         $config = [];
         foreach ($this->watcherConfig[$app]['configs'] as $cfg) {
             // Get Config Contents
@@ -199,15 +215,13 @@ class AppWatcher
             $result[$transmit] = $config[$transmit] ?? '';
         }
         $this->appsConfig[$app] = $result;
-
-        return json_encode($result);
     }
 
     public function getSessionCount(string $app, int $maxAgeSeconds = 0): int
     {
         $now = time();
         $count = 0;
-        $app = strtolower($app);
+        $app = $this->requireAppKey($app);
 
         $sessionPath = $this->watcherConfig[$app]['sessions']['path'] ?? '';
         if (empty($sessionPath)) {
@@ -255,15 +269,15 @@ class AppWatcher
         return count($files);
     }
 
-    public function getLogEntries(string $app, string $filter = '', ?int $limit = null): string
+    public function getLogEntries(string $app, string $filter = '', ?int $limit = null): array
     {
-        $app = strtolower($app);
-        $this->loadAppConfig($app);
+        $app = $this->requireAppKey($app);
+        $this->ensureAppConfigLoaded($app);
         $limit ??= $this->transmitConfig['errorlog_readout_limit'] ?? 50;
 
         $logs = $this->watcherConfig[$app]['logs'] ?? [];
         if (empty($logs)) {
-            return json_encode([]);
+            return [];
         }
 
         $entries = [];
@@ -315,13 +329,13 @@ class AppWatcher
             }
         }
 
-        return json_encode($entries);
+        return $entries;
     }
 
     public function getLogStats(string $app): array
     {
-        $app = strtolower($app);
-        $this->loadAppConfig($app);
+        $app = $this->requireAppKey($app);
+        $this->ensureAppConfigLoaded($app);
 
         $logs = $this->watcherConfig[$app]['logs'] ?? [];
         $totals = [
@@ -521,15 +535,15 @@ class AppWatcher
     }
 
     /**
-     * Return a JSON string with all libraries from a composer.lock.
+     * Return all libraries from a composer.lock.
      *
      * @param string $lockFile Path to composer.lock
      *
-     * @return string JSON for Tabulator (array of objects)
+     * @return array<int, array{name: string, version: string, type: string, description: string}>
      *
      * @throws RuntimeException If file unreadable or JSON invalid
      */
-    public function composerLibrariesToJson(string $lockFile): string
+    public function composerLibrariesToArray(string $lockFile): array
     {
 
         // # all installed packages, JSON
@@ -552,18 +566,17 @@ class AppWatcher
             'description' => $p['description'] ?? '',
         ], $packages);
 
-        return json_encode($rows, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+        return $rows;
     }
 
-    public function readmeToJson($readmeFile): string
+    public function readmeToString(string $readmeFile): string
     {
 
         if (!is_readable($readmeFile)) {
             throw new RuntimeException("readme.md not found or unreadable: {$readmeFile}");
         }
-        $data = file_get_contents($readmeFile);
 
-        return json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+        return file_get_contents($readmeFile);
     }
 
     /**
