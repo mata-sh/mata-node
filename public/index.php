@@ -37,7 +37,7 @@ $tools = new Tools($paths->appPath);
 ini_set('display_errors', 0);
 ini_set('display_startup_errors', 0);
 ini_set('log_errors', 1);
-ini_set('error_log', $paths->logsPath . '/phperror.log');
+ini_set('error_log', $paths->logsPath . '/php-error.log');
 
 // ************************************************************************************************
 // Monolog
