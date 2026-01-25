@@ -66,8 +66,8 @@ RUN crontab -u www-data /tmp/crontab \
 # Enable Apache modules
 RUN a2enmod rewrite headers
 
-# Create health check script (checks API health endpoint)
-RUN echo '#!/bin/bash\ncurl -f http://localhost/api/health || exit 1' > /usr/local/bin/healthcheck.sh \
+# Create health check script (checks health endpoint)
+RUN echo '#!/bin/bash\ncurl -f http://localhost/health || exit 1' > /usr/local/bin/healthcheck.sh \
     && chmod +x /usr/local/bin/healthcheck.sh
 
 # Health check configuration
