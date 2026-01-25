@@ -61,7 +61,7 @@ class PathResolver
         if ($cacheDir !== '') {
             $this->cachePath = $this->resolvePath($cacheDir);
         } else {
-            $this->cachePath = $this->tempPath . DIRECTORY_SEPARATOR . 'cach';
+            $this->cachePath = $this->tempPath . DIRECTORY_SEPARATOR . 'cache';
         }
 
         $this->ensureDirectory($this->logsPath);
@@ -136,7 +136,7 @@ class PathResolver
             return $bootPath;
         }
 
-        return '/tmp/mata-boot.log';
+        return sys_get_temp_dir() . 'mata-boot.log';
     }
 
     private function getSystemEnv(string $key): ?string
