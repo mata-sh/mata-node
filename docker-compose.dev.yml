@@ -1,0 +1,37 @@
+services:
+  mata-web:
+    # Development-specific restart policy (easier debugging)
+    restart: "no"
+
+    # Use development Dockerfile
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      args:
+        PHP_VERSION: ${PHP_VERSION:-8.3}
+        COMPOSER_VERSION: ${COMPOSER_VERSION:-latest}
+
+    # Mount entire source code for hot reload
+    volumes:
+      - .:/var/www/html
+      # Use named volume for vendor to persist dependencies
+      - vendor-data:/var/www/html/vendor
+
+    # Development environment overrides
+    environment:
+      # Optional: Xdebug settings (uncomment if Xdebug is enabled in Dockerfile.dev)
+      # - XDEBUG_MODE=debug
+      # - XDEBUG_CONFIG=client_host=host.docker.internal
+      - APP_ENV=dev
+
+    # Development health check (override Dockerfile settings for more generous timeout)
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# Named volumes for development
+volumes:
+  vendor-data:

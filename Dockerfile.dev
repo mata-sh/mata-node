@@ -1,0 +1,90 @@
+# MATA Node - Development Build
+ARG PHP_VERSION=8.3
+ARG COMPOSER_VERSION=latest
+
+FROM php:${PHP_VERSION}-apache
+
+# Install system dependencies including development tools
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    vim \
+    nano \
+    libpng-dev \
+    libjpeg62-turbo-dev \
+    libfreetype6-dev \
+    libonig-dev \
+    libxml2-dev \
+    libzip-dev \
+    zip \
+    unzip \
+    cron \
+    && rm -rf /var/lib/apt/lists/*
+
+# Configure and install PHP extensions
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j$(nproc) pdo_mysql mbstring exif pcntl bcmath gd zip opcache
+
+# Install Xdebug (commented out by default - uncomment if needed)
+# RUN pecl install xdebug \
+#     && docker-php-ext-enable xdebug
+
+# Install Composer
+ARG COMPOSER_VERSION
+COPY --from=composer:${COMPOSER_VERSION} /usr/bin/composer /usr/bin/composer
+
+# Set working directory
+WORKDIR /var/www/html
+
+# Copy composer files (source code will be mounted via volume in dev)
+COPY composer.json composer.lock ./
+
+# Note: composer install is handled by entrypoint-dev.sh on first run
+# This avoids wasteful rebuilds and allows vendor to be managed via named volume
+
+# Create required directories with proper permissions
+RUN mkdir -p \
+    /var/www/html/temp/api_cache \
+    /var/www/html/logs \
+    /var/www/html/config \
+    && chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html \
+    && chmod -R 770 /var/www/html/temp \
+    && chmod -R 770 /var/www/html/logs
+
+# Copy Apache configuration
+COPY docker/apache/000-default.conf /etc/apache2/sites-available/000-default.conf
+
+# Copy development PHP configuration
+COPY docker/php/php-dev.ini /usr/local/etc/php/conf.d/99-custom.ini
+
+# Install crontab for www-data user
+COPY docker/cron/crontab /tmp/crontab
+RUN crontab -u www-data /tmp/crontab \
+    && rm /tmp/crontab
+
+# Enable Apache modules
+RUN a2enmod rewrite headers
+
+# Create health check script (checks API health endpoint)
+RUN echo '#!/bin/bash\ncurl -f http://localhost/api/health || exit 1' > /usr/local/bin/healthcheck.sh \
+    && chmod +x /usr/local/bin/healthcheck.sh
+
+# Health check configuration
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD /usr/local/bin/healthcheck.sh
+
+# Copy development entrypoint script
+COPY docker/entrypoint-dev.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# Expose port 80
+EXPOSE 80
+
+# Use entrypoint script to fix permissions on startup
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+
+# Labels for image metadata
+LABEL maintainer="XarcDev (mata@xarc.dev | https://github.com/xarcdotdev)"
+LABEL description="MATA Node - Development Environment"
+LABEL environment="dev"

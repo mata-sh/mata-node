@@ -1,0 +1,46 @@
+# Production-specific Docker Compose overrides
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  mata-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+      args:
+        PHP_VERSION: ${PHP_VERSION:-8.3.14}
+        COMPOSER_VERSION: ${COMPOSER_VERSION:-2.7.9}
+    restart: always
+
+    # Only mount persistent directories, not source code
+    volumes:
+      - ./config:/var/www/html/config:ro
+      - ./logs:/var/www/html/logs
+      - ./temp:/var/www/html/temp
+
+    # Production environment variables
+    environment:
+      - APP_ENV=prod
+      - DISPLAY_ERRORS=0
+      - LOG_LEVEL=errors
+      - MONOLOG_LEVEL=error
+
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+
+    # Health check with production intervals
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+

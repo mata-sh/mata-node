@@ -1,0 +1,27 @@
+services:
+  mata-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PHP_VERSION: ${PHP_VERSION:-8.3.14}
+        COMPOSER_VERSION: ${COMPOSER_VERSION:-2.7.9}
+    # Note: container_name prevents scaling (docker-compose up --scale)
+    # Remove if you need multiple replicas or orchestration
+    container_name: ${COMPOSE_PROJECT_NAME:-mata-node}-web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    env_file:
+      - ./config/config.env
+      - ./config/mail.config.env
+    environment:
+      # Optional: Override application settings from config/*.env files
+      # See .env.example for available Docker environment variables
+      - APP_ENV=${APP_ENV:-production}
+    networks:
+      - mata-network
+
+networks:
+  mata-network:
+    driver: bridge

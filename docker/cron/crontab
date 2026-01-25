@@ -1,0 +1,17 @@
+# MATA Node Cron Jobs
+#
+# FORMAT (User Crontab - NO username field):
+# ┌───────────── minute (0-59)
+# │ ┌───────────── hour (0-23)
+# │ │ ┌───────────── day of month (1-31)
+# │ │ │ ┌───────────── month (1-12)
+# │ │ │ │ ┌───────────── day of week (0-6, Sunday=0)
+# │ │ │ │ │
+# * * * * * command-to-execute
+#
+# Example (runs every 5 minutes):
+# */5 * * * * cd /var/www/html && /usr/local/bin/php cron/servers_data_fetch.php >> /var/www/html/logs/cron_servers.log 2>&1
+#
+# IMPORTANT: Do NOT include username (www-data) - this is a user crontab, not a system crontab
+# Jobs will run as www-data user automatically.
+
