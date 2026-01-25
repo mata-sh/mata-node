@@ -116,12 +116,51 @@ $databaseWatcher = new DatabaseWatcher($databasesConfig);
 $router = new Router();
 
 // ************************************************************************************************
+// Public Routes (No Authentication Required)
+// ************************************************************************************************
+// Health check endpoint for Docker health checks and monitoring
+$router->get('/health', function () use ($log, $paths) {
+    // Basic health check - verify critical paths are accessible
+    $healthy = true;
+    $checks = [];
+
+    // Check if logs directory is writable
+    $checks['logs_writable'] = is_writable($paths->logsPath);
+    if (!$checks['logs_writable']) {
+        $healthy = false;
+    }
+
+    // Check if cache directory is writable
+    $checks['cache_writable'] = is_writable($paths->cachePath);
+    if (!$checks['cache_writable']) {
+        $healthy = false;
+    }
+
+    // Check if config files exist
+    $checks['config_exists'] = file_exists($paths->appPath . '/config/config.env');
+    if (!$checks['config_exists']) {
+        $healthy = false;
+    }
+
+    $response = [
+        'status' => $healthy ? 'healthy' : 'unhealthy',
+        'timestamp' => date('Y-m-d H:i:s'),
+        'checks' => $checks,
+    ];
+
+    http_response_code($healthy ? 200 : 503);
+    header('Content-Type: application/json');
+    echo json_encode($response);
+});
+
+// ************************************************************************************************
 // Layered Security Middleware
 // ************************************************************************************************
 // Layer 1: Global rate limiting (prevents DoS attacks)
 // Layer 2: Authentication validation (HMAC signature)
 // Layer 3: Failed auth rate limiting (prevents brute force)
-$router->before('GET|POST', '/.*', function () use ($auth, $log, $rateLimiterService) {
+// Note: Health check endpoint (/health) is excluded from authentication
+$router->before('GET|POST', '/(?!health$).*', function () use ($auth, $log, $rateLimiterService) {
     $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
 
     // Layer 1: Check general API rate limit
