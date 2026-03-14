@@ -20,10 +20,35 @@ class JsonParserTest extends TestCase
     private JsonParser $parser;
     private string $fixturesPath;
 
+    /** @var list<string> */
+    private array $tempFiles = [];
+
     protected function setUp(): void
     {
         $this->parser = new JsonParser();
         $this->fixturesPath = __DIR__ . '/../Fixtures/logs';
+    }
+
+    protected function tearDown(): void
+    {
+        foreach ($this->tempFiles as $tempFile) {
+            if (is_file($tempFile)) {
+                unlink($tempFile);
+            }
+        }
+
+        $this->tempFiles = [];
+    }
+
+    private function createTempLogFile(string $contents): string
+    {
+        $tempLog = tempnam(sys_get_temp_dir(), 'mata-json-');
+        $this->assertNotFalse($tempLog);
+
+        file_put_contents($tempLog, $contents);
+        $this->tempFiles[] = $tempLog;
+
+        return $tempLog;
     }
 
     public function testGetNameReturnsCorrectIdentifier(): void
@@ -254,24 +279,18 @@ class JsonParserTest extends TestCase
 
     public function testParseToJsonHandlesExtraField(): void
     {
-        // Create a temporary log file with extra field
-        $tempLog = $this->fixturesPath . '/temp_json_extra.log';
-        file_put_contents($tempLog, '{"timestamp":"2026-01-18T10:30:45.123Z","level":"info","message":"Test","context":{"foo":"bar"},"extra":{"baz":"qux"}}');
+        $tempLog = $this->createTempLogFile('{"timestamp":"2026-01-18T10:30:45.123Z","level":"info","message":"Test","context":{"foo":"bar"},"extra":{"baz":"qux"}}');
 
         $result = $this->parser->parseToJson($tempLog, 100);
         $parsed = json_decode($result, true);
 
         $this->assertArrayHasKey('extra', $parsed[0]);
         $this->assertEquals(['baz' => 'qux'], $parsed[0]['extra']);
-
-        unlink($tempLog);
     }
 
     public function testParseToJsonSkipsInvalidLines(): void
     {
-        // Create a temporary log file with invalid lines
-        $tempLog = $this->fixturesPath . '/temp_json_invalid.log';
-        file_put_contents($tempLog, "not valid json\n{\"timestamp\":\"2026-01-18T10:30:45.123Z\",\"level\":\"info\",\"message\":\"Valid\"}\ninvalid again");
+        $tempLog = $this->createTempLogFile("not valid json\n{\"timestamp\":\"2026-01-18T10:30:45.123Z\",\"level\":\"info\",\"message\":\"Valid\"}\ninvalid again");
 
         $result = $this->parser->parseToJson($tempLog, 100);
         $parsed = json_decode($result, true);
@@ -279,23 +298,17 @@ class JsonParserTest extends TestCase
         // Should only have the valid entry
         $this->assertCount(1, $parsed);
         $this->assertEquals('Valid', $parsed[0]['message']);
-
-        unlink($tempLog);
     }
 
     public function testParseToJsonHandlesAlternativeFieldNames(): void
     {
-        // Create a temporary log file with alternative field names
-        $tempLog = $this->fixturesPath . '/temp_json_alternative.log';
-        file_put_contents($tempLog, '{"time":"2026-01-18T10:30:45.123Z","severity":"error","msg":"Alternative fields"}');
+        $tempLog = $this->createTempLogFile('{"time":"2026-01-18T10:30:45.123Z","severity":"error","msg":"Alternative fields"}');
 
         $result = $this->parser->parseToJson($tempLog, 100);
         $parsed = json_decode($result, true);
 
         $this->assertEquals('2026-01-18T10:30:45.123Z', $parsed[0]['timestamp']);
         $this->assertEquals('Alternative fields', $parsed[0]['message']);
-
-        unlink($tempLog);
     }
 
     public function testParseToJsonThrowsExceptionForNonExistentFile(): void
@@ -351,60 +364,44 @@ class JsonParserTest extends TestCase
 
     public function testParseToJsonHandlesEmptyContext(): void
     {
-        // Create a temporary log file without context
-        $tempLog = $this->fixturesPath . '/temp_json_no_context.log';
-        file_put_contents($tempLog, '{"timestamp":"2026-01-18T10:30:45.123Z","level":"info","message":"No context"}');
+        $tempLog = $this->createTempLogFile('{"timestamp":"2026-01-18T10:30:45.123Z","level":"info","message":"No context"}');
 
         $result = $this->parser->parseToJson($tempLog, 100);
         $parsed = json_decode($result, true);
 
         $this->assertArrayNotHasKey('context', $parsed[0]);
-
-        unlink($tempLog);
     }
 
     public function testParseToJsonHandlesMissingTimestamp(): void
     {
-        // Create a temporary log file without timestamp
-        $tempLog = $this->fixturesPath . '/temp_json_no_timestamp.log';
-        file_put_contents($tempLog, '{"level":"info","message":"No timestamp"}');
+        $tempLog = $this->createTempLogFile('{"level":"info","message":"No timestamp"}');
 
         $result = $this->parser->parseToJson($tempLog, 100);
         $parsed = json_decode($result, true);
 
         // Should have empty timestamp
         $this->assertEquals('', $parsed[0]['timestamp']);
-
-        unlink($tempLog);
     }
 
     public function testParseToJsonHandlesMissingLevel(): void
     {
-        // Create a temporary log file without level
-        $tempLog = $this->fixturesPath . '/temp_json_no_level.log';
-        file_put_contents($tempLog, '{"timestamp":"2026-01-18T10:30:45.123Z","message":"No level"}');
+        $tempLog = $this->createTempLogFile('{"timestamp":"2026-01-18T10:30:45.123Z","message":"No level"}');
 
         $result = $this->parser->parseToJson($tempLog, 100);
         $parsed = json_decode($result, true);
 
         // Should default to info level
         $this->assertEquals('Other', $parsed[0]['type']);
-
-        unlink($tempLog);
     }
 
     public function testParseToJsonHandlesMissingMessage(): void
     {
-        // Create a temporary log file without message
-        $tempLog = $this->fixturesPath . '/temp_json_no_message.log';
-        file_put_contents($tempLog, '{"timestamp":"2026-01-18T10:30:45.123Z","level":"info"}');
+        $tempLog = $this->createTempLogFile('{"timestamp":"2026-01-18T10:30:45.123Z","level":"info"}');
 
         $result = $this->parser->parseToJson($tempLog, 100);
         $parsed = json_decode($result, true);
 
         // Should have empty message
         $this->assertEquals('', $parsed[0]['message']);
-
-        unlink($tempLog);
     }
 }

@@ -1,0 +1,9 @@
+This is not a valid log format
+Some random text here
+2026-01-18 Random log entry
+Another invalid line
+[18-Jan-2026 10:30:45 UTC] PHP Warning: This is a PHP error in valid format
+More invalid content
+{not valid json
+Almost valid but not quite
+[2026-01-18 10:31:12] app.INFO: This is a valid Monolog entry

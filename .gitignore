@@ -21,6 +21,10 @@ temp/
 trash/
 logs/
 
+# allow test fixtures
+!src/Tests/Fixtures/logs/
+!src/Tests/Fixtures/**/*.log
+
 config/*.json
 config/*/*.json
 

@@ -1,0 +1,16 @@
+[18-Jan-2026 10:30:45 UTC] PHP Warning: Undefined array key "user_id" in /var/www/app/controllers/UserController.php on line 42
+[18-Jan-2026 10:31:12 UTC] PHP Parse error: syntax error, unexpected '}', expecting end of file in /var/www/app/helpers/StringHelper.php on line 87
+[18-Jan-2026 10:32:05 UTC] PHP Notice: Trying to access array offset on value of type null in /var/www/app/models/User.php on line 156
+[18-Jan-2026 10:33:01 UTC] PHP Warning: file_get_contents(/tmp/cache/session_xyz.tmp): Failed to open stream: No such file or directory in /var/www/app/cache/FileCache.php on line 67
+[18-Jan-2026 10:34:18 UTC] PHP Deprecated: Function get_magic_quotes_gpc() is deprecated in /var/www/app/legacy/Security.php on line 12
+[18-Jan-2026 10:35:45 UTC] PHP Error: Call to undefined function mysql_connect() in /var/www/app/legacy/Database.php on line 34
+[18-Jan-2026 10:36:22 UTC] PHP Warning: Division by zero in /var/www/app/math/Calculator.php on line 89
+[18-Jan-2026 10:37:55 UTC] PHP Fatal error: Maximum execution time of 30 seconds exceeded in /var/www/app/workers/LongRunningTask.php on line 145
+[18-Jan-2026 10:38:33 UTC] PHP Notice: Undefined variable: config in /var/www/app/bootstrap.php on line 8
+[18-Jan-2026 10:39:12 UTC] PHP Fatal error: Uncaught PDOException: SQLSTATE[HY000] [2002] Connection refused in /var/www/app/database/Connection.php:23
+Stack trace:
+#0 /var/www/app/database/Connection.php(23): PDO->__construct()
+#1 /var/www/app/bootstrap.php(15): Database\Connection::connect()
+#2 /var/www/index.php(5): require_once('...')
+#3 {main}
+  thrown in /var/www/app/database/Connection.php on line 23

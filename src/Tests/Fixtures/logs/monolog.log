@@ -1,0 +1,16 @@
+[2026-01-18 10:30:45] app.INFO: User login successful {"user_id":1234,"ip":"192.168.1.100"}
+[2026-01-18 10:31:12] app.ERROR: Database connection failed {"error":"Connection refused","host":"localhost","port":3306}
+[2026-01-18 10:32:05] app.WARNING: Deprecated API endpoint accessed {"endpoint":"/api/v1/users","message":"Use /api/v2/users instead"}
+[2026-01-18 10:33:22] security.CRITICAL: Multiple failed login attempts detected {"user":"admin","attempts":5,"ip":"203.0.113.42"}
+[2026-01-18 10:34:01] app.DEBUG: Cache miss for key user_profile_1234 {"key":"user_profile_1234","ttl":3600}
+[2026-01-18 10:35:18] payment.ERROR: Payment processing failed {"transaction_id":"TXN-2026-001","amount":99.99,"reason":"Card declined"}
+[2026-01-18 10:36:45] app.NOTICE: Session expired {"session_id":"sess_abc123xyz"}
+[2026-01-18 10:37:22] app.EMERGENCY: Disk space critically low {"available_mb":50,"threshold_mb":100,"partition":"/var"}
+[2026-01-18 10:38:55] worker.WARNING: Job retry limit reached {"job_id":789,"retry_count":3}
+[2026-01-18 10:39:33] app.INFO: Cache cleared successfully {"keys_cleared":1547,"duration_ms":234}
+[2026-01-18 10:40:12] app.ALERT: High memory usage detected {"used_mb":7800,"limit_mb":8192}
+[2026-01-18 10:41:05] api.ERROR: External API timeout {"service":"payment_gateway","timeout_ms":5000}
+Stack trace:
+  at GuzzleHttp\Client->request() in /var/www/app/services/PaymentService.php:45
+  at PaymentService->charge() in /var/www/app/controllers/CheckoutController.php:89
+[2026-01-18 10:42:33] app.INFO: Background job completed {"job":"email_digest","users_notified":523}

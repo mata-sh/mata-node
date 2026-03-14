@@ -1,0 +1,10 @@
+{"timestamp":"2026-01-18T10:30:45.123Z","level":"info","message":"Application started successfully","context":{"version":"2.1.0","environment":"production"}}
+{"timestamp":"2026-01-18T10:31:12.456Z","level":"error","message":"Failed to connect to Redis","context":{"host":"redis.local","port":6379,"error":"Connection timeout"}}
+{"timestamp":"2026-01-18T10:32:05.789Z","level":"warning","message":"High response time detected","context":{"endpoint":"/api/reports","duration_ms":3500,"threshold_ms":2000}}
+{"timestamp":"2026-01-18T10:33:22.012Z","level":"critical","message":"Rate limit exceeded for API key","context":{"api_key":"key_abc123","requests":1050,"limit":1000,"window":"1 hour"}}
+{"timestamp":"2026-01-18T10:34:01.345Z","level":"debug","message":"SQL query executed","context":{"query":"SELECT * FROM users WHERE id = ?","params":[1234],"duration_ms":12}}
+{"timestamp":"2026-01-18T10:35:18.678Z","level":"error","message":"Webhook delivery failed","context":{"webhook_id":"wh_xyz789","url":"https://customer.example.com/webhook","attempt":3,"status_code":500}}
+{"timestamp":"2026-01-18T10:36:45.901Z","level":"info","message":"User created","context":{"user_id":5678,"email":"newuser@example.com","role":"customer"}}
+{"timestamp":"2026-01-18T10:37:22.234Z","level":"emergency","message":"Database replication lag critical","context":{"lag_seconds":120,"threshold_seconds":10,"replica":"db-replica-02"}}
+{"timestamp":"2026-01-18T10:38:55.567Z","level":"warning","message":"S3 upload slow","context":{"bucket":"user-uploads","file_size_mb":15.3,"duration_ms":8900}}
+{"timestamp":"2026-01-18T10:39:33.890Z","level":"info","message":"Email sent successfully","context":{"to":"user@example.com","subject":"Password reset","template":"password_reset_v2"}}

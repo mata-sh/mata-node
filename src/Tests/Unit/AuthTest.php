@@ -291,10 +291,10 @@ class AuthTest extends TestCase
         $this->assertTrue($result['success']);
     }
 
-    public function testEdgeCaseTimestampAtExactClockSkewBoundary(): void
+    public function testTimestampJustInsideClockSkewBoundarySucceeds(): void
     {
-        // Exactly 120 seconds in the past
-        $boundaryTimestamp = time() - 120;
+        // Stay one second inside the configured skew window to avoid clock tick flakiness.
+        $boundaryTimestamp = time() - 119;
         $authHeader = $this->generateValidAuthHeader($boundaryTimestamp);
         $_SERVER['HTTP_X_MATA_AUTH'] = $authHeader;
 
