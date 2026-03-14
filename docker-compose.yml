@@ -24,4 +24,5 @@ services:
 
 networks:
   mata-network:
-    driver: bridge
+    name: mata-network
+    external: true

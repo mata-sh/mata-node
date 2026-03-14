@@ -22,7 +22,7 @@ services:
       # Optional: Xdebug settings (uncomment if Xdebug is enabled in Dockerfile.dev)
       # - XDEBUG_MODE=debug
       # - XDEBUG_CONFIG=client_host=host.docker.internal
-      - APP_ENV=dev
+      - APP_ENV=${APP_ENV:-dev}
 
     # Development health check (override Dockerfile settings for more generous timeout)
     healthcheck:

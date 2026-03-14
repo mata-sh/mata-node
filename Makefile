@@ -68,7 +68,20 @@ help:
 # Full environment setup (composer + config files)
 setup:
 	@echo "$(COLOR_BLUE)📋 Creating config files from examples...$(COLOR_RESET)"
-	@mkdir -p config temp/api_cache logs
+	@mkdir -p config logs
+	@if [ -d temp ]; then \
+		if [ ! -w temp ]; then \
+			echo "$(COLOR_YELLOW)⚠️  temp exists but is not writable; skipping temp/api_cache creation$(COLOR_RESET)"; \
+		else \
+			mkdir -p temp/api_cache; \
+		fi; \
+	else \
+		if mkdir -p temp/api_cache 2>/dev/null; then \
+			:; \
+		else \
+			echo "$(COLOR_YELLOW)⚠️  Could not create temp/api_cache; set TEMP_DIR in config/config.env or create manually$(COLOR_RESET)"; \
+		fi; \
+	fi
 	@for file in config.env mail.config.env; do \
 		if [ ! -f "config/$$file" ]; then \
 			cp "config/example/$${file}.example" "config/$$file"; \
@@ -78,6 +91,22 @@ setup:
 			echo "$(COLOR_YELLOW)⚠️  config/$$file already exists, skipping$(COLOR_RESET)"; \
 		fi; \
 	done
+	@echo ""
+	@echo "$(COLOR_CYAN)🔑 Dashboard API Key$(COLOR_RESET)"
+	@read -p "$(COLOR_CYAN)Paste DASHBOARD_API_KEY from your dashboard (or press Enter to skip): $(COLOR_RESET)" dash_key; \
+	if [ -n "$$dash_key" ]; then \
+		tmpfile=$$(mktemp); \
+		awk -v key="$$dash_key" 'BEGIN{found=0} \
+			/^DASHBOARD_API_KEY=/{print "DASHBOARD_API_KEY=" key; found=1; next} \
+			{print} \
+			END{if(!found) print "DASHBOARD_API_KEY=" key}' \
+			config/config.env > $$tmpfile; \
+		mv $$tmpfile config/config.env; \
+		chmod 600 config/config.env; \
+		echo "$(COLOR_GREEN)✅ Updated DASHBOARD_API_KEY in config/config.env$(COLOR_RESET)"; \
+	else \
+		echo "$(COLOR_YELLOW)⚠️  Skipped. Set DASHBOARD_API_KEY manually in config/config.env$(COLOR_RESET)"; \
+	fi
 	@echo ""
 	@echo "$(COLOR_CYAN)📋 Webserver Configuration$(COLOR_RESET)"
 	@echo "$(COLOR_YELLOW)Which webserver will you use?$(COLOR_RESET)"
@@ -146,7 +175,7 @@ setup:
 	@echo "$(COLOR_GREEN)✅ Development environment ready!$(COLOR_RESET)"
 	@echo ""
 	@echo "$(COLOR_CYAN)⚙️  NEXT STEPS:$(COLOR_RESET)"
-	@echo "$(COLOR_YELLOW)1.$(COLOR_RESET) Edit $(COLOR_BOLD)config/config.env$(COLOR_RESET) - set DOMAIN, DB credentials, WATCHER_ENCRYPTION_SECRET"
+	@echo "$(COLOR_YELLOW)1.$(COLOR_RESET) Edit $(COLOR_BOLD)config/config.env$(COLOR_RESET) - set DOMAIN, DB credentials, DASHBOARD_API_KEY"
 	@echo "$(COLOR_YELLOW)2.$(COLOR_RESET) Edit $(COLOR_BOLD)config/mail.config.env$(COLOR_RESET) - configure email settings (optional)"
 	@echo "$(COLOR_YELLOW)3.$(COLOR_RESET) Choose webserver config from $(COLOR_BOLD)docs/examples/webserver-configs/README.md$(COLOR_RESET)"
 	@echo "$(COLOR_YELLOW)4.$(COLOR_RESET) Create first user: $(COLOR_CYAN)php scripts/user-management/manage-users.php create$(COLOR_RESET)"
@@ -209,7 +238,20 @@ docker-setup:
 	else \
 		echo "$(COLOR_YELLOW)⚠️  .env already exists, skipping$(COLOR_RESET)"; \
 	fi
-	@mkdir -p config temp/api_cache logs config/dev
+	@mkdir -p config logs config/dev
+	@if [ -d temp ]; then \
+		if [ ! -w temp ]; then \
+			echo "$(COLOR_YELLOW)⚠️  temp exists but is not writable; skipping temp/api_cache creation$(COLOR_RESET)"; \
+		else \
+			mkdir -p temp/api_cache; \
+		fi; \
+	else \
+		if mkdir -p temp/api_cache 2>/dev/null; then \
+			:; \
+		else \
+			echo "$(COLOR_YELLOW)⚠️  Could not create temp/api_cache; set TEMP_DIR in config/config.env or create manually$(COLOR_RESET)"; \
+		fi; \
+	fi
 	@echo "$(COLOR_BLUE)📋 Creating config files from examples...$(COLOR_RESET)"
 	@for file in config.env mail.config.env; do \
 		if [ ! -f "config/$$file" ]; then \
@@ -220,6 +262,22 @@ docker-setup:
 			echo "$(COLOR_YELLOW)⚠️  config/$$file already exists, skipping$(COLOR_RESET)"; \
 		fi; \
 	done
+	@echo ""
+	@echo "$(COLOR_CYAN)🔑 Dashboard API Key$(COLOR_RESET)"
+	@read -p "$(COLOR_CYAN)Paste DASHBOARD_API_KEY from your dashboard (or press Enter to skip): $(COLOR_RESET)" dash_key; \
+	if [ -n "$$dash_key" ]; then \
+		tmpfile=$$(mktemp); \
+		awk -v key="$$dash_key" 'BEGIN{found=0} \
+			/^DASHBOARD_API_KEY=/{print "DASHBOARD_API_KEY=" key; found=1; next} \
+			{print} \
+			END{if(!found) print "DASHBOARD_API_KEY=" key}' \
+			config/config.env > $$tmpfile; \
+		mv $$tmpfile config/config.env; \
+		chmod 600 config/config.env; \
+		echo "$(COLOR_GREEN)✅ Updated DASHBOARD_API_KEY in config/config.env$(COLOR_RESET)"; \
+	else \
+		echo "$(COLOR_YELLOW)⚠️  Skipped. Set DASHBOARD_API_KEY manually in config/config.env$(COLOR_RESET)"; \
+	fi
 	@if [ ! -f config/dev/users.json ]; then \
 		echo '{"dev":{"username":"dev","password":"$$2y$$10$$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi","role":"admin"},"admin":{"username":"admin","password":"$$2y$$10$$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi","role":"admin"}}' > config/dev/users.json; \
 		chmod 600 config/dev/users.json; \
@@ -232,7 +290,7 @@ docker-setup:
 	@echo ""
 	@echo "$(COLOR_CYAN)⚙️  NEXT STEPS:$(COLOR_RESET)"
 	@echo "$(COLOR_YELLOW)1.$(COLOR_RESET) Edit $(COLOR_BOLD).env$(COLOR_RESET) - change DB_PASSWORD, MYSQL_ROOT_PASSWORD to secure values"
-	@echo "$(COLOR_YELLOW)2.$(COLOR_RESET) Edit $(COLOR_BOLD)config/config.env$(COLOR_RESET) - set DOMAIN, APP_ENV, WATCHER_ENCRYPTION_SECRET"
+	@echo "$(COLOR_YELLOW)2.$(COLOR_RESET) Edit $(COLOR_BOLD)config/config.env$(COLOR_RESET) - set DOMAIN, APP_ENV, DASHBOARD_API_KEY"
 	@echo "    $(COLOR_BLUE)Note:$(COLOR_RESET) DB_HOST is auto-set to 'mata-db' for Docker networking"
 	@echo "$(COLOR_YELLOW)3.$(COLOR_RESET) Start containers: $(COLOR_CYAN)make dev-start$(COLOR_RESET)"
 	@echo "$(COLOR_YELLOW)4.$(COLOR_RESET) Login at http://localhost:3310 with $(COLOR_CYAN)dev/password$(COLOR_RESET) or $(COLOR_CYAN)admin/password$(COLOR_RESET)"
