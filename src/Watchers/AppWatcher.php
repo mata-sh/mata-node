@@ -255,11 +255,8 @@ class AppWatcher
         }
 
         $backend = $this->sessionBackendFactory->create($sessionConfig);
-        if ($sessionConfig !== []) {
-            $sessionConfig['_app'] = $app;
-        }
 
-        return $backend->getMetadata($sessionConfig, $this->rootPath, $this->cachePath);
+        return $backend->getMetadata($sessionConfig, $this->rootPath, $this->cachePath, $app);
     }
 
     public function getLogEntries(string $app, string $filter = '', ?int $limit = null): array

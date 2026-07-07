@@ -102,7 +102,6 @@ class RedisSessionBackendTest extends TestCase
             ]);
             $backend = new RedisSessionBackend(new FakeRedisSessionClientFactory($client));
             $config = [
-                '_app' => 'testapp',
                 'prefix' => 'PHPREDIS_SESSION:',
                 'cache_ttl_seconds' => 60,
             ];
@@ -113,6 +112,68 @@ class RedisSessionBackendTest extends TestCase
             $this->assertSame($first, $second);
             $this->assertSame(2, $second['count_total']);
             $this->assertCount(1, $client->calls);
+        } finally {
+            $this->removeDirectory($cachePath);
+        }
+    }
+
+    public function testRedisSessionCacheKeyDoesNotHashCredentials(): void
+    {
+        $cachePath = sys_get_temp_dir() . '/mata-node-redis-session-cache-' . bin2hex(random_bytes(6));
+        mkdir($cachePath, 0777, true);
+
+        try {
+            $client = new FakeRedisSessionClient([
+                ['cursor' => '0', 'keys' => ['PHPREDIS_SESSION:a']],
+                ['cursor' => '0', 'keys' => ['PHPREDIS_SESSION:a', 'PHPREDIS_SESSION:b']],
+            ]);
+            $backend = new RedisSessionBackend(new FakeRedisSessionClientFactory($client));
+            $config = [
+                'dsn' => 'redis://user:old-secret@127.0.0.1:6379/0',
+                'prefix' => 'PHPREDIS_SESSION:',
+                'cache_ttl_seconds' => 60,
+            ];
+            $rotatedCredentialsConfig = [
+                'dsn' => 'redis://user:new-secret@127.0.0.1:6379/0',
+                'prefix' => 'PHPREDIS_SESSION:',
+                'cache_ttl_seconds' => 60,
+            ];
+
+            $first = $backend->getMetadata($config, __DIR__, $cachePath, 'testapp');
+            $second = $backend->getMetadata($rotatedCredentialsConfig, __DIR__, $cachePath, 'testapp');
+
+            $this->assertSame($first, $second);
+            $this->assertSame(1, $second['count_total']);
+            $this->assertCount(1, $client->calls);
+        } finally {
+            $this->removeDirectory($cachePath);
+        }
+    }
+
+    public function testExplicitCacheIdentityPartitionsRedisSessionMetadataCache(): void
+    {
+        $cachePath = sys_get_temp_dir() . '/mata-node-redis-session-cache-' . bin2hex(random_bytes(6));
+        mkdir($cachePath, 0777, true);
+
+        try {
+            $client = new FakeRedisSessionClient([
+                ['cursor' => '0', 'keys' => ['PHPREDIS_SESSION:a']],
+                ['cursor' => '0', 'keys' => ['PHPREDIS_SESSION:a', 'PHPREDIS_SESSION:b']],
+            ]);
+            $backend = new RedisSessionBackend(new FakeRedisSessionClientFactory($client));
+            $config = [
+                'prefix' => 'PHPREDIS_SESSION:',
+                'cache_ttl_seconds' => 60,
+            ];
+
+            $appAFirst = $backend->getMetadata($config, __DIR__, $cachePath, 'app-a');
+            $appB = $backend->getMetadata($config, __DIR__, $cachePath, 'app-b');
+            $appASecond = $backend->getMetadata($config, __DIR__, $cachePath, 'app-a');
+
+            $this->assertSame(1, $appAFirst['count_total']);
+            $this->assertSame(2, $appB['count_total']);
+            $this->assertSame($appAFirst, $appASecond);
+            $this->assertCount(2, $client->calls);
         } finally {
             $this->removeDirectory($cachePath);
         }

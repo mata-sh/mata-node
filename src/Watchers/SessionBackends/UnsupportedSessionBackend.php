@@ -15,7 +15,7 @@ final class UnsupportedSessionBackend implements SessionBackendInterface
      *
      * @return array<string, mixed>
      */
-    public function getMetadata(array $config, string $rootPath, ?string $cachePath = null): array
+    public function getMetadata(array $config, string $rootPath, ?string $cachePath = null, ?string $cacheIdentity = null): array
     {
         return [
             'type' => $this->type,

@@ -22,11 +22,11 @@ final class RedisSessionBackend implements SessionBackendInterface
      *
      * @return array<string, mixed>
      */
-    public function getMetadata(array $config, string $rootPath, ?string $cachePath = null): array
+    public function getMetadata(array $config, string $rootPath, ?string $cachePath = null, ?string $cacheIdentity = null): array
     {
         $countKey = $this->resolveCountKey($config);
         if ($countKey === null) {
-            $cached = $this->readCache($config, $cachePath);
+            $cached = $this->readCache($config, $cachePath, $cacheIdentity);
             if ($cached !== null) {
                 return $cached;
             }
@@ -41,7 +41,7 @@ final class RedisSessionBackend implements SessionBackendInterface
                 ? $this->countFromCounterKey($client, $countKey)
                 : $this->countKeys($client, $config);
             if ($countKey === null) {
-                $this->writeCache($config, $cachePath, $metadata);
+                $this->writeCache($config, $cachePath, $metadata, $cacheIdentity);
             }
         } catch (Throwable $e) {
             $metadata['status'] = 'error';
@@ -90,9 +90,9 @@ final class RedisSessionBackend implements SessionBackendInterface
     /**
      * @return null|array<string, mixed>
      */
-    private function readCache(array $config, ?string $cachePath): ?array
+    private function readCache(array $config, ?string $cachePath, ?string $cacheIdentity): ?array
     {
-        $cacheFile = $this->cacheFile($config, $cachePath);
+        $cacheFile = $this->cacheFile($config, $cachePath, $cacheIdentity);
         if ($cacheFile === null || !is_file($cacheFile)) {
             return null;
         }
@@ -114,9 +114,9 @@ final class RedisSessionBackend implements SessionBackendInterface
     /**
      * @param array<string, mixed> $metadata
      */
-    private function writeCache(array $config, ?string $cachePath, array $metadata): void
+    private function writeCache(array $config, ?string $cachePath, array $metadata, ?string $cacheIdentity): void
     {
-        $cacheFile = $this->cacheFile($config, $cachePath);
+        $cacheFile = $this->cacheFile($config, $cachePath, $cacheIdentity);
         if ($cacheFile === null || $this->resolveCacheTtlSeconds($config) <= 0) {
             return;
         }
@@ -129,23 +129,77 @@ final class RedisSessionBackend implements SessionBackendInterface
         @file_put_contents($cacheFile, json_encode($metadata), LOCK_EX);
     }
 
-    private function cacheFile(array $config, ?string $cachePath): ?string
+    private function cacheFile(array $config, ?string $cachePath, ?string $cacheIdentity): ?string
     {
         if ($cachePath === null || $cachePath === '') {
             return null;
         }
 
-        $cacheConfig = $config;
-        unset($cacheConfig['cache_ttl_seconds']);
-        ksort($cacheConfig);
+        $cacheKey = [
+            'connection' => $this->cacheConnectionIdentity($config),
+            'identity' => $cacheIdentity,
+        ];
 
         return rtrim($cachePath, DIRECTORY_SEPARATOR)
             . DIRECTORY_SEPARATOR
             . 'sessions'
             . DIRECTORY_SEPARATOR
             . 'redis-'
-            . sha1(json_encode($cacheConfig) ?: '')
+            . sha1(json_encode($cacheKey) ?: '')
             . '.json';
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     *
+     * @return array<string, mixed>
+     */
+    private function cacheConnectionIdentity(array $config): array
+    {
+        $dsnIdentity = $this->dsnConnectionIdentity($config);
+
+        return [
+            'type' => 'redis',
+            'dsn' => $dsnIdentity,
+            'dsn_env' => $this->scalarConfig($config, 'dsn_env'),
+            'host' => $dsnIdentity['host'] ?? $this->scalarConfig($config, 'host'),
+            'port' => $dsnIdentity['port'] ?? $this->scalarConfig($config, 'port'),
+            'database' => $dsnIdentity['database'] ?? $this->scalarConfig($config, 'database'),
+            'prefix' => $this->resolvePrefix($config),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     *
+     * @return array<string, mixed>
+     */
+    private function dsnConnectionIdentity(array $config): array
+    {
+        $dsn = $this->scalarConfig($config, 'dsn');
+        if ($dsn === null || $dsn === '') {
+            return [];
+        }
+
+        $parts = parse_url($dsn);
+        if (!is_array($parts)) {
+            return ['present' => true];
+        }
+
+        return [
+            'scheme' => $parts['scheme'] ?? null,
+            'host' => $parts['host'] ?? null,
+            'port' => $parts['port'] ?? null,
+            'database' => isset($parts['path']) ? ltrim((string) $parts['path'], '/') : null,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    private function scalarConfig(array $config, string $key): ?string
+    {
+        return is_scalar($config[$key] ?? null) ? (string) $config[$key] : null;
     }
 
     /**

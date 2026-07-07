@@ -85,6 +85,22 @@ class FileSessionBackendTest extends TestCase
         $this->assertNull($metadata['size_kb']);
     }
 
+    public function testInvalidFilenameRegexReturnsErrorEvenWithoutPath(): void
+    {
+        $metadata = (new FileSessionBackend())->getMetadata([
+            'filename_regex' => '/^sess_(/',
+        ], $this->rootPath);
+
+        $this->assertSame('file', $metadata['type']);
+        $this->assertSame('error', $metadata['status']);
+        $this->assertStringStartsWith('Invalid filename_regex:', $metadata['error']);
+        $this->assertNull($metadata['count_last_hour']);
+        $this->assertNull($metadata['count_last_day']);
+        $this->assertNull($metadata['count_total']);
+        $this->assertNull($metadata['path']);
+        $this->assertNull($metadata['size_kb']);
+    }
+
     private function removeDirectory(string $path): void
     {
         if (!is_dir($path)) {
