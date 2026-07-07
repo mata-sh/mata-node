@@ -143,8 +143,10 @@ Then:
 Main runtime settings live in:
 - `.env` — Docker/infrastructure settings
 - `config/config.env` — node application settings
-- `config/apps.json` — watched applications, see [configuration reference](docs/configuration.md#configappsjson)
+- `config/apps.json` — watched applications, sessions, logs, and composer metadata; see [configuration reference](docs/configuration.md#configappsjson)
 - `config/transmit.json` — transmitted metadata and limits, see [configuration reference](docs/configuration.md#configtransmitjson)
+
+Redis session stores should use `sessions.count_key` when available so the node reads one maintained counter instead of scanning session keys.
 
 At minimum, set the shared dashboard credentials in `config/config.env`:
 
