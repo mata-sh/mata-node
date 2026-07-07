@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Mata\Tests\Unit;
 
+use Mata\Tests\Support\FakeShellRunner;
 use Mata\Watchers\LogParsers\JsonParser;
 use Mata\Watchers\LogParsers\LogParserFactory;
 use Mata\Watchers\LogParsers\MonologParser;
@@ -136,20 +137,88 @@ class LogParserFactoryTest extends TestCase
         $this->assertInstanceOf(PhpErrorLogParser::class, $parser);
     }
 
-    public function testDetectFormatCachesResults(): void
+    public function testDetectFormatCachedClassUsesNewRunnerAfterSwap(): void
+    {
+        $logFile = tempnam(sys_get_temp_dir(), 'mata_log_parser_');
+        self::assertNotFalse($logFile);
+
+        $jsonLine = '{"timestamp":"2026-01-01T00:00:00Z","level":"error","message":"x"}';
+        $jsonLog = implode("\n", array_fill(0, 10, $jsonLine)) . "\n";
+        file_put_contents($logFile, $jsonLog);
+
+        $escapedLogFile = escapeshellarg($logFile);
+        $headCommand = 'head -n 10 ' . $escapedLogFile;
+        $errorPattern = '"level":"error"\|"level":"critical"\|"level":"emergency"\|"level":"alert"';
+        $errorCommand = "grep -c '{$errorPattern}' " . $escapedLogFile . ' 2>/dev/null || echo 0';
+        $warningPattern = '"level":"warning"';
+        $warningCommand = "grep -c '{$warningPattern}' " . $escapedLogFile . ' 2>/dev/null || echo 0';
+        $totalCommand = 'wc -l < ' . $escapedLogFile;
+
+        $runnerA = new FakeShellRunner([$headCommand => $jsonLog]);
+        $runnerB = new FakeShellRunner([
+            $errorCommand => '10',
+            $warningCommand => '0',
+            $totalCommand => '10',
+        ]);
+
+        try {
+            $parserA = LogParserFactory::detectFormat($logFile, null, $runnerA);
+            $parserB = LogParserFactory::detectFormat($logFile, null, $runnerB);
+
+            $this->assertNotSame($parserA, $parserB);
+            $this->assertSame($parserA::class, $parserB::class);
+            $this->assertInstanceOf(JsonParser::class, $parserB);
+            $this->assertContains($headCommand, $runnerA->commands);
+
+            $this->assertSame([
+                'fatal' => 10,
+                'warnings' => 0,
+                'total' => 10,
+            ], $parserB->analyzeLog($logFile));
+            $this->assertContains($errorCommand, $runnerB->commands);
+            $this->assertContains($warningCommand, $runnerB->commands);
+            $this->assertContains($totalCommand, $runnerB->commands);
+        } finally {
+            unlink($logFile);
+        }
+    }
+
+    public function testDetectFormatFallbackIsNotSticky(): void
+    {
+        $logFile = tempnam(sys_get_temp_dir(), 'mata_log_parser_');
+        self::assertNotFalse($logFile);
+
+        try {
+            file_put_contents($logFile, '');
+            $fallbackParser = LogParserFactory::detectFormat($logFile);
+            $this->assertInstanceOf(PhpErrorLogParser::class, $fallbackParser);
+
+            $jsonLine = '{"timestamp":"2026-01-01T00:00:00Z","level":"error","message":"x"}';
+            file_put_contents($logFile, implode("\n", array_fill(0, 10, $jsonLine)) . "\n");
+
+            $jsonParser = LogParserFactory::detectFormat($logFile);
+            $this->assertInstanceOf(JsonParser::class, $jsonParser);
+        } finally {
+            unlink($logFile);
+        }
+    }
+
+    public function testDetectFormatCachesClassAndReturnsFreshInstances(): void
     {
         $logFile = $this->fixturesPath . '/php_error.log';
 
-        // First call
+        // First call detects and caches the parser class.
         $parser1 = LogParserFactory::detectFormat($logFile);
 
-        // Second call should return same instance (from cache)
+        // Second call should use cached class but return a fresh instance.
         $parser2 = LogParserFactory::detectFormat($logFile);
 
-        $this->assertSame($parser1, $parser2);
+        $this->assertNotSame($parser1, $parser2);
+        $this->assertSame($parser1::class, $parser2::class);
+        $this->assertSame($parser1->getName(), $parser2->getName());
     }
 
-    public function testDetectFormatCachesDifferentFiles(): void
+    public function testDetectFormatCachesClassesForDifferentFilesAndReturnsFreshInstances(): void
     {
         $phpLog = $this->fixturesPath . '/php_error.log';
         $jsonLog = $this->fixturesPath . '/json.log';
@@ -157,17 +226,21 @@ class LogParserFactoryTest extends TestCase
         $parser1 = LogParserFactory::detectFormat($phpLog);
         $parser2 = LogParserFactory::detectFormat($jsonLog);
 
-        // Different files should have different parsers
-        $this->assertNotSame($parser1, $parser2);
+        // Different files should resolve to their detected parser classes.
+        $this->assertNotSame($parser1::class, $parser2::class);
         $this->assertInstanceOf(PhpErrorLogParser::class, $parser1);
         $this->assertInstanceOf(JsonParser::class, $parser2);
 
-        // Second call to same files should return cached instances
+        // Second call to same files should use cached classes but return fresh instances.
         $parser1Again = LogParserFactory::detectFormat($phpLog);
         $parser2Again = LogParserFactory::detectFormat($jsonLog);
 
-        $this->assertSame($parser1, $parser1Again);
-        $this->assertSame($parser2, $parser2Again);
+        $this->assertNotSame($parser1, $parser1Again);
+        $this->assertNotSame($parser2, $parser2Again);
+        $this->assertSame($parser1::class, $parser1Again::class);
+        $this->assertSame($parser2::class, $parser2Again::class);
+        $this->assertSame($parser1->getName(), $parser1Again->getName());
+        $this->assertSame($parser2->getName(), $parser2Again->getName());
     }
 
     public function testClearCacheClearsDetectionCache(): void
@@ -225,20 +298,26 @@ class LogParserFactoryTest extends TestCase
         $this->assertContains('json', $parsers);
     }
 
-    public function testGetParserReturnsCachedInstanceFromAllParsers(): void
+    public function testGetParserUsesCachedClassesAndReturnsFreshInstances(): void
     {
         $parser1 = LogParserFactory::getParser('php_error_log');
         $parser2 = LogParserFactory::getParser('php_error_log');
 
-        // getParser uses getAllParsers() cache, so should return same instance
-        $this->assertSame($parser1, $parser2);
-        $this->assertEquals($parser1->getName(), $parser2->getName());
+        self::assertNotNull($parser1);
+        self::assertNotNull($parser2);
 
-        // After clearing cache, should get different instance
+        // getParser uses cached parser classes but returns fresh instances.
+        $this->assertNotSame($parser1, $parser2);
+        $this->assertSame($parser1::class, $parser2::class);
+        $this->assertSame($parser1->getName(), $parser2->getName());
+
+        // After clearing cache, should still resolve the same class and name.
         LogParserFactory::clearCache();
         $parser3 = LogParserFactory::getParser('php_error_log');
+        self::assertNotNull($parser3);
         $this->assertNotSame($parser1, $parser3);
-        $this->assertEquals($parser1->getName(), $parser3->getName());
+        $this->assertSame($parser1::class, $parser3::class);
+        $this->assertSame($parser1->getName(), $parser3->getName());
     }
 
     public function testDetectFormatWorksAfterClearCache(): void

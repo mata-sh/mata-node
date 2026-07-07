@@ -17,10 +17,10 @@ use Throwable;
  */
 class LogParserFactory
 {
-    /** @var null|array<int,LogParserInterface> Cached parser instances */
-    private static ?array $parsersCache = null;
+    /** @var null|array<string,class-string<LogParserInterface>> Cached parsers: name => class name; classes accept ?ShellRunnerInterface */
+    private static ?array $parserClassCache = null;
 
-    /** @var array<string,LogParserInterface> Detection cache: logFile => parser instance */
+    /** @var array<string,class-string<LogParserInterface>> Detection cache: logFile => parser class name */
     private static array $detectionCache = [];
 
     /**
@@ -28,15 +28,15 @@ class LogParserFactory
      *
      * @param null|LoggerInterface $logger Logger for reporting parsers that fail to load
      *
-     * @return array<int,LogParserInterface> Array of parser instances
+     * @return array<string,class-string<LogParserInterface>> Parser map: name => class name
      */
-    private static function getAllParsers(?LoggerInterface $logger = null, ?ShellRunnerInterface $shellRunner = null): array
+    private static function getParserClasses(?LoggerInterface $logger = null): array
     {
-        if ($shellRunner === null && self::$parsersCache !== null) {
-            return self::$parsersCache;
+        if (self::$parserClassCache !== null) {
+            return self::$parserClassCache;
         }
 
-        $parsers = [];
+        $parserClasses = [];
         $parserDir = __DIR__;
         $files = glob("{$parserDir}/*Parser.php");
 
@@ -53,27 +53,47 @@ class LogParserFactory
                 continue;
             }
 
-            if (class_exists($fullClass)) {
-                try {
-                    if (!(new ReflectionClass($fullClass))->isInstantiable()) {
-                        continue;
-                    }
+            if (!class_exists($fullClass)) {
+                continue;
+            }
 
-                    $parser = $shellRunner === null ? new $fullClass() : new $fullClass($shellRunner);
-                    if ($parser instanceof LogParserInterface) {
-                        $parsers[] = $parser;
-                    }
-                } catch (Throwable $e) {
-                    $logger?->warning('Failed to load parser', ['class' => $className, 'error' => $e->getMessage()]);
+            $reflection = new ReflectionClass($fullClass);
+            if (!$reflection->isInstantiable()) {
+                continue;
+            }
+
+            try {
+                $probe = new $fullClass();
+                if ($probe instanceof LogParserInterface && !isset($parserClasses[$probe->getName()])) {
+                    // @var class-string<LogParserInterface> $fullClass
+                    $parserClasses[$probe->getName()] = $fullClass;
                 }
+            } catch (Throwable $e) {
+                $logger?->warning('Failed to load parser', [
+                    'class' => $className,
+                    'error' => $e->getMessage(),
+                ]);
             }
         }
 
-        if ($shellRunner === null) {
-            self::$parsersCache = $parsers;
-        }
+        self::$parserClassCache = $parserClasses;
 
-        return $parsers;
+        return $parserClasses;
+    }
+
+    /**
+     * Create a parser instance.
+     *
+     * Every discovered class must accept `?ShellRunnerInterface` as its sole
+     * constructor argument (guaranteed today by extending AbstractLogParser).
+     *
+     * @param class-string<LogParserInterface> $parserClass
+     */
+    private static function makeParser(
+        string $parserClass,
+        ?ShellRunnerInterface $shellRunner = null
+    ): LogParserInterface {
+        return new $parserClass($shellRunner);
     }
 
     /**
@@ -93,30 +113,24 @@ class LogParserFactory
         ?ShellRunnerInterface $shellRunner = null
     ): LogParserInterface {
         // Check cache first
-        if ($shellRunner === null && isset(self::$detectionCache[$logFile])) {
-            return self::$detectionCache[$logFile];
+        if (isset(self::$detectionCache[$logFile])) {
+            return self::makeParser(self::$detectionCache[$logFile], $shellRunner);
         }
 
-        $parsers = self::getAllParsers($logger, $shellRunner);
+        $parserClasses = self::getParserClasses($logger);
 
         // Try each parser's detect() method
-        foreach ($parsers as $parser) {
+        foreach ($parserClasses as $parserClass) {
+            $parser = self::makeParser($parserClass, $shellRunner);
             if ($parser->detect($logFile)) {
-                if ($shellRunner === null) {
-                    self::$detectionCache[$logFile] = $parser;
-                }
+                self::$detectionCache[$logFile] = $parserClass;
 
                 return $parser;
             }
         }
 
         // Fallback to PHP error_log parser (backward compatibility)
-        $fallback = new PhpErrorLogParser($shellRunner);
-        if ($shellRunner === null) {
-            self::$detectionCache[$logFile] = $fallback;
-        }
-
-        return $fallback;
+        return new PhpErrorLogParser($shellRunner);
     }
 
     /**
@@ -134,12 +148,10 @@ class LogParserFactory
         ?LoggerInterface $logger = null,
         ?ShellRunnerInterface $shellRunner = null
     ): ?LogParserInterface {
-        $parsers = self::getAllParsers($logger, $shellRunner);
+        $parserClasses = self::getParserClasses($logger);
 
-        foreach ($parsers as $parser) {
-            if ($parser->getName() === $formatName) {
-                return $parser;
-            }
+        if (isset($parserClasses[$formatName])) {
+            return self::makeParser($parserClasses[$formatName], $shellRunner);
         }
 
         // Check for direct class match
@@ -158,7 +170,7 @@ class LogParserFactory
      */
     public static function clearCache(): void
     {
-        self::$parsersCache = null;
+        self::$parserClassCache = null;
         self::$detectionCache = [];
     }
 
@@ -169,13 +181,6 @@ class LogParserFactory
      */
     public static function getAvailableParsers(): array
     {
-        $parsers = self::getAllParsers();
-        $names = [];
-
-        foreach ($parsers as $parser) {
-            $names[] = $parser->getName();
-        }
-
-        return $names;
+        return array_keys(self::getParserClasses());
     }
 }
