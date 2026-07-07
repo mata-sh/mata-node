@@ -32,12 +32,34 @@
             "example-app/config/mail.config.env"
         ],
         "cronjob-heartbeat": "example-app/includes/heartbeat.log",
-        "description": "Full-featured example with new log format specifying parser types",
+        "description": "Full-featured example with file sessions and parser-specific log groups",
         "composer": {
             "json": "example-app/composer.json",
             "lock": "example-app/composer.lock",
             "bin": "example-app/composer.phar"
         }
+    },
+    "redis-sessions-app": {
+        "title": "Redis Session Application",
+        "url": "https://example.com/redis-sessions",
+        "path": "redis-sessions-app",
+        "ping": "on",
+        "sessions": {
+            "type": "redis",
+            "dsn_env": "REDIS_SESSION_DSN",
+            "prefix": "PHPREDIS_SESSION:",
+            "count_key": "mata:sessions:redis-sessions-app:count",
+            "scan_count": 1000,
+            "timeout_seconds": 1.0,
+            "cache_ttl_seconds": 60
+        },
+        "logs": [
+            "redis-sessions-app/logs/error.log"
+        ],
+        "configs": [
+            "redis-sessions-app/config/config.env"
+        ],
+        "description": "Redis sessions using low-stress count_key counting. The app must maintain the count_key value."
     },
     "minimal-app": {
         "title": "Minimal Application",

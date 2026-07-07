@@ -81,7 +81,7 @@ class ServerWatcher
         $cacheFile = $this->cachePath . '/filecount.cache';
         if (file_exists($cacheFile)) {
             $cacheAge = time() - filemtime($cacheFile);
-            if ($cacheAge > $maxAgeCache) {
+            if ($cacheAge <= $maxAgeCache) {
                 return (int) file_get_contents($cacheFile);
             }
         }

@@ -30,6 +30,7 @@ class AppWatcher
     private array $watcherConfig;
     private array $transmitConfig;
     private array $appsConfig;
+    private ?string $cachePath;
     private SessionBackendFactory $sessionBackendFactory;
 
     public function __construct(
@@ -38,13 +39,15 @@ class AppWatcher
         string $rootPath,
         array $watcherConfig,
         array $transmitConfig,
-        ?SessionBackendFactory $sessionBackendFactory = null
+        ?SessionBackendFactory $sessionBackendFactory = null,
+        ?string $cachePath = null
     ) {
         $this->tools = $tools;
         $this->logger = $logger;
         $this->rootPath = $rootPath;
         $this->watcherConfig = $watcherConfig;
         $this->transmitConfig = $transmitConfig;
+        $this->cachePath = $cachePath;
         $this->sessionBackendFactory = $sessionBackendFactory ?? new SessionBackendFactory();
     }
 
@@ -251,9 +254,12 @@ class AppWatcher
             $sessionConfig = [];
         }
 
-        return $this->sessionBackendFactory
-            ->create($sessionConfig)
-            ->getMetadata($sessionConfig, $this->rootPath);
+        $backend = $this->sessionBackendFactory->create($sessionConfig);
+        if ($sessionConfig !== []) {
+            $sessionConfig['_app'] = $app;
+        }
+
+        return $backend->getMetadata($sessionConfig, $this->rootPath, $this->cachePath);
     }
 
     public function getLogEntries(string $app, string $filter = '', ?int $limit = null): array

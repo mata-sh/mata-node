@@ -97,6 +97,16 @@ final class RedisSocketClient implements RedisSessionClientInterface
         ];
     }
 
+    public function get(string $key): ?string
+    {
+        $response = $this->command(['GET', $key]);
+        if ($response !== null && !is_string($response)) {
+            throw new RuntimeException('Invalid Redis GET response');
+        }
+
+        return $response;
+    }
+
     public function close(): void
     {
         if (is_resource($this->socket)) {

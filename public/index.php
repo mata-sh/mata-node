@@ -112,7 +112,7 @@ $watcherConfig = json_decode(file_get_contents($paths->appPath . '/config/apps.j
 $databasesConfig = json_decode(file_get_contents($paths->appPath . '/config/databases.json'), true);
 $transmitConfig = json_decode(file_get_contents($paths->appPath . '/config/transmit.json'), true);
 
-$appWatcher = new AppWatcher($tools, $log, $paths->rootPath, $watcherConfig, $transmitConfig);
+$appWatcher = new AppWatcher($tools, $log, $paths->rootPath, $watcherConfig, $transmitConfig, null, $paths->cachePath);
 $serverWatcher = new ServerWatcher($paths->rootPath, $paths->cachePath, $transmitConfig);
 $databaseWatcher = new DatabaseWatcher($databasesConfig);
 

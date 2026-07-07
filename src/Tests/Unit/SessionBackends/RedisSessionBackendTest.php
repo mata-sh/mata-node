@@ -61,6 +61,91 @@ class RedisSessionBackendTest extends TestCase
         $this->assertNull($metadata['path']);
         $this->assertNull($metadata['size_kb']);
     }
+
+    public function testCountsRedisSessionsFromCounterKeyWithoutScan(): void
+    {
+        $client = new FakeRedisSessionClient([], ['mata:sessions:testapp:count' => '42']);
+        $backend = new RedisSessionBackend(new FakeRedisSessionClientFactory($client));
+
+        $metadata = $backend->getMetadata([
+            'count_key' => 'mata:sessions:testapp:count',
+        ], __DIR__);
+
+        $this->assertSame(42, $metadata['count_total']);
+        $this->assertSame(['mata:sessions:testapp:count'], $client->getCalls);
+        $this->assertSame([], $client->calls);
+        $this->assertTrue($client->closed);
+    }
+
+    public function testMissingCounterKeyReportsZeroWithoutScan(): void
+    {
+        $client = new FakeRedisSessionClient([], []);
+        $backend = new RedisSessionBackend(new FakeRedisSessionClientFactory($client));
+
+        $metadata = $backend->getMetadata([
+            'count_key' => 'mata:sessions:testapp:count',
+        ], __DIR__);
+
+        $this->assertSame(0, $metadata['count_total']);
+        $this->assertSame(['mata:sessions:testapp:count'], $client->getCalls);
+        $this->assertSame([], $client->calls);
+    }
+
+    public function testCachesRedisSessionMetadataAcrossCalls(): void
+    {
+        $cachePath = sys_get_temp_dir() . '/mata-node-redis-session-cache-' . bin2hex(random_bytes(6));
+        mkdir($cachePath, 0777, true);
+
+        try {
+            $client = new FakeRedisSessionClient([
+                ['cursor' => '0', 'keys' => ['PHPREDIS_SESSION:a', 'PHPREDIS_SESSION:b']],
+            ]);
+            $backend = new RedisSessionBackend(new FakeRedisSessionClientFactory($client));
+            $config = [
+                '_app' => 'testapp',
+                'prefix' => 'PHPREDIS_SESSION:',
+                'cache_ttl_seconds' => 60,
+            ];
+
+            $first = $backend->getMetadata($config, __DIR__, $cachePath);
+            $second = $backend->getMetadata($config, __DIR__, $cachePath);
+
+            $this->assertSame($first, $second);
+            $this->assertSame(2, $second['count_total']);
+            $this->assertCount(1, $client->calls);
+        } finally {
+            $this->removeDirectory($cachePath);
+        }
+    }
+
+    private function removeDirectory(string $path): void
+    {
+        if (!is_dir($path)) {
+            return;
+        }
+
+        $items = scandir($path);
+        if ($items === false) {
+            return;
+        }
+
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+
+            $itemPath = $path . DIRECTORY_SEPARATOR . $item;
+            if (is_dir($itemPath)) {
+                $this->removeDirectory($itemPath);
+
+                continue;
+            }
+
+            unlink($itemPath);
+        }
+
+        rmdir($path);
+    }
 }
 
 final class FakeRedisSessionClientFactory implements RedisSessionClientFactoryInterface
@@ -89,17 +174,25 @@ final class FakeRedisSessionClient implements RedisSessionClientInterface
     /** @var array<int, array{cursor: string, keys: array<int, string>}> */
     private array $responses;
 
+    /** @var array<string, string> */
+    private array $values;
+
     /** @var array<int, array{cursor: string, match: string, count: int}> */
     public array $calls = [];
+
+    /** @var array<int, string> */
+    public array $getCalls = [];
 
     public bool $closed = false;
 
     /**
      * @param array<int, array{cursor: string, keys: array<int, string>}> $responses
+     * @param array<string, string>                                       $values
      */
-    public function __construct(array $responses)
+    public function __construct(array $responses, array $values = [])
     {
         $this->responses = $responses;
+        $this->values = $values;
     }
 
     public function scan(string $cursor, string $match, int $count): array
@@ -116,6 +209,13 @@ final class FakeRedisSessionClient implements RedisSessionClientInterface
         }
 
         return $response;
+    }
+
+    public function get(string $key): ?string
+    {
+        $this->getCalls[] = $key;
+
+        return $this->values[$key] ?? null;
     }
 
     public function close(): void

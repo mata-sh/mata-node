@@ -11,5 +11,7 @@ interface RedisSessionClientInterface
      */
     public function scan(string $cursor, string $match, int $count): array;
 
+    public function get(string $key): ?string;
+
     public function close(): void;
 }

@@ -14,6 +14,46 @@ use PHPUnit\Framework\TestCase;
  */
 class ServerWatcherTest extends TestCase
 {
+    public function testSystemFilecountUsesFreshCache(): void
+    {
+        $rootPath = sys_get_temp_dir() . '/mata-node-server-root-' . bin2hex(random_bytes(6));
+        $cachePath = sys_get_temp_dir() . '/mata-node-server-cache-' . bin2hex(random_bytes(6));
+        mkdir($rootPath, 0777, true);
+        mkdir($cachePath, 0777, true);
+        file_put_contents($cachePath . '/filecount.cache', '123');
+
+        try {
+            $watcher = new ServerWatcher($rootPath, $cachePath, []);
+
+            $this->assertSame(123, $watcher->getSystemFilecount(1800));
+        } finally {
+            $this->removeDirectory($rootPath);
+            $this->removeDirectory($cachePath);
+        }
+    }
+
+    public function testSystemFilecountRefreshesStaleCache(): void
+    {
+        $rootPath = sys_get_temp_dir() . '/mata-node-server-root-' . bin2hex(random_bytes(6));
+        $cachePath = sys_get_temp_dir() . '/mata-node-server-cache-' . bin2hex(random_bytes(6));
+        mkdir($rootPath, 0777, true);
+        mkdir($cachePath, 0777, true);
+        file_put_contents($rootPath . '/one.txt', 'one');
+        file_put_contents($cachePath . '/filecount.cache', '123');
+        touch($cachePath . '/filecount.cache', time() - 3600);
+
+        try {
+            $watcher = new ServerWatcher($rootPath, $cachePath, []);
+            $count = $watcher->getSystemFilecount(10);
+
+            $this->assertNotSame(123, $count);
+            $this->assertSame((string) $count, file_get_contents($cachePath . '/filecount.cache'));
+        } finally {
+            $this->removeDirectory($rootPath);
+            $this->removeDirectory($cachePath);
+        }
+    }
+
     public function testGetServerInfoReturnsDashboardContractKeys(): void
     {
         $watcher = new ServerWatcher(__DIR__, sys_get_temp_dir(), []);
@@ -44,5 +84,34 @@ class ServerWatcherTest extends TestCase
         $this->assertIsString($info['architecture']);
         $this->assertIsString($info['hostname']);
         $this->assertSame(count($info['php_extensions']), $info['php_extension_count']);
+    }
+
+    private function removeDirectory(string $path): void
+    {
+        if (!is_dir($path)) {
+            return;
+        }
+
+        $items = scandir($path);
+        if ($items === false) {
+            return;
+        }
+
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+
+            $itemPath = $path . DIRECTORY_SEPARATOR . $item;
+            if (is_dir($itemPath)) {
+                $this->removeDirectory($itemPath);
+
+                continue;
+            }
+
+            unlink($itemPath);
+        }
+
+        rmdir($path);
     }
 }
