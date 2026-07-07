@@ -70,6 +70,7 @@ class AppMetadataTest extends TestCase
 
         $this->assertSame([
             'type' => 'file',
+            'status' => 'ok',
             'count_last_hour' => 1,
             'count_last_day' => 2,
             'count_total' => 2,
@@ -97,6 +98,7 @@ class AppMetadataTest extends TestCase
         $sessions = $appWatcher->getAppSessions('testapp');
 
         $this->assertSame('file', $sessions['type']);
+        $this->assertSame('ok', $sessions['status']);
         $this->assertSame(1, $sessions['count_last_hour']);
         $this->assertSame(1, $sessions['count_last_day']);
         $this->assertSame(1, $sessions['count_total']);

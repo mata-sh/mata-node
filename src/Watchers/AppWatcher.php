@@ -8,6 +8,7 @@ use Mata\Utils\Tools;
 use Mata\Watchers\Exceptions\AppWatcherException;
 use Mata\Watchers\LogParsers\LogParserFactory;
 use Mata\Watchers\LogParsers\LogParserInterface;
+use Mata\Watchers\SessionBackends\SessionBackendFactory;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 
@@ -29,14 +30,22 @@ class AppWatcher
     private array $watcherConfig;
     private array $transmitConfig;
     private array $appsConfig;
+    private SessionBackendFactory $sessionBackendFactory;
 
-    public function __construct(Tools $tools, LoggerInterface $logger, string $rootPath, array $watcherConfig, array $transmitConfig)
-    {
+    public function __construct(
+        Tools $tools,
+        LoggerInterface $logger,
+        string $rootPath,
+        array $watcherConfig,
+        array $transmitConfig,
+        ?SessionBackendFactory $sessionBackendFactory = null
+    ) {
         $this->tools = $tools;
         $this->logger = $logger;
         $this->rootPath = $rootPath;
         $this->watcherConfig = $watcherConfig;
         $this->transmitConfig = $transmitConfig;
+        $this->sessionBackendFactory = $sessionBackendFactory ?? new SessionBackendFactory();
     }
 
     public function getApps(): array
@@ -238,103 +247,13 @@ class AppWatcher
     private function getSessionMetadata(string $app): array
     {
         $sessionConfig = $this->watcherConfig[$app]['sessions'] ?? [];
-        $sessionPath = is_array($sessionConfig) && is_string($sessionConfig['path'] ?? null) ? $sessionConfig['path'] : '';
-        $type = is_array($sessionConfig) && is_string($sessionConfig['type'] ?? null) ? $sessionConfig['type'] : '';
-        if ($type === '' && $sessionPath !== '') {
-            $type = 'file';
+        if (!is_array($sessionConfig)) {
+            $sessionConfig = [];
         }
 
-        $metadata = [
-            'type' => $type,
-            'count_last_hour' => 0,
-            'count_last_day' => 0,
-            'count_total' => 0,
-        ];
-
-        if ($type !== 'file') {
-            return $metadata;
-        }
-
-        if ($sessionPath !== '') {
-            $metadata['path'] = $sessionPath;
-        }
-
-        $stats = $this->getFileSessionStats($app);
-        $metadata['count_last_hour'] = $stats['count_last_hour'];
-        $metadata['count_last_day'] = $stats['count_last_day'];
-        $metadata['count_total'] = $stats['count_total'];
-        $metadata['size_kb'] = $stats['size_kb'];
-
-        return $metadata;
-    }
-
-    /**
-     * @return array{count_last_hour: int, count_last_day: int, count_total: int, size_kb: float}
-     */
-    private function getFileSessionStats(string $app): array
-    {
-        $now = time();
-        $stats = [
-            'count_last_hour' => 0,
-            'count_last_day' => 0,
-            'count_total' => 0,
-            'size_kb' => 0.0,
-        ];
-
-        $sessionPath = $this->watcherConfig[$app]['sessions']['path'] ?? '';
-        if (!is_string($sessionPath) || $sessionPath === '') {
-            return $stats;
-        }
-
-        $sessionsDirPath = $this->rootPath . DIRECTORY_SEPARATOR . $sessionPath;
-        if (!is_dir($sessionsDirPath)) {
-            return $stats;
-        }
-
-        $allFiles = scandir($sessionsDirPath);
-        if ($allFiles === false) {
-            return $stats;
-        }
-
-        $sizeBytes = 0;
-        foreach ($allFiles as $filename) {
-            if ($filename === '.' || $filename === '..') {
-                continue;
-            }
-
-            $file = $sessionsDirPath . DIRECTORY_SEPARATOR . $filename;
-            if (!is_file($file)) {
-                continue;
-            }
-
-            $filenameRegex = $this->watcherConfig[$app]['sessions']['filename_regex'] ?? '';
-            if (is_string($filenameRegex) && $filenameRegex !== '' && preg_match($filenameRegex, $filename) !== 1) {
-                continue;
-            }
-
-            ++$stats['count_total'];
-            $fileSize = filesize($file);
-            if ($fileSize !== false) {
-                $sizeBytes += $fileSize;
-            }
-
-            $mtime = filemtime($file);
-            if ($mtime === false) {
-                continue;
-            }
-
-            $age = $now - $mtime;
-            if ($age >= 0 && $age <= 3600) {
-                ++$stats['count_last_hour'];
-            }
-            if ($age >= 0 && $age <= 86400) {
-                ++$stats['count_last_day'];
-            }
-        }
-
-        $stats['size_kb'] = round($sizeBytes / 1024, 2);
-
-        return $stats;
+        return $this->sessionBackendFactory
+            ->create($sessionConfig)
+            ->getMetadata($sessionConfig, $this->rootPath);
     }
 
     public function getLogEntries(string $app, string $filter = '', ?int $limit = null): array
