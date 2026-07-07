@@ -107,7 +107,7 @@ class LogParserFactory
     /**
      * Get parser by format name.
      *
-     * Used when log_format is specified in config.
+     * Used when a structured log group specifies `type`.
      *
      * @param string               $formatName Format name ('php_error_log', 'monolog', 'json')
      * @param null|LoggerInterface $logger     Logger for reporting parsers that fail to load

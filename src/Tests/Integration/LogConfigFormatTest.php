@@ -260,15 +260,13 @@ class LogConfigFormatTest extends TestCase
         $this->assertIsArray($result);
     }
 
-    public function testBackwardCompatibilityWithLogFormat(): void
+    public function testOldFormatAutoDetectsJsonLog(): void
     {
-        // Old config with app-level log_format should still work
         $watcherConfig = [
             'oldstyle' => [
                 'logs' => [
-                    'logs/json.log', // JSON file
+                    'logs/json.log',
                 ],
-                'log_format' => 'monolog', // Force Monolog parser
             ],
         ];
 
@@ -283,11 +281,10 @@ class LogConfigFormatTest extends TestCase
         $this->assertNotEmpty($parsed['logs/json.log']);
     }
 
-    public function testNewFormatOverridesAppLevelLogFormat(): void
+    public function testNewFormatUsesGroupType(): void
     {
-        // Log group type should take precedence over app-level log_format
         $watcherConfig = [
-            'precedence' => [
+            'group-type' => [
                 'logs' => [
                     [
                         'type' => 'json',
@@ -296,13 +293,12 @@ class LogConfigFormatTest extends TestCase
                         ],
                     ],
                 ],
-                'log_format' => 'monolog', // Should be ignored in favor of group type
             ],
         ];
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
 
-        $result = $appWatcher->getLogEntries('precedence', 'warnings', 10);
+        $result = $appWatcher->getLogEntries('group-type', 'warnings', 10);
         $parsed = $result;
 
         $this->assertIsArray($parsed);
