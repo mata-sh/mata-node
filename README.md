@@ -142,8 +142,8 @@ Then:
 Main runtime settings live in:
 - `.env` — Docker/infrastructure settings
 - `config/config.env` — node application settings
-- `config/apps.json` — watched applications
-- `config/transmit.json` — transmitted metadata and limits
+- `config/apps.json` — watched applications, see [configuration reference](docs/configuration.md#configappsjson)
+- `config/transmit.json` — transmitted metadata and limits, see [configuration reference](docs/configuration.md#configtransmitjson)
 
 At minimum, set the shared dashboard credentials in `config/config.env`:
 
