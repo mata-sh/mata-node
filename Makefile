@@ -73,7 +73,7 @@ help:
 # Bootstrap missing config files from config/example/*.example
 bootstrap-config:
 	@echo "$(COLOR_BLUE)📋 Bootstrapping config files from examples...$(COLOR_RESET)"
-	@mkdir -p config logs config/dev
+	@mkdir -p config logs
 	@echo "$(COLOR_CYAN)Environment config files$(COLOR_RESET)"
 	@for file in $(ENV_CONFIG_FILES); do \
 		if [ ! -f "config/$$file" ]; then \
@@ -199,7 +199,6 @@ setup:
 	@echo "$(COLOR_YELLOW)2.$(COLOR_RESET) Review $(COLOR_BOLD)config/apps.json$(COLOR_RESET), $(COLOR_BOLD)config/transmit.json$(COLOR_RESET), and $(COLOR_BOLD)config/databases.json$(COLOR_RESET)"
 	@echo "$(COLOR_YELLOW)3.$(COLOR_RESET) Edit $(COLOR_BOLD)config/mail.config.env$(COLOR_RESET) - configure email settings (optional)"
 	@echo "$(COLOR_YELLOW)4.$(COLOR_RESET) Choose webserver config from $(COLOR_BOLD)docs/examples/webserver-configs/README.md$(COLOR_RESET)"
-	@echo "$(COLOR_YELLOW)5.$(COLOR_RESET) Create first user: $(COLOR_CYAN)php scripts/user-management/manage-users.php create$(COLOR_RESET)"
 	@echo ""
 	@echo "$(COLOR_BLUE)Or use Docker:$(COLOR_RESET) $(COLOR_CYAN)make docker-setup$(COLOR_RESET) then $(COLOR_CYAN)make dev-start$(COLOR_RESET)"
 
@@ -289,13 +288,6 @@ docker-setup:
 	else \
 		echo "$(COLOR_YELLOW)⚠️  Skipped. Set DASHBOARD_API_KEY manually in config/config.env$(COLOR_RESET)"; \
 	fi
-	@if [ ! -f config/dev/users.json ]; then \
-		echo '{"dev":{"username":"dev","password":"$$2y$$10$$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi","role":"admin"},"admin":{"username":"admin","password":"$$2y$$10$$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi","role":"admin"}}' > config/dev/users.json; \
-		chmod 600 config/dev/users.json; \
-		echo "$(COLOR_GREEN)✅ Created config/dev/users.json (user: dev|pw: password, user: admin|pw: password)$(COLOR_RESET)"; \
-	else \
-		echo "$(COLOR_YELLOW)⚠️  config/dev/users.json already exists, skipping$(COLOR_RESET)"; \
-	fi
 	@echo ""
 	@echo "$(COLOR_GREEN)✅ Docker environment ready!$(COLOR_RESET)"
 	@echo ""
@@ -305,7 +297,7 @@ docker-setup:
 	@echo "    $(COLOR_BLUE)Note:$(COLOR_RESET) DB_HOST is auto-set to 'mata-db' for Docker networking"
 	@echo "$(COLOR_YELLOW)3.$(COLOR_RESET) Review $(COLOR_BOLD)config/apps.json$(COLOR_RESET), $(COLOR_BOLD)config/transmit.json$(COLOR_RESET), and $(COLOR_BOLD)config/databases.json$(COLOR_RESET)"
 	@echo "$(COLOR_YELLOW)4.$(COLOR_RESET) Start containers: $(COLOR_CYAN)make dev-start$(COLOR_RESET)"
-	@echo "$(COLOR_YELLOW)5.$(COLOR_RESET) Login at http://localhost:3310 with $(COLOR_CYAN)dev/password$(COLOR_RESET) or $(COLOR_CYAN)admin/password$(COLOR_RESET)"
+	@echo "$(COLOR_YELLOW)5.$(COLOR_RESET) Check health at $(COLOR_CYAN)http://localhost:3310/health$(COLOR_RESET)"
 
 ## Development (Docker)
 

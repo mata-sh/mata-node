@@ -39,10 +39,6 @@ chown -R www-data:www-data /var/www/html/temp /var/www/html/logs /var/www/html/c
 chmod -R 770 /var/www/html/temp /var/www/html/logs
 chmod -R 755 /var/www/html/config
 
-# Secure users.json files (must be 600 for security)
-echo "🔒 Securing users.json files..."
-find /var/www/html/config -name "users.json" -type f -exec chown www-data:www-data {} \; -exec chmod 600 {} \; 2>/dev/null || true
-
 # If vendor autoload doesn't exist, run composer install
 if [ ! -f "/var/www/html/vendor/autoload.php" ]; then
     echo "📦 Installing Composer dependencies..."

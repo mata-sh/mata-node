@@ -43,10 +43,9 @@ project/
 ├── config/                           # Application configuration
 │   ├── config.env                    # App settings
 │   ├── mail.config.env               # Email configuration
-│   ├── dev/                          # Development JSON configs
-│   │   └── users.json                # Dev user credentials
-│   ├── prod/                         # Production JSON configs
-│   └── demo/                         # Demo JSON configs
+│   ├── apps.json                     # Monitored apps configuration
+│   ├── transmit.json                 # Transmit configuration
+│   └── databases.json                # Database configuration
 │
 ├── docker/                           # Docker configuration files
 │   ├── apache/
@@ -100,9 +99,8 @@ Files:
 - `config/config.env` - General app settings
 - `config/mail.config.env` - Email configuration
 
-#### 3. Environment-Specific Data (`config/{env}/*.json`)
-- Loaded based on `APP_ENV` value (dev, demo, prod)
-- Contains: users, servers, monitoring settings
+#### 3. JSON Configuration (`config/*.json`)
+- `config/apps.json`, `config/transmit.json`, `config/databases.json`
 - Runtime configuration data
 
 ### Environment Comparison
@@ -139,7 +137,6 @@ make dev
 make logs
 
 # Access application: http://localhost:8080
-# Login: dev / password
 ```
 
 #### Direct Docker Compose (Alternative)
@@ -155,7 +152,6 @@ docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 
 # 4. Access application
 # http://localhost:8080
-# Login: dev / password
 ```
 
 ### Production
