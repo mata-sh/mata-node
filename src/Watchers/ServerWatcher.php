@@ -53,7 +53,6 @@ class ServerWatcher
 
         $data['ram_used'] = $data['ram_capacity'] - $data['ram_used'];
 
-        // error_log(print_r($data,true));
         return $data;
     }
 

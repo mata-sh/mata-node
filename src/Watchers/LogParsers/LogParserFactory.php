@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Mata\Watchers\LogParsers;
 
+use Psr\Log\LoggerInterface;
 use Throwable;
 
 /**
@@ -23,9 +24,11 @@ class LogParserFactory
     /**
      * Auto-discover all parser classes in LogParsers directory.
      *
+     * @param null|LoggerInterface $logger Logger for reporting parsers that fail to load
+     *
      * @return array<int,LogParserInterface> Array of parser instances
      */
-    private static function getAllParsers(): array
+    private static function getAllParsers(?LoggerInterface $logger = null): array
     {
         if (self::$parsersCache !== null) {
             return self::$parsersCache;
@@ -55,7 +58,7 @@ class LogParserFactory
                         $parsers[] = $parser;
                     }
                 } catch (Throwable $e) {
-                    error_log("Failed to load parser {$className}: " . $e->getMessage());
+                    $logger?->warning('Failed to load parser', ['class' => $className, 'error' => $e->getMessage()]);
                 }
             }
         }
@@ -71,18 +74,19 @@ class LogParserFactory
      * Tries each parser's detect() method and returns first match.
      * Results are cached per file path.
      *
-     * @param string $logFile Path to log file
+     * @param string               $logFile Path to log file
+     * @param null|LoggerInterface $logger  Logger for reporting parsers that fail to load
      *
      * @return LogParserInterface Parser instance (defaults to PhpErrorLogParser if no match)
      */
-    public static function detectFormat(string $logFile): LogParserInterface
+    public static function detectFormat(string $logFile, ?LoggerInterface $logger = null): LogParserInterface
     {
         // Check cache first
         if (isset(self::$detectionCache[$logFile])) {
             return self::$detectionCache[$logFile];
         }
 
-        $parsers = self::getAllParsers();
+        $parsers = self::getAllParsers($logger);
 
         // Try each parser's detect() method
         foreach ($parsers as $parser) {
@@ -105,13 +109,14 @@ class LogParserFactory
      *
      * Used when log_format is specified in config.
      *
-     * @param string $formatName Format name ('php_error_log', 'monolog', 'json')
+     * @param string               $formatName Format name ('php_error_log', 'monolog', 'json')
+     * @param null|LoggerInterface $logger     Logger for reporting parsers that fail to load
      *
      * @return null|LogParserInterface Parser instance or null if not found
      */
-    public static function getParser(string $formatName): ?LogParserInterface
+    public static function getParser(string $formatName, ?LoggerInterface $logger = null): ?LogParserInterface
     {
-        $parsers = self::getAllParsers();
+        $parsers = self::getAllParsers($logger);
 
         foreach ($parsers as $parser) {
             if ($parser->getName() === $formatName) {

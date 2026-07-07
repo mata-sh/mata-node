@@ -810,10 +810,10 @@ class AppWatcher
     private function getLogParser(string $type, string $logFile): LogParserInterface
     {
         if ($type === '') {
-            return LogParserFactory::detectFormat($logFile);
+            return LogParserFactory::detectFormat($logFile, $this->logger);
         }
 
-        $parser = LogParserFactory::getParser($type);
+        $parser = LogParserFactory::getParser($type, $this->logger);
         if ($parser !== null) {
             return $parser;
         }
@@ -823,6 +823,6 @@ class AppWatcher
             'log' => $logFile,
         ]);
 
-        return LogParserFactory::detectFormat($logFile);
+        return LogParserFactory::detectFormat($logFile, $this->logger);
     }
 }
