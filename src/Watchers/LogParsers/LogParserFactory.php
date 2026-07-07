@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Mata\Watchers\LogParsers;
 
 use Psr\Log\LoggerInterface;
+use ReflectionClass;
 use Throwable;
 
 /**
@@ -53,6 +54,10 @@ class LogParserFactory
 
             if (class_exists($fullClass)) {
                 try {
+                    if (!(new ReflectionClass($fullClass))->isInstantiable()) {
+                        continue;
+                    }
+
                     $parser = new $fullClass();
                     if ($parser instanceof LogParserInterface) {
                         $parsers[] = $parser;

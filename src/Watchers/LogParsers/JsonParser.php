@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Mata\Watchers\LogParsers;
 
-use DateTimeImmutable;
 use RuntimeException;
-use Throwable;
 
 /**
  * Parser for JSON structured logs.
@@ -14,7 +12,7 @@ use Throwable;
  * Handles JSON format: {"timestamp":"...","level":"...","message":"..."}
  * Expects one JSON object per line (standard practice).
  */
-class JsonParser implements LogParserInterface
+class JsonParser extends AbstractLogParser
 {
     public function getName(): string
     {
@@ -178,16 +176,12 @@ class JsonParser implements LogParserInterface
         ];
     }
 
-    private function normalizeTimestamp(string $timestamp): string
+    protected function normalizeTimestamp(string $timestamp): string
     {
         if ($timestamp === '') {
             return '';
         }
 
-        try {
-            return (new DateTimeImmutable($timestamp))->format('Y-m-d H:i:s');
-        } catch (Throwable) {
-            return '';
-        }
+        return parent::normalizeTimestamp($timestamp);
     }
 }

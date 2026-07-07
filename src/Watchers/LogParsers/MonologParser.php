@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Mata\Watchers\LogParsers;
 
-use DateTimeImmutable;
 use RuntimeException;
-use Throwable;
 
 /**
  * Parser for Monolog line format.
@@ -14,7 +12,7 @@ use Throwable;
  * Handles Monolog format: [YYYY-MM-DD HH:MM:SS] channel.LEVEL: message {context}
  * Supports multi-line entries (stack traces, context blocks).
  */
-class MonologParser implements LogParserInterface
+class MonologParser extends AbstractLogParser
 {
     public function getName(): string
     {
@@ -67,26 +65,9 @@ class MonologParser implements LogParserInterface
      */
     public function parseLines(array $lines): array
     {
-        $logEntries = [];
-        $currentEntry = '';
-
         // Monolog entry starts with: [YYYY-MM-DD HH:MM:SS]
         $entryStartPattern = '/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\]/';
-
-        foreach ($lines as $line) {
-            if (preg_match($entryStartPattern, $line)) {
-                if ($currentEntry !== '') {
-                    $logEntries[] = $currentEntry;
-                }
-                $currentEntry = $line;
-            } elseif ($currentEntry !== '') {
-                $currentEntry .= "\n" . $line;
-            }
-        }
-
-        if ($currentEntry !== '') {
-            $logEntries[] = $currentEntry;
-        }
+        $logEntries = $this->groupMultilineEntries($lines, $entryStartPattern);
 
         $parsedEntries = [];
         foreach ($logEntries as $entry) {
@@ -178,14 +159,5 @@ class MonologParser implements LogParserInterface
             'warnings' => $warningCount,
             'total' => $totalLines,
         ];
-    }
-
-    private function normalizeTimestamp(string $timestamp): string
-    {
-        try {
-            return (new DateTimeImmutable($timestamp))->format('Y-m-d H:i:s');
-        } catch (Throwable) {
-            return '';
-        }
     }
 }

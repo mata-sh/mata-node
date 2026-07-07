@@ -276,17 +276,48 @@ class AppWatcher
             return [];
         }
 
-        $logs = $this->watcherConfig[$app]['logs'] ?? [];
-        if (empty($logs)) {
-            return [];
+        $entries = [];
+        foreach ($this->resolveLogPaths($app) as $logConfig) {
+            $logPath = $logConfig['path'];
+            $type = $logConfig['type'];
+            $logFile = $this->rootPath . '/' . $logPath;
+
+            if (!is_readable($logFile)) {
+                $this->logger->warning('Log file not found or unreadable', [
+                    'app' => $app,
+                    'log' => $logFile,
+                ]);
+                $entries[$logPath] = [];
+
+                continue;
+            }
+
+            $parser = $this->getLogParser($type, $logFile);
+            $lines = $this->tailLogLines($logFile, $scanLineLimit);
+            $parsedEntries = $parser->parseLines($lines);
+            $parsedEntries = $this->filterLogEntries($parsedEntries, $filter);
+            $entries[$logPath] = array_slice($parsedEntries, -$limit);
         }
 
-        $entries = [];
+        return $entries;
+    }
+
+    /**
+     * @return array<int, array{path: string, type: mixed}>
+     */
+    private function resolveLogPaths(string $app): array
+    {
+        $logs = $this->watcherConfig[$app]['logs'] ?? [];
+        $resolved = [];
+
+        if (empty($logs)) {
+            return $resolved;
+        }
+
         foreach ($logs as $logGroup) {
             $paths = [];
             $type = '';
 
-            // app config supports an array of paths and optionally porser-types or a single path
             if (is_string($logGroup)) {
                 $paths = [$logGroup];
             } elseif (is_array($logGroup)) {
@@ -303,27 +334,14 @@ class AppWatcher
                     continue;
                 }
 
-                $logFile = $this->rootPath . '/' . $logPath;
-
-                if (!is_readable($logFile)) {
-                    $this->logger->warning('Log file not found or unreadable', [
-                        'app' => $app,
-                        'log' => $logFile,
-                    ]);
-                    $entries[$logPath] = [];
-
-                    continue;
-                }
-
-                $parser = $this->getLogParser($type, $logFile);
-                $lines = $this->tailLogLines($logFile, $scanLineLimit);
-                $parsedEntries = $parser->parseLines($lines);
-                $parsedEntries = $this->filterLogEntries($parsedEntries, $filter);
-                $entries[$logPath] = array_slice($parsedEntries, -$limit);
+                $resolved[] = [
+                    'path' => $logPath,
+                    'type' => $type,
+                ];
             }
         }
 
-        return $entries;
+        return $resolved;
     }
 
     /**
@@ -471,52 +489,30 @@ class AppWatcher
 
     private function getLogFileStatus(string $app): array
     {
-        $logs = $this->watcherConfig[$app]['logs'] ?? [];
-        if (empty($logs)) {
-            return [];
-        }
-
         $status = [];
-        foreach ($logs as $logGroup) {
-            $paths = [];
+        foreach ($this->resolveLogPaths($app) as $logConfig) {
+            $logPath = $logConfig['path'];
+            $logFile = $this->rootPath . '/' . $logPath;
+            if (!is_readable($logFile)) {
+                $this->logger->warning('Log file not found or unreadable', [
+                    'app' => $app,
+                    'log' => $logFile,
+                ]);
+                $status[$logPath] = [
+                    'size' => 0,
+                    'lines' => 0,
+                    'last_modified' => '',
+                ];
 
-            if (is_string($logGroup)) {
-                $paths = [$logGroup];
-            } elseif (is_array($logGroup)) {
-                $paths = $logGroup['paths'] ?? [];
-            }
-
-            if (empty($paths)) {
                 continue;
             }
 
-            foreach ($paths as $logPath) {
-                if (!is_string($logPath) || $logPath === '') {
-                    continue;
-                }
-
-                $logFile = $this->rootPath . '/' . $logPath;
-                if (!is_readable($logFile)) {
-                    $this->logger->warning('Log file not found or unreadable', [
-                        'app' => $app,
-                        'log' => $logFile,
-                    ]);
-                    $status[$logPath] = [
-                        'size' => 0,
-                        'lines' => 0,
-                        'last_modified' => '',
-                    ];
-
-                    continue;
-                }
-
-                $lastModified = filemtime($logFile);
-                $status[$logPath] = [
-                    'size' => (int) filesize($logFile),
-                    'lines' => $this->countFileLines($logFile),
-                    'last_modified' => $lastModified ? date('Y-m-d H:i:s', $lastModified) : '',
-                ];
-            }
+            $lastModified = filemtime($logFile);
+            $status[$logPath] = [
+                'size' => (int) filesize($logFile),
+                'lines' => $this->countFileLines($logFile),
+                'last_modified' => $lastModified ? date('Y-m-d H:i:s', $lastModified) : '',
+            ];
         }
 
         return $status;
@@ -575,54 +571,31 @@ class AppWatcher
         $app = $this->requireAppKey($app);
         $this->ensureAppConfigLoaded($app);
 
-        $logs = $this->watcherConfig[$app]['logs'] ?? [];
         $totals = [
             'fatal' => 0,
             'warnings' => 0,
             'total' => 0,
         ];
 
-        if (empty($logs)) {
-            return $totals;
-        }
+        foreach ($this->resolveLogPaths($app) as $logConfig) {
+            $logPath = $logConfig['path'];
+            $type = $logConfig['type'];
+            $logFile = $this->rootPath . '/' . $logPath;
+            if (!is_readable($logFile)) {
+                $this->logger->warning('Log file not found or unreadable', [
+                    'app' => $app,
+                    'log' => $logFile,
+                ]);
 
-        foreach ($logs as $logGroup) {
-            $paths = [];
-            $type = '';
-
-            if (is_string($logGroup)) {
-                $paths = [$logGroup];
-            } elseif (is_array($logGroup)) {
-                $type = $logGroup['type'] ?? '';
-                $paths = $logGroup['paths'] ?? [];
-            }
-
-            if (empty($paths)) {
                 continue;
             }
 
-            foreach ($paths as $logPath) {
-                if (!is_string($logPath) || $logPath === '') {
-                    continue;
-                }
+            $parser = $this->getLogParser($type, $logFile);
 
-                $logFile = $this->rootPath . '/' . $logPath;
-                if (!is_readable($logFile)) {
-                    $this->logger->warning('Log file not found or unreadable', [
-                        'app' => $app,
-                        'log' => $logFile,
-                    ]);
-
-                    continue;
-                }
-
-                $parser = $this->getLogParser($type, $logFile);
-
-                $stats = $parser->analyzeLog($logFile);
-                $totals['fatal'] += (int) ($stats['fatal'] ?? 0);
-                $totals['warnings'] += (int) ($stats['warnings'] ?? 0);
-                $totals['total'] += (int) ($stats['total'] ?? 0);
-            }
+            $stats = $parser->analyzeLog($logFile);
+            $totals['fatal'] += (int) ($stats['fatal'] ?? 0);
+            $totals['warnings'] += (int) ($stats['warnings'] ?? 0);
+            $totals['total'] += (int) ($stats['total'] ?? 0);
         }
 
         return $totals;

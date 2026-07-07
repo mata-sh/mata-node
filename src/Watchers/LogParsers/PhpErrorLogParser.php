@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Mata\Watchers\LogParsers;
 
-use DateTimeImmutable;
 use RuntimeException;
-use Throwable;
 
 /**
  * Parser for PHP error_log format.
@@ -14,7 +12,7 @@ use Throwable;
  * Handles standard PHP error log format: [DD-Mon-YYYY HH:MM:SS timezone] PHP ErrorType: message
  * Supports multi-line entries (stack traces).
  */
-class PhpErrorLogParser implements LogParserInterface
+class PhpErrorLogParser extends AbstractLogParser
 {
     public function getName(): string
     {
@@ -67,25 +65,8 @@ class PhpErrorLogParser implements LogParserInterface
      */
     public function parseLines(array $lines): array
     {
-        $logEntries = [];
-        $currentEntry = '';
-
         $entryStartPattern = '/^\[\d{2}-[A-Za-z]{3}-\d{4} \d{2}:\d{2}:\d{2} [^\]]+\]/';
-
-        foreach ($lines as $line) {
-            if (preg_match($entryStartPattern, $line)) {
-                if ($currentEntry !== '') {
-                    $logEntries[] = $currentEntry;
-                }
-                $currentEntry = $line;
-            } elseif ($currentEntry !== '') {
-                $currentEntry .= "\n" . $line;
-            }
-        }
-
-        if ($currentEntry !== '') {
-            $logEntries[] = $currentEntry;
-        }
+        $logEntries = $this->groupMultilineEntries($lines, $entryStartPattern);
 
         $parsedEntries = [];
         foreach ($logEntries as $entry) {
@@ -173,14 +154,5 @@ class PhpErrorLogParser implements LogParserInterface
             'warnings' => $warningCount,
             'total' => $totalLines,
         ];
-    }
-
-    private function normalizeTimestamp(string $timestamp): string
-    {
-        try {
-            return (new DateTimeImmutable($timestamp))->format('Y-m-d H:i:s');
-        } catch (Throwable) {
-            return '';
-        }
     }
 }
