@@ -16,6 +16,8 @@ use RuntimeException;
 
 class AppWatcher
 {
+    private const DEFAULT_CRONJOB_HEARTBEAT_STALE_SECONDS = 86400;
+    private const DEFAULT_CRONJOB_HEARTBEAT_TAIL_LINE_LIMIT = 50;
     private const DEFAULT_LOG_SCAN_LINE_LIMIT = 20000;
     private const LOG_FILTER_ALL = '';
     private const LOG_FILTER_ERRORS = 'errors';
@@ -132,13 +134,12 @@ class AppWatcher
             'title' => $this->watcherConfig[$app]['title'],
             'url' => $this->watcherConfig[$app]['url'],
             'ping' => $this->watcherConfig[$app]['ping'] ?? 'on',
+            'description' => $this->watcherConfig[$app]['description'] ?? '',
             'environment' => $this->appsConfig[$app]['APP_ENV'],
             'maintenance' => $this->appsConfig[$app]['MAINTENANCE_ENABLED'],
             'status' => $status,
-            'session_count_last_hour' => $this->getSessionCount($app, maxAgeSeconds: 3600),
-            'session_count_last_day' => $this->getSessionCount($app, maxAgeSeconds: 86400),
-            'session_count_total' => $this->getSessionCount($app),
-            'session_path' => $this->appsConfig[$app]['SESSION_PATH'],
+            'session' => $this->getSessionMetadata($app),
+            'cronjobs' => $this->getCronjobSummary($app),
             'logs' => $this->getAppLogs($app),
             'configs' => $this->watcherConfig[$app]['configs'],
             'display_errors' => $this->appsConfig[$app]['DISPLAY_ERRORS'],
@@ -160,7 +161,7 @@ class AppWatcher
     {
         $app = $this->requireAppKey($app);
         $logs = [];
-        foreach ($this->watcherConfig[$app]['logs'] as $log) {
+        foreach ($this->getConfiguredLogPaths($app) as $log) {
             $filePath = $this->rootPath . DIRECTORY_SEPARATOR . $log;
             if (is_dir($filePath)) {
                 foreach (glob($filePath . DIRECTORY_SEPARATOR . '*.log') as $logFile) {
@@ -176,6 +177,20 @@ class AppWatcher
         }
 
         return $logs;
+    }
+
+    public function getAppSessions(string $app): array
+    {
+        $app = $this->requireAppKey($app);
+
+        return $this->getSessionMetadata($app);
+    }
+
+    public function getAppCronjobs(string $app): array
+    {
+        $app = $this->requireAppKey($app);
+
+        return $this->buildCronjobEntries($app, includeContent: true);
     }
 
     public function loadAppConfig(string $app): array
@@ -220,56 +235,106 @@ class AppWatcher
         $this->appsConfig[$app] = $result;
     }
 
-    public function getSessionCount(string $app, int $maxAgeSeconds = 0): int
+    private function getSessionMetadata(string $app): array
+    {
+        $sessionConfig = $this->watcherConfig[$app]['sessions'] ?? [];
+        $sessionPath = is_array($sessionConfig) && is_string($sessionConfig['path'] ?? null) ? $sessionConfig['path'] : '';
+        $type = is_array($sessionConfig) && is_string($sessionConfig['type'] ?? null) ? $sessionConfig['type'] : '';
+        if ($type === '' && $sessionPath !== '') {
+            $type = 'file';
+        }
+
+        $metadata = [
+            'type' => $type,
+            'count_last_hour' => 0,
+            'count_last_day' => 0,
+            'count_total' => 0,
+        ];
+
+        if ($type !== 'file') {
+            return $metadata;
+        }
+
+        if ($sessionPath !== '') {
+            $metadata['path'] = $sessionPath;
+        }
+
+        $stats = $this->getFileSessionStats($app);
+        $metadata['count_last_hour'] = $stats['count_last_hour'];
+        $metadata['count_last_day'] = $stats['count_last_day'];
+        $metadata['count_total'] = $stats['count_total'];
+        $metadata['size_kb'] = $stats['size_kb'];
+
+        return $metadata;
+    }
+
+    /**
+     * @return array{count_last_hour: int, count_last_day: int, count_total: int, size_kb: float}
+     */
+    private function getFileSessionStats(string $app): array
     {
         $now = time();
-        $count = 0;
-        $app = $this->requireAppKey($app);
+        $stats = [
+            'count_last_hour' => 0,
+            'count_last_day' => 0,
+            'count_total' => 0,
+            'size_kb' => 0.0,
+        ];
 
         $sessionPath = $this->watcherConfig[$app]['sessions']['path'] ?? '';
-        if (empty($sessionPath)) {
-            return 0;
+        if (!is_string($sessionPath) || $sessionPath === '') {
+            return $stats;
         }
 
         $sessionsDirPath = $this->rootPath . DIRECTORY_SEPARATOR . $sessionPath;
-
         if (!is_dir($sessionsDirPath)) {
-            return 0;
+            return $stats;
         }
 
         $allFiles = scandir($sessionsDirPath);
         if ($allFiles === false) {
-            return 0;
+            return $stats;
         }
 
-        $files = [];
+        $sizeBytes = 0;
         foreach ($allFiles as $filename) {
             if ($filename === '.' || $filename === '..') {
                 continue;
             }
 
+            $file = $sessionsDirPath . DIRECTORY_SEPARATOR . $filename;
+            if (!is_file($file)) {
+                continue;
+            }
+
             $filenameRegex = $this->watcherConfig[$app]['sessions']['filename_regex'] ?? '';
-            // If no regex provided, match all files; otherwise filter by regex
-            if (empty($filenameRegex) || preg_match($filenameRegex, $filename)) {
-                $files[] = $sessionsDirPath . DIRECTORY_SEPARATOR . $filename;
+            if (is_string($filenameRegex) && $filenameRegex !== '' && preg_match($filenameRegex, $filename) !== 1) {
+                continue;
+            }
+
+            ++$stats['count_total'];
+            $fileSize = filesize($file);
+            if ($fileSize !== false) {
+                $sizeBytes += $fileSize;
+            }
+
+            $mtime = filemtime($file);
+            if ($mtime === false) {
+                continue;
+            }
+
+            $age = $now - $mtime;
+            if ($age >= 0 && $age <= 3600) {
+                ++$stats['count_last_hour'];
+            }
+            if ($age >= 0 && $age <= 86400) {
+                ++$stats['count_last_day'];
             }
         }
 
-        if ($maxAgeSeconds > 0) {
-            foreach ($files as $file) {
-                if (is_file($file)) {
-                    $mtime = filemtime($file);
-                    $age = $now - $mtime;
-                    if ($age >= 0 && $age <= $maxAgeSeconds) {
-                        ++$count;
-                    }
-                }
-            }
+        $stats['size_kb'] = round($sizeBytes / 1024, 2);
 
-            return $count;
-        }
-
-        return count($files);
+        return $stats;
     }
 
     public function getLogEntries(string $app, string $filter = '', ?int $limit = null): array
@@ -336,6 +401,149 @@ class AppWatcher
         }
 
         return $entries;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function getConfiguredLogPaths(string $app): array
+    {
+        $logs = $this->watcherConfig[$app]['logs'] ?? [];
+        if (!is_array($logs)) {
+            return [];
+        }
+
+        $paths = [];
+        foreach ($logs as $logGroup) {
+            if (is_string($logGroup) && $logGroup !== '') {
+                $paths[] = $logGroup;
+
+                continue;
+            }
+
+            if (!is_array($logGroup)) {
+                continue;
+            }
+
+            foreach ($logGroup['paths'] ?? [] as $path) {
+                if (is_string($path) && $path !== '') {
+                    $paths[] = $path;
+                }
+            }
+        }
+
+        return $paths;
+    }
+
+    /**
+     * @return array{total: int, working: int, stale: int, missing: int}
+     */
+    private function getCronjobSummary(string $app): array
+    {
+        $summary = [
+            'total' => 0,
+            'working' => 0,
+            'stale' => 0,
+            'missing' => 0,
+        ];
+
+        foreach ($this->buildCronjobEntries($app, includeContent: false) as $entry) {
+            ++$summary['total'];
+            if ($entry['exists'] !== true) {
+                ++$summary['missing'];
+
+                continue;
+            }
+
+            if ($entry['stale'] === true) {
+                ++$summary['stale'];
+
+                continue;
+            }
+
+            ++$summary['working'];
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildCronjobEntries(string $app, bool $includeContent): array
+    {
+        $entries = [];
+        $maxAgeSeconds = $this->resolveCronjobHeartbeatStaleSeconds($app);
+        $tailLineLimit = $this->resolveCronjobHeartbeatTailLineLimit($app);
+
+        foreach ($this->getCronjobHeartbeatPaths($app) as $index => $heartbeatPath) {
+            $file = $this->rootPath . DIRECTORY_SEPARATOR . $heartbeatPath;
+            $exists = is_readable($file) && is_file($file);
+            $mtime = $exists ? filemtime($file) : false;
+            $ageSeconds = $mtime === false ? null : max(0, time() - $mtime);
+            $size = $exists ? filesize($file) : false;
+            $entry = [
+                'index' => $index,
+                'path' => $heartbeatPath,
+                'exists' => $exists,
+                'mtime' => $mtime === false ? null : date('Y-m-d H:i:s', $mtime),
+                'age_seconds' => $ageSeconds,
+                'size' => $size === false ? 0 : (int) $size,
+                'stale' => $exists && $ageSeconds !== null && $ageSeconds > $maxAgeSeconds,
+            ];
+
+            if ($includeContent) {
+                $entry['content_tail'] = $exists ? $this->tailLogLines($file, $tailLineLimit) : [];
+            }
+
+            $entries[] = $entry;
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function getCronjobHeartbeatPaths(string $app): array
+    {
+        $configured = $this->watcherConfig[$app]['cronjob-heartbeat'] ?? [];
+        if (is_string($configured)) {
+            return $configured === '' ? [] : [$configured];
+        }
+
+        if (!is_array($configured)) {
+            return [];
+        }
+
+        $paths = [];
+        foreach ($configured as $path) {
+            if (is_string($path) && $path !== '') {
+                $paths[] = $path;
+            }
+        }
+
+        return $paths;
+    }
+
+    private function resolveCronjobHeartbeatStaleSeconds(string $app): int
+    {
+        $configured = $this->watcherConfig[$app]['cronjob-heartbeat-stale-seconds'] ?? self::DEFAULT_CRONJOB_HEARTBEAT_STALE_SECONDS;
+        if (!is_numeric($configured)) {
+            return self::DEFAULT_CRONJOB_HEARTBEAT_STALE_SECONDS;
+        }
+
+        return max(1, (int) $configured);
+    }
+
+    private function resolveCronjobHeartbeatTailLineLimit(string $app): int
+    {
+        $configured = $this->watcherConfig[$app]['cronjob-heartbeat-tail-line-limit'] ?? self::DEFAULT_CRONJOB_HEARTBEAT_TAIL_LINE_LIMIT;
+        if (!is_numeric($configured)) {
+            return self::DEFAULT_CRONJOB_HEARTBEAT_TAIL_LINE_LIMIT;
+        }
+
+        return max(1, (int) $configured);
     }
 
     private function getLogFileStatus(string $app): array

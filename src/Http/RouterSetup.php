@@ -137,8 +137,8 @@ class RouterSetup
             ['/apps/composer-audit', fn () => $this->appWatcher->getAppsComposerAudit()],
 
             ['/{app}/readme', fn (string $app) => $this->appWatcher->getAppReadme($app)],
-            ['/{app}/session-count', fn (string $app) => $this->appWatcher->getSessionCount(app: $app)],
-            ['/{app}/session-count/{filter}', fn (string $app, string $filter) => $this->appWatcher->getSessionCount(app: $app, maxAgeSeconds: (int) $filter)],
+            ['/{app}/sessions', fn (string $app) => $this->appWatcher->getAppSessions($app)],
+            ['/{app}/cronjobs', fn (string $app) => $this->appWatcher->getAppCronjobs($app)],
             ['/{app}/logs', fn (string $app) => $this->appWatcher->getLogEntries(
                 app: $app,
                 filter: is_string($_GET['filter'] ?? null) ? $_GET['filter'] : '',
