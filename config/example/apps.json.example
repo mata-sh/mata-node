@@ -3,6 +3,9 @@
         "title": "Example Application",
         "url": "https://example.com/app",
         "path": "example-app",
+        "ping": "on",
+        "readme": "example-app/README.md",
+        "alarms_enabled": "off",
         "sessions": {
             "type": "file",
             "path": "example-app/temp/sessions",

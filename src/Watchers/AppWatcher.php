@@ -524,10 +524,6 @@ class AppWatcher
             $binPath = $composerConfig['bin'] ?? null;
         }
 
-        // composer-json: path, composer-lock: path
-        $jsonPath ??= $config['composer-json'] ?? $config['composer_json'] ?? null;
-        $lockPath ??= $config['composer-lock'] ?? $config['composer_lock'] ?? null;
-
         // try to auto-detect composer.json and composer.lock
         if ($jsonPath === null || $lockPath === null) {
             $autoEnabled = $this->isComposerAutoEnabled($composerConfig);
