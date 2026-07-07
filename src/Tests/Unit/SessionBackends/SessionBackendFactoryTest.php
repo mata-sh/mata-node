@@ -7,6 +7,7 @@ namespace Mata\Tests\Unit\SessionBackends;
 use Mata\Watchers\SessionBackends\FileSessionBackend;
 use Mata\Watchers\SessionBackends\RedisSessionBackend;
 use Mata\Watchers\SessionBackends\SessionBackendFactory;
+use Mata\Watchers\SessionBackends\UnconfiguredSessionBackend;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -16,9 +17,25 @@ use PHPUnit\Framework\TestCase;
  */
 class SessionBackendFactoryTest extends TestCase
 {
-    public function testCreatesFileBackendByDefault(): void
+    public function testCreatesUnconfiguredBackendForEmptyConfig(): void
     {
         $backend = (new SessionBackendFactory())->create([]);
+
+        $this->assertInstanceOf(UnconfiguredSessionBackend::class, $backend);
+        $this->assertSame([
+            'type' => 'none',
+            'status' => 'unconfigured',
+            'count_last_hour' => null,
+            'count_last_day' => null,
+            'count_total' => null,
+            'path' => null,
+            'size_kb' => null,
+        ], $backend->getMetadata([], __DIR__));
+    }
+
+    public function testCreatesFileBackendWhenConfigHasNoType(): void
+    {
+        $backend = (new SessionBackendFactory())->create(['path' => 'sessions']);
 
         $this->assertInstanceOf(FileSessionBackend::class, $backend);
     }

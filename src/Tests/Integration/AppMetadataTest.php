@@ -106,6 +106,31 @@ class AppMetadataTest extends TestCase
         $this->assertSame(round(strlen('session') / 1024, 2), $sessions['size_kb']);
     }
 
+    public function testMissingSessionConfigReportsUnconfiguredSessionBackend(): void
+    {
+        file_put_contents($this->rootPath . '/app/temp/sessions/sess_recent', 'session');
+
+        $config = $this->appConfig();
+        unset($config['sessions']);
+
+        $appWatcher = $this->createAppWatcher([
+            'testapp' => $config,
+        ]);
+
+        $expected = [
+            'type' => 'none',
+            'status' => 'unconfigured',
+            'count_last_hour' => null,
+            'count_last_day' => null,
+            'count_total' => null,
+            'path' => null,
+            'size_kb' => null,
+        ];
+
+        $this->assertSame($expected, $appWatcher->getAppSessions('testapp'));
+        $this->assertSame($expected, $appWatcher->getAppInfo('testapp')['session']);
+    }
+
     public function testAppSpecificCronjobsEndpointReturnsExistingAndMissingHeartbeatFiles(): void
     {
         file_put_contents($this->rootPath . '/app/includes/heartbeat.log', "line 1\nline 2\n");

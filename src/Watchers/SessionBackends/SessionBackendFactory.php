@@ -18,6 +18,7 @@ final class SessionBackendFactory
         $type = $this->resolveType($config);
 
         return match ($type) {
+            'none' => new UnconfiguredSessionBackend(),
             'file' => new FileSessionBackend(),
             'redis' => new RedisSessionBackend($this->redisClientFactory ?? new RedisSocketClientFactory()),
             default => new UnsupportedSessionBackend($type),
@@ -29,6 +30,10 @@ final class SessionBackendFactory
      */
     private function resolveType(array $config): string
     {
+        if ($config === []) {
+            return 'none';
+        }
+
         $type = $config['type'] ?? 'file';
         if (!is_string($type) || trim($type) === '') {
             return 'file';
