@@ -127,6 +127,7 @@ class RouterSetup
     {
         $serverRoutes = [
             ['/server-data', fn () => $this->serverWatcher->getServerData()],
+            ['/server-info', fn () => $this->serverWatcher->getServerInfo()],
             ['/server-php', fn () => $this->serverWatcher->getPhpProcesses()],
         ];
 
@@ -138,15 +139,18 @@ class RouterSetup
             ['/{app}/readme', fn (string $app) => $this->appWatcher->getAppReadme($app)],
             ['/{app}/session-count', fn (string $app) => $this->appWatcher->getSessionCount(app: $app)],
             ['/{app}/session-count/{filter}', fn (string $app, string $filter) => $this->appWatcher->getSessionCount(app: $app, maxAgeSeconds: (int) $filter)],
-            ['/{app}/logs', fn (string $app) => $this->appWatcher->getLogEntries(app: $app)],
+            ['/{app}/logs', fn (string $app) => $this->appWatcher->getLogEntries(
+                app: $app,
+                filter: is_string($_GET['filter'] ?? null) ? $_GET['filter'] : '',
+                limit: isset($_GET['limit']) && is_scalar($_GET['limit']) ? (int) $_GET['limit'] : null,
+            )],
             ['/{app}/logs-status', fn (string $app) => $this->appWatcher->getAppLogStatus($app)],
             ['/{app}/app-config', fn (string $app) => $this->appWatcher->loadAppConfig($app)],
             ['/{app}/libraries', fn (string $app) => $this->appWatcher->getAppLibraries($app)],
         ];
 
         $databaseRoutes = [
-            ['/server-databases', fn () => $this->databaseWatcher->getAvailableDatabases()],
-            ['/databases-status', fn () => $this->databaseWatcher->retrieveAllDatabasesStatus()],
+            ['/server-databases', fn () => $this->databaseWatcher->getDatabasesStatus()],
             ['/{dbname}/database-status', fn (string $dbname) => $this->databaseWatcher->retrieveCompleteStatus($dbname)],
             ['/{dbname}/database-connections', fn (string $dbname) => $this->databaseWatcher->retrieveActiveMaxConnections($dbname)],
             ['/{dbname}/database-processes', fn (string $dbname) => $this->databaseWatcher->retrieveProcessList($dbname)],

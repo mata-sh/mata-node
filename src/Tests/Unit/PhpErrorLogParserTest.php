@@ -238,7 +238,7 @@ class PhpErrorLogParserTest extends TestCase
         $parsed = json_decode($result, true);
 
         $firstEntry = $parsed[0];
-        $this->assertStringContainsString('18-Jan-2026 10:30:45', $firstEntry['timestamp']);
+        $this->assertEquals('2026-01-18 10:30:45', $firstEntry['timestamp']);
     }
 
     public function testParseToJsonHandlesDeprecatedNotices(): void

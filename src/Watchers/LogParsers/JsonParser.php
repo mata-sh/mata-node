@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Mata\Watchers\LogParsers;
 
+use DateTimeImmutable;
 use RuntimeException;
+use Throwable;
 
 /**
  * Parser for JSON structured logs.
@@ -12,7 +14,7 @@ use RuntimeException;
  * Handles JSON format: {"timestamp":"...","level":"...","message":"..."}
  * Expects one JSON object per line (standard practice).
  */
-class JsonParser
+class JsonParser implements LogParserInterface
 {
     public function getName(): string
     {
@@ -62,6 +64,74 @@ class JsonParser
         };
     }
 
+    /**
+     * Parse JSON log lines.
+     *
+     * @param array<int,string> $lines
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function parseLines(array $lines): array
+    {
+        $parsedEntries = [];
+
+        foreach ($lines as $line) {
+            $parsed = $this->parse($line);
+            if ($parsed !== null) {
+                $parsedEntries[] = $parsed;
+            }
+        }
+
+        return $parsedEntries;
+    }
+
+    /**
+     * Parse a single JSON log line.
+     *
+     * @return null|array<string,mixed>
+     */
+    public function parse(string $line): ?array
+    {
+        $line = trim($line);
+        if (empty($line)) {
+            return null;
+        }
+
+        $decoded = json_decode($line, true);
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+            return null;
+        }
+
+        // Normalize to standard format
+        $timestamp = $decoded['timestamp'] ?? $decoded['time'] ?? $decoded['@timestamp'] ?? '';
+        $level = $decoded['level'] ?? $decoded['severity'] ?? 'info';
+        $message = $decoded['message'] ?? $decoded['msg'] ?? '';
+
+        // Normalize log level to match PHP error_log format
+        $normalizedType = match (strtolower((string) $level)) {
+            'error', 'critical', 'alert', 'emergency' => 'Error',
+            'warning', 'warn' => 'Warning',
+            'notice', 'info', 'debug' => 'Other',
+            default => 'Other'
+        };
+
+        $entry = [
+            'timestamp' => $this->normalizeTimestamp((string) $timestamp),
+            'type' => $normalizedType,
+            'message' => (string) $message,
+        ];
+
+        // Include additional fields if present
+        if (isset($decoded['context'])) {
+            $entry['context'] = $decoded['context'];
+        }
+        if (isset($decoded['extra'])) {
+            $entry['extra'] = $decoded['extra'];
+        }
+
+        return $entry;
+    }
+
     public function parseToJson(string $logFile, int $maxLines): string
     {
         if (!file_exists($logFile) || !is_readable($logFile)) {
@@ -76,51 +146,9 @@ class JsonParser
             throw new RuntimeException('failed to read log using tail');
         }
 
-        $lines = explode("\n", trim($output));
-        $parsedEntries = [];
+        $lines = trim($output) !== '' ? explode("\n", trim($output)) : [];
 
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if (empty($line)) {
-                continue;
-            }
-
-            $decoded = json_decode($line, true);
-            if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
-                continue;
-            }
-
-            // Normalize to standard format
-            $timestamp = $decoded['timestamp'] ?? $decoded['time'] ?? $decoded['@timestamp'] ?? '';
-            $level = $decoded['level'] ?? $decoded['severity'] ?? 'info';
-            $message = $decoded['message'] ?? $decoded['msg'] ?? '';
-
-            // Normalize log level to match PHP error_log format
-            $normalizedType = match (strtolower($level)) {
-                'error', 'critical', 'alert', 'emergency' => 'Error',
-                'warning', 'warn' => 'Warning',
-                'notice', 'info', 'debug' => 'Other',
-                default => 'Other'
-            };
-
-            $entry = [
-                'timestamp' => $timestamp,
-                'type' => $normalizedType,
-                'message' => $message,
-            ];
-
-            // Include additional fields if present
-            if (isset($decoded['context'])) {
-                $entry['context'] = $decoded['context'];
-            }
-            if (isset($decoded['extra'])) {
-                $entry['extra'] = $decoded['extra'];
-            }
-
-            $parsedEntries[] = $entry;
-        }
-
-        return json_encode($parsedEntries, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        return json_encode($this->parseLines($lines), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     }
 
     public function analyzeLog(string $logFile): array
@@ -148,5 +176,18 @@ class JsonParser
             'warnings' => $warningCount,
             'total' => $totalLines,
         ];
+    }
+
+    private function normalizeTimestamp(string $timestamp): string
+    {
+        if ($timestamp === '') {
+            return '';
+        }
+
+        try {
+            return (new DateTimeImmutable($timestamp))->format('Y-m-d H:i:s');
+        } catch (Throwable) {
+            return '';
+        }
     }
 }

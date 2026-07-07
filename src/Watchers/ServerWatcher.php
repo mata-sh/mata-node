@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Mata\Watchers;
 
+use Throwable;
+
 class ServerWatcher
 {
     private string $rootPath;
@@ -55,6 +57,25 @@ class ServerWatcher
         return $data;
     }
 
+    public function getServerInfo(): array
+    {
+        $osRelease = $this->readOsRelease();
+        $phpExtensions = get_loaded_extensions();
+        sort($phpExtensions);
+
+        return [
+            'os_name' => $osRelease['NAME'] ?? php_uname('s') ?: '',
+            'os_version' => $osRelease['VERSION_ID'] ?? $osRelease['VERSION'] ?? '',
+            'kernel_version' => php_uname('r') ?: '',
+            'package_count' => $this->getPackageCount(),
+            'php_version' => PHP_VERSION,
+            'php_extension_count' => count($phpExtensions),
+            'php_extensions' => $phpExtensions,
+            'architecture' => php_uname('m') ?: '',
+            'hostname' => gethostname() ?: '',
+        ];
+    }
+
     public function getSystemFilecount($maxAgeCache): int
     {
 
@@ -100,6 +121,67 @@ class ServerWatcher
         }
 
         return $data;
+    }
+
+    private function readOsRelease(): array
+    {
+        $file = '/etc/os-release';
+        if (!is_readable($file)) {
+            return [];
+        }
+
+        $values = [];
+        $lines = file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if ($lines === false) {
+            return [];
+        }
+
+        foreach ($lines as $line) {
+            if (!str_contains($line, '=')) {
+                continue;
+            }
+
+            [$key, $value] = explode('=', $line, 2);
+            $values[$key] = trim($value, " \t\n\r\0\x0B\"");
+        }
+
+        return $values;
+    }
+
+    private function getPackageCount(): int
+    {
+        $commands = [
+            'dpkg-query -f \'.\' -W 2>/dev/null | wc -c',
+            'rpm -qa 2>/dev/null | wc -l',
+            'pacman -Q 2>/dev/null | wc -l',
+        ];
+
+        foreach ($commands as $command) {
+            $output = $this->runCommand($command);
+            if ($output === '') {
+                continue;
+            }
+
+            $count = (int) trim($output);
+            if ($count > 0) {
+                return $count;
+            }
+        }
+
+        return 0;
+    }
+
+    private function runCommand(string $command): string
+    {
+        if (!function_exists('shell_exec')) {
+            return '';
+        }
+
+        try {
+            return (string) shell_exec($command);
+        } catch (Throwable) {
+            return '';
+        }
     }
 
     private function getDiskStats($path = '/')

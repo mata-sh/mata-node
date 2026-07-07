@@ -8,6 +8,7 @@ use Mata\Config\Dto\DatabaseConfig;
 use Mata\Core\Database;
 use Mata\Watchers\Exceptions\DatabaseWatcherException;
 use PDOException;
+use Throwable;
 
 class DatabaseWatcher
 {
@@ -63,13 +64,67 @@ class DatabaseWatcher
     }
 
     /**
-     * Get list of available database names.
-     *
-     * @return array<string>
+     * Get status for configured databases.
      */
-    public function getAvailableDatabases(): array
+    public function getDatabasesStatus(): array
     {
-        return array_keys($this->connections);
+        $databases = [];
+
+        foreach ($this->configs as $databaseName => $config) {
+            $databases[$databaseName] = $this->retrieveConfiguredDatabaseStatus((string) $databaseName, $config);
+        }
+
+        return [
+            'processes' => [
+                'sql' => $this->countSqlProcesses(),
+            ],
+            'databases' => $databases,
+        ];
+    }
+
+    private function retrieveConfiguredDatabaseStatus(string $databaseName, array $config): array
+    {
+        $status = [
+            'database' => $databaseName,
+            'configured_database' => $config['database'] ?? '',
+            'host' => $config['host'] ?? '',
+            'port' => (int) ($config['port'] ?? 0),
+            'description' => $config['description'] ?? '',
+            'max_connections' => 0,
+            'active_threads' => 0,
+            'active_processes' => 0,
+            'process_list' => [],
+            'connection_error' => '',
+        ];
+
+        foreach (['host', 'username', 'password', 'database', 'port'] as $requiredKey) {
+            if (!array_key_exists($requiredKey, $config)) {
+                $status['connection_error'] = "Missing database config key: {$requiredKey}";
+
+                return $status;
+            }
+        }
+
+        try {
+            return array_merge($status, $this->retrieveCompleteStatus($databaseName));
+        } catch (Throwable $error) {
+            $status['connection_error'] = $error->getMessage();
+
+            return $status;
+        }
+    }
+
+    private function countSqlProcesses(): int
+    {
+        if (!function_exists('shell_exec')) {
+            return 0;
+        }
+
+        try {
+            return (int) shell_exec('pgrep -c sql 2>/dev/null');
+        } catch (Throwable) {
+            return 0;
+        }
     }
 
     /**
@@ -92,28 +147,6 @@ class DatabaseWatcher
             'active_processes' => $this->retrieveActiveProcesses($databaseName),
             'process_list' => $this->retrieveProcessList($databaseName),
         ];
-    }
-
-    /**
-     * Retrieve complete status for all available databases.
-     *
-     * @return array<string, array{
-     *     database: string,
-     *     max_connections: int,
-     *     active_threads: int,
-     *     active_processes: int,
-     *     process_list: array
-     * }>
-     */
-    public function retrieveAllDatabasesStatus(): array
-    {
-        $statuses = [];
-
-        foreach (array_keys($this->connections) as $databaseName) {
-            $statuses[$databaseName] = $this->retrieveCompleteStatus($databaseName);
-        }
-
-        return $statuses;
     }
 
     public function retrieveActiveMaxConnections(string $databaseName): int

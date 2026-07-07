@@ -72,6 +72,7 @@ MATA Node runs on each monitored environment and answers authenticated requests 
 
 ### Authenticated
 - `GET /server-data`
+- `GET /server-info`
 - `GET /server-php`
 - `GET /apps`
 - `GET /apps/libraries`
@@ -83,7 +84,6 @@ MATA Node runs on each monitored environment and answers authenticated requests 
 - `GET /{app}/app-config`
 - `GET /{app}/libraries`
 - `GET /server-databases`
-- `GET /databases-status`
 - `GET /{dbname}/database-status`
 - `GET /{dbname}/database-connections`
 - `GET /{dbname}/database-processes`

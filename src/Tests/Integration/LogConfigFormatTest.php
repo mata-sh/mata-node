@@ -99,11 +99,9 @@ class LogConfigFormatTest extends TestCase
         $this->assertArrayHasKey('logs/php_error.log', $parsed);
         $this->assertNotEmpty($parsed['logs/php_error.log']);
 
-        foreach ($parsed['logs/php_error.log'] as $line) {
-            if ($line === '') {
-                continue;
-            }
-            $this->assertMatchesRegularExpression('/PHP (Fatal error|Parse error|Error)/', $line);
+        foreach ($parsed['logs/php_error.log'] as $entry) {
+            $this->assertParsedLogEntry($entry);
+            $this->assertSame('Error', $entry['type']);
         }
     }
 
@@ -171,25 +169,19 @@ class LogConfigFormatTest extends TestCase
         $this->assertArrayHasKey('logs/monolog.log', $parsed);
         $this->assertArrayHasKey('logs/json.log', $parsed);
 
-        foreach ($parsed['logs/php_error.log'] as $line) {
-            if ($line === '') {
-                continue;
-            }
-            $this->assertMatchesRegularExpression('/PHP (Fatal error|Parse error|Error)/', $line);
+        foreach ($parsed['logs/php_error.log'] as $entry) {
+            $this->assertParsedLogEntry($entry);
+            $this->assertSame('Error', $entry['type']);
         }
 
-        foreach ($parsed['logs/monolog.log'] as $line) {
-            if ($line === '') {
-                continue;
-            }
-            $this->assertMatchesRegularExpression('/\.ERROR:|\.CRITICAL:|\.EMERGENCY:|\.ALERT:/', $line);
+        foreach ($parsed['logs/monolog.log'] as $entry) {
+            $this->assertParsedLogEntry($entry);
+            $this->assertSame('Error', $entry['type']);
         }
 
-        foreach ($parsed['logs/json.log'] as $line) {
-            if ($line === '') {
-                continue;
-            }
-            $this->assertMatchesRegularExpression('/\"level\":\"(error|critical|emergency|alert)\"/', $line);
+        foreach ($parsed['logs/json.log'] as $entry) {
+            $this->assertParsedLogEntry($entry);
+            $this->assertSame('Error', $entry['type']);
         }
     }
 
@@ -219,7 +211,7 @@ class LogConfigFormatTest extends TestCase
         $this->assertArrayHasKey('logs/monolog.log', $parsed);
         $this->assertArrayHasKey('logs/json.log', $parsed);
         $this->assertNotEmpty($parsed['logs/monolog.log']);
-        $this->assertNotEmpty($parsed['logs/json.log']);
+        $this->assertEmpty($parsed['logs/json.log']);
     }
 
     public function testGetLogEntriesUsesFirstLog(): void
@@ -315,11 +307,9 @@ class LogConfigFormatTest extends TestCase
 
         $this->assertIsArray($parsed);
         $this->assertArrayHasKey('logs/json.log', $parsed);
-        foreach ($parsed['logs/json.log'] as $line) {
-            if ($line === '') {
-                continue;
-            }
-            $this->assertStringContainsString('"level":"warning"', $line);
+        foreach ($parsed['logs/json.log'] as $entry) {
+            $this->assertParsedLogEntry($entry);
+            $this->assertSame('Warning', $entry['type']);
         }
     }
 
@@ -350,18 +340,14 @@ class LogConfigFormatTest extends TestCase
         $this->assertArrayHasKey('logs/php_error.log', $parsed);
         $this->assertArrayHasKey('logs/json.log', $parsed);
 
-        foreach ($parsed['logs/php_error.log'] as $line) {
-            if ($line === '') {
-                continue;
-            }
-            $this->assertMatchesRegularExpression('/PHP (Fatal error|Parse error|Error)/', $line);
+        foreach ($parsed['logs/php_error.log'] as $entry) {
+            $this->assertParsedLogEntry($entry);
+            $this->assertSame('Error', $entry['type']);
         }
 
-        foreach ($parsed['logs/json.log'] as $line) {
-            if ($line === '') {
-                continue;
-            }
-            $this->assertMatchesRegularExpression('/\"level\":\"(error|critical|emergency|alert)\"/', $line);
+        foreach ($parsed['logs/json.log'] as $entry) {
+            $this->assertParsedLogEntry($entry);
+            $this->assertSame('Error', $entry['type']);
         }
     }
 
@@ -477,9 +463,30 @@ class LogConfigFormatTest extends TestCase
         $stats = $statsJson;
 
         $this->assertIsArray($stats);
-        $this->assertArrayHasKey('fatal', $stats);
-        $this->assertArrayHasKey('warnings', $stats);
-        $this->assertArrayHasKey('total', $stats);
+        $this->assertArrayHasKey('logs/php_error.log', $stats);
+        $this->assertLogStatusEntry($stats['logs/php_error.log']);
+    }
+
+    private function assertParsedLogEntry(mixed $entry): void
+    {
+        $this->assertIsArray($entry);
+        $this->assertArrayHasKey('timestamp', $entry);
+        $this->assertArrayHasKey('type', $entry);
+        $this->assertArrayHasKey('message', $entry);
+        $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $entry['timestamp']);
+        $this->assertContains($entry['type'], ['Error', 'Warning', 'Deprecated', 'Other']);
+        $this->assertIsString($entry['message']);
+    }
+
+    private function assertLogStatusEntry(mixed $entry): void
+    {
+        $this->assertIsArray($entry);
+        $this->assertArrayHasKey('size', $entry);
+        $this->assertArrayHasKey('lines', $entry);
+        $this->assertArrayHasKey('last_modified', $entry);
+        $this->assertIsInt($entry['size']);
+        $this->assertIsInt($entry['lines']);
+        $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $entry['last_modified']);
     }
 
     private function redirectErrorLog(): void

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Mata\Watchers\LogParsers;
 
+use DateTimeImmutable;
 use RuntimeException;
+use Throwable;
 
 /**
  * Parser for PHP error_log format.
@@ -12,7 +14,7 @@ use RuntimeException;
  * Handles standard PHP error log format: [DD-Mon-YYYY HH:MM:SS timezone] PHP ErrorType: message
  * Supports multi-line entries (stack traces).
  */
-class PhpErrorLogParser
+class PhpErrorLogParser implements LogParserInterface
 {
     public function getName(): string
     {
@@ -57,6 +59,75 @@ class PhpErrorLogParser
     }
 
     /**
+     * Parse PHP error log lines.
+     *
+     * @param array<int,string> $lines
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function parseLines(array $lines): array
+    {
+        $logEntries = [];
+        $currentEntry = '';
+
+        $entryStartPattern = '/^\[\d{2}-[A-Za-z]{3}-\d{4} \d{2}:\d{2}:\d{2} [^\]]+\]/';
+
+        foreach ($lines as $line) {
+            if (preg_match($entryStartPattern, $line)) {
+                if ($currentEntry !== '') {
+                    $logEntries[] = $currentEntry;
+                }
+                $currentEntry = $line;
+            } elseif ($currentEntry !== '') {
+                $currentEntry .= "\n" . $line;
+            }
+        }
+
+        if ($currentEntry !== '') {
+            $logEntries[] = $currentEntry;
+        }
+
+        $parsedEntries = [];
+        foreach ($logEntries as $entry) {
+            $parsed = $this->parse($entry);
+            if ($parsed !== null) {
+                $parsedEntries[] = $parsed;
+            }
+        }
+
+        return $parsedEntries;
+    }
+
+    /**
+     * Parse a single PHP error log entry.
+     *
+     * @return null|array<string,mixed>
+     */
+    public function parse(string $entry): ?array
+    {
+        if (!preg_match('/^\[(.*?)\] PHP ([\w\s]+): (.+)$/s', $entry, $matches)) {
+            return null;
+        }
+
+        $timestamp = $matches[1];
+        $type = trim($matches[2]);
+        $message = trim($matches[3]);
+
+        $normalizedType = match (true) {
+            stripos($type, 'warning') !== false => 'Warning',
+            stripos($type, 'error') !== false => 'Error',
+            stripos($type, 'deprecated') !== false => 'Deprecated',
+            default => 'Other'
+        };
+
+        return [
+            'timestamp' => $this->normalizeTimestamp($timestamp),
+            'type' => $normalizedType,
+            'message' => $message,
+        ];
+    }
+
+    /**
      * Parse PHP error log to JSON format.
      *
      * Extracted from AppWatcher::errorlogToJson() for backward compatibility.
@@ -75,52 +146,9 @@ class PhpErrorLogParser
             throw new RuntimeException('failed to read log using tail');
         }
 
-        $lines = explode("\n", trim($output));
-        $logEntries = [];
-        $currentEntry = '';
+        $lines = trim($output) !== '' ? explode("\n", trim($output)) : [];
 
-        $entryStartPattern = '/^\[\d{2}-[A-Za-z]{3}-\d{4} \d{2}:\d{2}:\d{2} [^\]]+\]/';
-
-        foreach ($lines as $line) {
-            if (preg_match($entryStartPattern, $line)) {
-                if ($currentEntry !== '') {
-                    $logEntries[] = $currentEntry;
-                }
-                $currentEntry = $line;
-            } else {
-                $currentEntry .= "\n" . $line;
-            }
-        }
-
-        if ($currentEntry !== '') {
-            $logEntries[] = $currentEntry;
-        }
-
-        $parsedEntries = [];
-
-        foreach ($logEntries as $entry) {
-            if (preg_match('/^\[(.*?)\] PHP ([\w\s]+): (.+)$/s', $entry, $matches)) {
-
-                $timestamp = $matches[1];
-                $type = trim($matches[2]);
-                $message = trim($matches[3]);
-
-                $normalizedType = match (true) {
-                    stripos($type, 'warning') !== false => 'Warning',
-                    stripos($type, 'error') !== false => 'Error',
-                    stripos($type, 'deprecated') !== false => 'Deprecated',
-                    default => 'Other'
-                };
-
-                $parsedEntries[] = [
-                    'timestamp' => $timestamp,
-                    'type' => $normalizedType,
-                    'message' => $message,
-                ];
-            }
-        }
-
-        return json_encode($parsedEntries, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        return json_encode($this->parseLines($lines), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     }
 
     /**
@@ -145,5 +173,14 @@ class PhpErrorLogParser
             'warnings' => $warningCount,
             'total' => $totalLines,
         ];
+    }
+
+    private function normalizeTimestamp(string $timestamp): string
+    {
+        try {
+            return (new DateTimeImmutable($timestamp))->format('Y-m-d H:i:s');
+        } catch (Throwable) {
+            return '';
+        }
     }
 }

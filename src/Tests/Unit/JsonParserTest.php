@@ -149,7 +149,7 @@ class JsonParserTest extends TestCase
         $parsed = json_decode($result, true);
 
         $firstEntry = $parsed[0];
-        $this->assertEquals('2026-01-18T10:30:45.123Z', $firstEntry['timestamp']);
+        $this->assertEquals('2026-01-18 10:30:45', $firstEntry['timestamp']);
     }
 
     public function testParseToJsonNormalizesErrorLevel(): void
@@ -307,7 +307,7 @@ class JsonParserTest extends TestCase
         $result = $this->parser->parseToJson($tempLog, 100);
         $parsed = json_decode($result, true);
 
-        $this->assertEquals('2026-01-18T10:30:45.123Z', $parsed[0]['timestamp']);
+        $this->assertEquals('2026-01-18 10:30:45', $parsed[0]['timestamp']);
         $this->assertEquals('Alternative fields', $parsed[0]['message']);
     }
 

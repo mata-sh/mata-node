@@ -7,6 +7,7 @@ namespace Mata\Watchers;
 use Mata\Utils\Tools;
 use Mata\Watchers\Exceptions\AppWatcherException;
 use Mata\Watchers\LogParsers\LogParserFactory;
+use Mata\Watchers\LogParsers\LogParserInterface;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 
@@ -15,6 +16,10 @@ use RuntimeException;
 
 class AppWatcher
 {
+    private const DEFAULT_LOG_SCAN_LINE_LIMIT = 20000;
+    private const LOG_FILTER_ALL = '';
+    private const LOG_FILTER_ERRORS = 'errors';
+    private const LOG_FILTER_WARNINGS = 'warnings';
     private Tools $tools;
     private LoggerInterface $logger;
 
@@ -22,7 +27,6 @@ class AppWatcher
     private array $watcherConfig;
     private array $transmitConfig;
     private array $appsConfig;
-    private array $parserCache = [];
 
     public function __construct(Tools $tools, LoggerInterface $logger, string $rootPath, array $watcherConfig, array $transmitConfig)
     {
@@ -149,8 +153,7 @@ class AppWatcher
         $app = $this->requireAppKey($app);
         $this->ensureAppConfigLoaded($app);
 
-        return $this->getLogStats($app);
-
+        return $this->getLogFileStatus($app);
     }
 
     public function getAppLogs(string $app): array
@@ -203,7 +206,7 @@ class AppWatcher
 
         $result = [];
         $config = [];
-        foreach ($this->watcherConfig[$app]['configs'] as $cfg) {
+        foreach ($this->watcherConfig[$app]['configs'] ?? [] as $cfg) {
             // Get Config Contents
             $filePath = $this->rootPath . DIRECTORY_SEPARATOR . $cfg;
             if (file_exists($filePath)) {
@@ -211,7 +214,7 @@ class AppWatcher
             }
         }
 
-        foreach ($this->transmitConfig['transmit_config'] as $transmit) {
+        foreach ($this->transmitConfig['transmit_config'] ?? [] as $transmit) {
             $result[$transmit] = $config[$transmit] ?? '';
         }
         $this->appsConfig[$app] = $result;
@@ -273,7 +276,17 @@ class AppWatcher
     {
         $app = $this->requireAppKey($app);
         $this->ensureAppConfigLoaded($app);
-        $limit ??= $this->transmitConfig['errorlog_readout_limit'] ?? 50;
+        $limit = max(1, (int) ($limit ?? $this->transmitConfig['errorlog_readout_limit'] ?? 50));
+        $scanLineLimit = max(1, (int) ($this->transmitConfig['errorlog_scan_line_limit'] ?? self::DEFAULT_LOG_SCAN_LINE_LIMIT));
+
+        if (!$this->isValidLogFilter($filter)) {
+            $this->logger->warning('Invalid log filter requested', [
+                'app' => $app,
+                'filter' => $filter,
+            ]);
+
+            return [];
+        }
 
         $logs = $this->watcherConfig[$app]['logs'] ?? [];
         if (empty($logs)) {
@@ -314,22 +327,116 @@ class AppWatcher
                     continue;
                 }
 
-                // parser can be declader via app config or auto-detected
-                $parser = $type !== ''
-                    ? $this->getLogParserByType($type)
-                    : $this->getLogParserByLogfile($logFile);
-                $grepPattern = $parser->getGrepPattern($filter);
-
-                $grepCmd = $grepPattern ? "grep '{$grepPattern}'" : 'cat';
-                $cmd = 'tail -n 20000 ' . escapeshellarg($logFile) . " | {$grepCmd} | tail -n " . (int) $limit;
-                $output = shell_exec($cmd);
-
-                $lines = $output ? explode("\n", trim($output)) : [];
-                $entries[$logPath] = $lines;
+                $parser = $this->getLogParser($type, $logFile);
+                $lines = $this->tailLogLines($logFile, $scanLineLimit);
+                $parsedEntries = $parser->parseLines($lines);
+                $parsedEntries = $this->filterLogEntries($parsedEntries, $filter);
+                $entries[$logPath] = array_slice($parsedEntries, -$limit);
             }
         }
 
         return $entries;
+    }
+
+    private function getLogFileStatus(string $app): array
+    {
+        $logs = $this->watcherConfig[$app]['logs'] ?? [];
+        if (empty($logs)) {
+            return [];
+        }
+
+        $status = [];
+        foreach ($logs as $logGroup) {
+            $paths = [];
+
+            if (is_string($logGroup)) {
+                $paths = [$logGroup];
+            } elseif (is_array($logGroup)) {
+                $paths = $logGroup['paths'] ?? [];
+            }
+
+            if (empty($paths)) {
+                continue;
+            }
+
+            foreach ($paths as $logPath) {
+                if (!is_string($logPath) || $logPath === '') {
+                    continue;
+                }
+
+                $logFile = $this->rootPath . '/' . $logPath;
+                if (!is_readable($logFile)) {
+                    $this->logger->warning('Log file not found or unreadable', [
+                        'app' => $app,
+                        'log' => $logFile,
+                    ]);
+                    $status[$logPath] = [
+                        'size' => 0,
+                        'lines' => 0,
+                        'last_modified' => '',
+                    ];
+
+                    continue;
+                }
+
+                $lastModified = filemtime($logFile);
+                $status[$logPath] = [
+                    'size' => (int) filesize($logFile),
+                    'lines' => $this->countFileLines($logFile),
+                    'last_modified' => $lastModified ? date('Y-m-d H:i:s', $lastModified) : '',
+                ];
+            }
+        }
+
+        return $status;
+    }
+
+    private function isValidLogFilter(string $filter): bool
+    {
+        return in_array($filter, [
+            self::LOG_FILTER_ALL,
+            self::LOG_FILTER_ERRORS,
+            self::LOG_FILTER_WARNINGS,
+        ], true);
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $entries
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    private function filterLogEntries(array $entries, string $filter): array
+    {
+        if ($filter === self::LOG_FILTER_ALL) {
+            return $entries;
+        }
+
+        return array_values(array_filter($entries, static function (array $entry) use ($filter): bool {
+            $type = $entry['type'] ?? '';
+
+            return match ($filter) {
+                self::LOG_FILTER_ERRORS => $type === 'Error',
+                self::LOG_FILTER_WARNINGS => $type === 'Warning',
+                default => false,
+            };
+        }));
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    private function tailLogLines(string $logFile, int $maxLines): array
+    {
+        $output = shell_exec('tail -n ' . max(1, $maxLines) . ' ' . escapeshellarg($logFile));
+
+        return $output !== null && trim($output) !== '' ? explode("\n", trim($output)) : [];
+    }
+
+    private function countFileLines(string $logFile): int
+    {
+        $output = shell_exec('wc -l < ' . escapeshellarg($logFile));
+
+        return $output === null ? 0 : (int) trim($output);
     }
 
     public function getLogStats(string $app): array
@@ -378,9 +485,7 @@ class AppWatcher
                     continue;
                 }
 
-                $parser = $type !== ''
-                    ? $this->getLogParserByType($type)
-                    : $this->getLogParserByLogfile($logFile);
+                $parser = $this->getLogParser($type, $logFile);
 
                 $stats = $parser->analyzeLog($logFile);
                 $totals['fatal'] += (int) ($stats['fatal'] ?? 0);
@@ -579,41 +684,22 @@ class AppWatcher
         return file_get_contents($readmeFile);
     }
 
-    /**
-     * Get appropriate log parser for a log type.
-     */
-    private function getLogParserByType(string $type): object
+    private function getLogParser(string $type, string $logFile): LogParserInterface
     {
-        $cacheKey = "type:{$type}";
-        if (isset($this->parserCache[$cacheKey])) {
-            return $this->parserCache[$cacheKey];
+        if ($type === '') {
+            return LogParserFactory::detectFormat($logFile);
         }
 
         $parser = LogParserFactory::getParser($type);
-        if ($parser === null) {
-            error_log("Invalid log type '{$type}', using default parser");
-            $parser = LogParserFactory::getParser('php_error_log');
+        if ($parser !== null) {
+            return $parser;
         }
 
-        $this->parserCache[$cacheKey] = $parser;
+        $this->logger->warning('Invalid log parser type configured, using auto-detected parser', [
+            'type' => $type,
+            'log' => $logFile,
+        ]);
 
-        return $parser;
-    }
-
-    /**
-     * Get appropriate log parser by inspecting a log file.
-     */
-    private function getLogParserByLogfile(string $logFile): object
-    {
-        $cacheKey = "file:{$logFile}";
-        if (isset($this->parserCache[$cacheKey])) {
-            return $this->parserCache[$cacheKey];
-        }
-
-        $parser = LogParserFactory::detectFormat($logFile);
-
-        $this->parserCache[$cacheKey] = $parser;
-
-        return $parser;
+        return LogParserFactory::detectFormat($logFile);
     }
 }

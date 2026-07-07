@@ -14,16 +14,16 @@ use Throwable;
  */
 class LogParserFactory
 {
-    /** @var null|array<object> Cached parser instances */
+    /** @var null|array<int,LogParserInterface> Cached parser instances */
     private static ?array $parsersCache = null;
 
-    /** @var array<string,object> Detection cache: logFile => parser instance */
+    /** @var array<string,LogParserInterface> Detection cache: logFile => parser instance */
     private static array $detectionCache = [];
 
     /**
      * Auto-discover all parser classes in LogParsers directory.
      *
-     * @return array<object> Array of parser instances
+     * @return array<int,LogParserInterface> Array of parser instances
      */
     private static function getAllParsers(): array
     {
@@ -50,7 +50,10 @@ class LogParserFactory
 
             if (class_exists($fullClass)) {
                 try {
-                    $parsers[] = new $fullClass();
+                    $parser = new $fullClass();
+                    if ($parser instanceof LogParserInterface) {
+                        $parsers[] = $parser;
+                    }
                 } catch (Throwable $e) {
                     error_log("Failed to load parser {$className}: " . $e->getMessage());
                 }
@@ -70,9 +73,9 @@ class LogParserFactory
      *
      * @param string $logFile Path to log file
      *
-     * @return object Parser instance (defaults to PhpErrorLogParser if no match)
+     * @return LogParserInterface Parser instance (defaults to PhpErrorLogParser if no match)
      */
-    public static function detectFormat(string $logFile): object
+    public static function detectFormat(string $logFile): LogParserInterface
     {
         // Check cache first
         if (isset(self::$detectionCache[$logFile])) {
@@ -83,7 +86,7 @@ class LogParserFactory
 
         // Try each parser's detect() method
         foreach ($parsers as $parser) {
-            if (method_exists($parser, 'detect') && $parser->detect($logFile)) {
+            if ($parser->detect($logFile)) {
                 self::$detectionCache[$logFile] = $parser;
 
                 return $parser;
@@ -104,14 +107,14 @@ class LogParserFactory
      *
      * @param string $formatName Format name ('php_error_log', 'monolog', 'json')
      *
-     * @return null|object Parser instance or null if not found
+     * @return null|LogParserInterface Parser instance or null if not found
      */
-    public static function getParser(string $formatName): ?object
+    public static function getParser(string $formatName): ?LogParserInterface
     {
         $parsers = self::getAllParsers();
 
         foreach ($parsers as $parser) {
-            if (method_exists($parser, 'getName') && $parser->getName() === $formatName) {
+            if ($parser->getName() === $formatName) {
                 return $parser;
             }
         }
@@ -147,9 +150,7 @@ class LogParserFactory
         $names = [];
 
         foreach ($parsers as $parser) {
-            if (method_exists($parser, 'getName')) {
-                $names[] = $parser->getName();
-            }
+            $names[] = $parser->getName();
         }
 
         return $names;
