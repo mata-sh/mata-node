@@ -12,6 +12,10 @@ COLOR_BLUE := $(shell git config --get-color "" "blue")
 COLOR_CYAN := $(shell git config --get-color "" "cyan")
 COLOR_MAGENTA := $(shell git config --get-color "" "magenta")
 
+# Config bootstrap source/target files
+ENV_CONFIG_FILES := config.env mail.config.env
+JSON_CONFIG_FILES := apps.json transmit.json databases.json
+
 # ============================================
 # Help
 # ============================================
@@ -28,9 +32,10 @@ help:
 	@echo "$(COLOR_YELLOW)ℹ️ For more commands: $(COLOR_CYAN)make docker-help$(COLOR_RESET)"
 	@echo ""
 	@echo "$(COLOR_BOLD)Local General (Git Hooks, Build):$(COLOR_RESET)"
-	@echo "  $(COLOR_GREEN)make setup$(COLOR_RESET)           - Full setup (composer deps + configs) [$(COLOR_MAGENTA)composer, git$(COLOR_RESET)]"
-	@echo "  $(COLOR_GREEN)make install-hooks$(COLOR_RESET)   - Install git hooks [$(COLOR_MAGENTA)git$(COLOR_RESET)]"
-	@echo "  $(COLOR_GREEN)make changelog$(COLOR_RESET)       - Generate changelog [$(COLOR_MAGENTA)claude code$(COLOR_RESET)]"
+	@echo "  $(COLOR_GREEN)make bootstrap-config$(COLOR_RESET) - Create missing env/json config files from examples"
+	@echo "  $(COLOR_GREEN)make setup$(COLOR_RESET)            - Full setup (composer deps + config bootstrap) [$(COLOR_MAGENTA)composer, git$(COLOR_RESET)]"
+	@echo "  $(COLOR_GREEN)make install-hooks$(COLOR_RESET)    - Install git hooks [$(COLOR_MAGENTA)git$(COLOR_RESET)]"
+	@echo "  $(COLOR_GREEN)make changelog$(COLOR_RESET)        - Generate changelog [$(COLOR_MAGENTA)claude code$(COLOR_RESET)]"
 	@echo ""
 	@echo "$(COLOR_BOLD)Docker Dev Environment:$(COLOR_RESET)"
 	@echo "  $(COLOR_CYAN)Setup:$(COLOR_RESET)"
@@ -65,10 +70,34 @@ help:
 # Setup
 # ============================================
 
+# Bootstrap missing config files from config/example/*.example
+bootstrap-config:
+	@echo "$(COLOR_BLUE)📋 Bootstrapping config files from examples...$(COLOR_RESET)"
+	@mkdir -p config logs config/dev
+	@echo "$(COLOR_CYAN)Environment config files$(COLOR_RESET)"
+	@for file in $(ENV_CONFIG_FILES); do \
+		if [ ! -f "config/$$file" ]; then \
+			cp "config/example/$${file}.example" "config/$$file"; \
+			chmod 600 "config/$$file"; \
+			echo "$(COLOR_GREEN)✅ Created config/$$file$(COLOR_RESET)"; \
+		else \
+			echo "$(COLOR_YELLOW)⚠️  config/$$file already exists, skipping$(COLOR_RESET)"; \
+		fi; \
+	done
+	@echo "$(COLOR_CYAN)JSON config files$(COLOR_RESET)"
+	@for file in $(JSON_CONFIG_FILES); do \
+		if [ ! -f "config/$$file" ]; then \
+			cp "config/example/$${file}.example" "config/$$file"; \
+			chmod 600 "config/$$file"; \
+			echo "$(COLOR_GREEN)✅ Created config/$$file$(COLOR_RESET)"; \
+		else \
+			echo "$(COLOR_YELLOW)⚠️  config/$$file already exists, skipping$(COLOR_RESET)"; \
+		fi; \
+	done
+
 # Full environment setup (composer + config files)
 setup:
-	@echo "$(COLOR_BLUE)📋 Creating config files from examples...$(COLOR_RESET)"
-	@mkdir -p config logs
+	@$(MAKE) bootstrap-config
 	@if [ -d temp ]; then \
 		if [ ! -w temp ]; then \
 			echo "$(COLOR_YELLOW)⚠️  temp exists but is not writable; skipping temp/api_cache creation$(COLOR_RESET)"; \
@@ -82,15 +111,6 @@ setup:
 			echo "$(COLOR_YELLOW)⚠️  Could not create temp/api_cache; set TEMP_DIR in config/config.env or create manually$(COLOR_RESET)"; \
 		fi; \
 	fi
-	@for file in config.env mail.config.env; do \
-		if [ ! -f "config/$$file" ]; then \
-			cp "config/example/$${file}.example" "config/$$file"; \
-			chmod 600 "config/$$file"; \
-			echo "$(COLOR_GREEN)✅ Created config/$$file$(COLOR_RESET)"; \
-		else \
-			echo "$(COLOR_YELLOW)⚠️  config/$$file already exists, skipping$(COLOR_RESET)"; \
-		fi; \
-	done
 	@echo ""
 	@echo "$(COLOR_CYAN)🔑 Dashboard API Key$(COLOR_RESET)"
 	@read -p "$(COLOR_CYAN)Paste DASHBOARD_API_KEY from your dashboard (or press Enter to skip): $(COLOR_RESET)" dash_key; \
@@ -175,10 +195,11 @@ setup:
 	@echo "$(COLOR_GREEN)✅ Development environment ready!$(COLOR_RESET)"
 	@echo ""
 	@echo "$(COLOR_CYAN)⚙️  NEXT STEPS:$(COLOR_RESET)"
-	@echo "$(COLOR_YELLOW)1.$(COLOR_RESET) Edit $(COLOR_BOLD)config/config.env$(COLOR_RESET) - set DOMAIN, DB credentials, DASHBOARD_API_KEY"
-	@echo "$(COLOR_YELLOW)2.$(COLOR_RESET) Edit $(COLOR_BOLD)config/mail.config.env$(COLOR_RESET) - configure email settings (optional)"
-	@echo "$(COLOR_YELLOW)3.$(COLOR_RESET) Choose webserver config from $(COLOR_BOLD)docs/examples/webserver-configs/README.md$(COLOR_RESET)"
-	@echo "$(COLOR_YELLOW)4.$(COLOR_RESET) Create first user: $(COLOR_CYAN)php scripts/user-management/manage-users.php create$(COLOR_RESET)"
+	@echo "$(COLOR_YELLOW)1.$(COLOR_RESET) Edit $(COLOR_BOLD)config/config.env$(COLOR_RESET) - set DOMAIN and DASHBOARD_API_KEY"
+	@echo "$(COLOR_YELLOW)2.$(COLOR_RESET) Review $(COLOR_BOLD)config/apps.json$(COLOR_RESET), $(COLOR_BOLD)config/transmit.json$(COLOR_RESET), and $(COLOR_BOLD)config/databases.json$(COLOR_RESET)"
+	@echo "$(COLOR_YELLOW)3.$(COLOR_RESET) Edit $(COLOR_BOLD)config/mail.config.env$(COLOR_RESET) - configure email settings (optional)"
+	@echo "$(COLOR_YELLOW)4.$(COLOR_RESET) Choose webserver config from $(COLOR_BOLD)docs/examples/webserver-configs/README.md$(COLOR_RESET)"
+	@echo "$(COLOR_YELLOW)5.$(COLOR_RESET) Create first user: $(COLOR_CYAN)php scripts/user-management/manage-users.php create$(COLOR_RESET)"
 	@echo ""
 	@echo "$(COLOR_BLUE)Or use Docker:$(COLOR_RESET) $(COLOR_CYAN)make docker-setup$(COLOR_RESET) then $(COLOR_CYAN)make dev-start$(COLOR_RESET)"
 
@@ -238,7 +259,7 @@ docker-setup:
 	else \
 		echo "$(COLOR_YELLOW)⚠️  .env already exists, skipping$(COLOR_RESET)"; \
 	fi
-	@mkdir -p config logs config/dev
+	@$(MAKE) bootstrap-config
 	@if [ -d temp ]; then \
 		if [ ! -w temp ]; then \
 			echo "$(COLOR_YELLOW)⚠️  temp exists but is not writable; skipping temp/api_cache creation$(COLOR_RESET)"; \
@@ -252,16 +273,6 @@ docker-setup:
 			echo "$(COLOR_YELLOW)⚠️  Could not create temp/api_cache; set TEMP_DIR in config/config.env or create manually$(COLOR_RESET)"; \
 		fi; \
 	fi
-	@echo "$(COLOR_BLUE)📋 Creating config files from examples...$(COLOR_RESET)"
-	@for file in config.env mail.config.env; do \
-		if [ ! -f "config/$$file" ]; then \
-			cp "config/example/$${file}.example" "config/$$file"; \
-			chmod 600 "config/$$file"; \
-			echo "$(COLOR_GREEN)✅ Created config/$$file$(COLOR_RESET)"; \
-		else \
-			echo "$(COLOR_YELLOW)⚠️  config/$$file already exists, skipping$(COLOR_RESET)"; \
-		fi; \
-	done
 	@echo ""
 	@echo "$(COLOR_CYAN)🔑 Dashboard API Key$(COLOR_RESET)"
 	@read -p "$(COLOR_CYAN)Paste DASHBOARD_API_KEY from your dashboard (or press Enter to skip): $(COLOR_RESET)" dash_key; \
@@ -289,11 +300,12 @@ docker-setup:
 	@echo "$(COLOR_GREEN)✅ Docker environment ready!$(COLOR_RESET)"
 	@echo ""
 	@echo "$(COLOR_CYAN)⚙️  NEXT STEPS:$(COLOR_RESET)"
-	@echo "$(COLOR_YELLOW)1.$(COLOR_RESET) Edit $(COLOR_BOLD).env$(COLOR_RESET) - change DB_PASSWORD, MYSQL_ROOT_PASSWORD to secure values"
+	@echo "$(COLOR_YELLOW)1.$(COLOR_RESET) Edit $(COLOR_BOLD).env$(COLOR_RESET) - change DB_PASSWORD and MYSQL_ROOT_PASSWORD to secure values"
 	@echo "$(COLOR_YELLOW)2.$(COLOR_RESET) Edit $(COLOR_BOLD)config/config.env$(COLOR_RESET) - set DOMAIN, APP_ENV, DASHBOARD_API_KEY"
 	@echo "    $(COLOR_BLUE)Note:$(COLOR_RESET) DB_HOST is auto-set to 'mata-db' for Docker networking"
-	@echo "$(COLOR_YELLOW)3.$(COLOR_RESET) Start containers: $(COLOR_CYAN)make dev-start$(COLOR_RESET)"
-	@echo "$(COLOR_YELLOW)4.$(COLOR_RESET) Login at http://localhost:3310 with $(COLOR_CYAN)dev/password$(COLOR_RESET) or $(COLOR_CYAN)admin/password$(COLOR_RESET)"
+	@echo "$(COLOR_YELLOW)3.$(COLOR_RESET) Review $(COLOR_BOLD)config/apps.json$(COLOR_RESET), $(COLOR_BOLD)config/transmit.json$(COLOR_RESET), and $(COLOR_BOLD)config/databases.json$(COLOR_RESET)"
+	@echo "$(COLOR_YELLOW)4.$(COLOR_RESET) Start containers: $(COLOR_CYAN)make dev-start$(COLOR_RESET)"
+	@echo "$(COLOR_YELLOW)5.$(COLOR_RESET) Login at http://localhost:3310 with $(COLOR_CYAN)dev/password$(COLOR_RESET) or $(COLOR_CYAN)admin/password$(COLOR_RESET)"
 
 ## Development (Docker)
 
@@ -301,7 +313,7 @@ docker-setup:
 dev-start:
 	@echo "$(COLOR_BLUE)🚀 Starting docker development environment...$(COLOR_RESET)"
 	@# Check if setup is needed
-	@if [ ! -f .env ] || [ ! -f config/config.env ] || [ ! -f config/mail.config.env ]; then \
+	@if [ ! -f .env ] || [ ! -f config/config.env ] || [ ! -f config/mail.config.env ] || [ ! -f config/apps.json ] || [ ! -f config/transmit.json ] || [ ! -f config/databases.json ]; then \
 		echo "$(COLOR_YELLOW)⚠️  Setup files missing. Running docker-setup first...$(COLOR_RESET)"; \
 		echo ""; \
 		$(MAKE) docker-setup; \
@@ -528,7 +540,7 @@ docker-help:
 	@echo "  $(COLOR_YELLOW)make docker-clean$(COLOR_RESET)    - Clean mata-node Docker resources only"
 	@echo "  $(COLOR_RED)make docker-clean-all$(COLOR_RESET) - System-wide Docker cleanup (ALL projects!)"
 
-.PHONY: help setup install-hooks \
+.PHONY: help bootstrap-config setup install-hooks \
 	test test-coverage \
 	changelog bootstrap \
 	docker-setup dev-start dev-logs dev-stop dev-restart dev-recreate dev-rebuild \
