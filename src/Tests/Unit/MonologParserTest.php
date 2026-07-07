@@ -71,34 +71,6 @@ class MonologParserTest extends TestCase
         $this->assertFalse($result);
     }
 
-    public function testGetGrepPatternForErrors(): void
-    {
-        $pattern = $this->parser->getGrepPattern('errors');
-
-        $this->assertEquals('.ERROR:|.CRITICAL:|.EMERGENCY:|.ALERT:', $pattern);
-    }
-
-    public function testGetGrepPatternForWarnings(): void
-    {
-        $pattern = $this->parser->getGrepPattern('warnings');
-
-        $this->assertEquals('.WARNING:', $pattern);
-    }
-
-    public function testGetGrepPatternForUnknownFilter(): void
-    {
-        $pattern = $this->parser->getGrepPattern('unknown');
-
-        $this->assertEquals('', $pattern);
-    }
-
-    public function testGetGrepPatternForEmptyFilter(): void
-    {
-        $pattern = $this->parser->getGrepPattern('');
-
-        $this->assertEquals('', $pattern);
-    }
-
     public function testParseToJsonParsesMonologFormat(): void
     {
         $logFile = $this->fixturesPath . '/monolog.log';

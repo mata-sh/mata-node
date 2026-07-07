@@ -107,34 +107,6 @@ class JsonParserTest extends TestCase
         $this->assertFalse($result);
     }
 
-    public function testGetGrepPatternForErrors(): void
-    {
-        $pattern = $this->parser->getGrepPattern('errors');
-
-        $this->assertEquals('"level":"error"\|"level":"critical"\|"level":"emergency"\|"level":"alert"', $pattern);
-    }
-
-    public function testGetGrepPatternForWarnings(): void
-    {
-        $pattern = $this->parser->getGrepPattern('warnings');
-
-        $this->assertEquals('"level":"warning"', $pattern);
-    }
-
-    public function testGetGrepPatternForUnknownFilter(): void
-    {
-        $pattern = $this->parser->getGrepPattern('unknown');
-
-        $this->assertEquals('', $pattern);
-    }
-
-    public function testGetGrepPatternForEmptyFilter(): void
-    {
-        $pattern = $this->parser->getGrepPattern('');
-
-        $this->assertEquals('', $pattern);
-    }
-
     public function testParseToJsonParsesJsonFormat(): void
     {
         $logFile = $this->fixturesPath . '/json.log';

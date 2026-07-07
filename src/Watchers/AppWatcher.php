@@ -145,7 +145,7 @@ class AppWatcher
         $app = $this->requireAppKey($app);
         $this->ensureAppConfigLoaded($app);
 
-        $status = $this->getLogStats($app);
+        $status = $this->getAppLogStats($app);
 
         return [
             'path' => $this->watcherConfig[$app]['path'],
@@ -172,7 +172,7 @@ class AppWatcher
         $app = $this->requireAppKey($app);
         $this->ensureAppConfigLoaded($app);
 
-        return $this->getLogFileStatus($app);
+        return $this->getLogFileMetadata($app);
     }
 
     public function getAppLogs(string $app): array
@@ -492,7 +492,7 @@ class AppWatcher
         return max(1, (int) $configured);
     }
 
-    private function getLogFileStatus(string $app): array
+    private function getLogFileMetadata(string $app): array
     {
         $status = [];
         foreach ($this->resolveLogPaths($app) as $logConfig) {
@@ -571,7 +571,7 @@ class AppWatcher
         return $output === null ? 0 : (int) trim($output);
     }
 
-    public function getLogStats(string $app): array
+    public function getAppLogStats(string $app): array
     {
         $app = $this->requireAppKey($app);
         $this->ensureAppConfigLoaded($app);

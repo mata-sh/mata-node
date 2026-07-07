@@ -80,34 +80,6 @@ class PhpErrorLogParserTest extends TestCase
         $this->assertFalse($result);
     }
 
-    public function testGetGrepPatternForErrors(): void
-    {
-        $pattern = $this->parser->getGrepPattern('errors');
-
-        $this->assertEquals('PHP Fatal error\|PHP Parse error\|PHP Error', $pattern);
-    }
-
-    public function testGetGrepPatternForWarnings(): void
-    {
-        $pattern = $this->parser->getGrepPattern('warnings');
-
-        $this->assertEquals('PHP Warning', $pattern);
-    }
-
-    public function testGetGrepPatternForUnknownFilter(): void
-    {
-        $pattern = $this->parser->getGrepPattern('unknown');
-
-        $this->assertEquals('', $pattern);
-    }
-
-    public function testGetGrepPatternForEmptyFilter(): void
-    {
-        $pattern = $this->parser->getGrepPattern('');
-
-        $this->assertEquals('', $pattern);
-    }
-
     public function testParseToJsonParsesPhpErrorLog(): void
     {
         $logFile = $this->fixturesPath . '/php_error.log';

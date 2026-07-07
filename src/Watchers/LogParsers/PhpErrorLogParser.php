@@ -47,7 +47,7 @@ class PhpErrorLogParser extends AbstractLogParser
         return $totalLines > 0 && ($matchCount / $totalLines) >= 0.5;
     }
 
-    public function getGrepPattern(string $filter): string
+    private function getGrepPattern(string $filter): string
     {
         return match ($filter) {
             'errors' => 'PHP Fatal error\|PHP Parse error\|PHP Error',
@@ -145,8 +145,10 @@ class PhpErrorLogParser extends AbstractLogParser
             ];
         }
 
-        $warningCount = (int) $this->shell("grep -c 'PHP Warning' " . escapeshellarg($logFile));
-        $errorCount = (int) $this->shell("grep -c 'PHP Fatal error\\|PHP Parse error\\|PHP Error' " . escapeshellarg($logFile));
+        $warningPattern = $this->getGrepPattern('warnings');
+        $warningCount = (int) $this->shell("grep -c '{$warningPattern}' " . escapeshellarg($logFile));
+        $errorPattern = $this->getGrepPattern('errors');
+        $errorCount = (int) $this->shell("grep -c '{$errorPattern}' " . escapeshellarg($logFile));
         $totalLines = (int) $this->shell('wc -l < ' . escapeshellarg($logFile));
 
         return [

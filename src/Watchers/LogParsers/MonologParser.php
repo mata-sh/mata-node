@@ -47,10 +47,10 @@ class MonologParser extends AbstractLogParser
         return $totalLines > 0 && ($matchCount / $totalLines) >= 0.5;
     }
 
-    public function getGrepPattern(string $filter): string
+    private function getGrepPattern(string $filter): string
     {
         return match ($filter) {
-            'errors' => '.ERROR:|.CRITICAL:|.EMERGENCY:|.ALERT:',
+            'errors' => '.ERROR:\|.CRITICAL:\|.EMERGENCY:\|.ALERT:',
             'warnings' => '.WARNING:',
             default => '',
         };
@@ -145,11 +145,12 @@ class MonologParser extends AbstractLogParser
         }
 
         // Count error-level entries
-        $errorPattern = '.ERROR:\|.CRITICAL:\|.EMERGENCY:\|.ALERT:';
+        $errorPattern = $this->getGrepPattern('errors');
         $errorCount = (int) $this->shell("grep -c '{$errorPattern}' " . escapeshellarg($logFile) . ' 2>/dev/null || echo 0');
 
         // Count warning entries
-        $warningCount = (int) $this->shell("grep -c '.WARNING:' " . escapeshellarg($logFile) . ' 2>/dev/null || echo 0');
+        $warningPattern = $this->getGrepPattern('warnings');
+        $warningCount = (int) $this->shell("grep -c '{$warningPattern}' " . escapeshellarg($logFile) . ' 2>/dev/null || echo 0');
 
         // Total lines
         $totalLines = (int) $this->shell('wc -l < ' . escapeshellarg($logFile));
