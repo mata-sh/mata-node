@@ -4,20 +4,21 @@ declare(strict_types=1);
 
 namespace Mata\Watchers;
 
+use Mata\Services\FileCache;
 use Throwable;
 
 class ServerWatcher
 {
     private string $rootPath;
-    private string $cachePath;
+    private FileCache $cache;
     private bool $isDiskSpaceCheckEnabled;
     private string $diskSpaceCheckPath;
     private int $filecountCacheMaxAge;
 
-    public function __construct(string $rootPath, string $cachePath, array $transmitConfig)
+    public function __construct(string $rootPath, FileCache $cache, array $transmitConfig)
     {
         $this->rootPath = $rootPath;
-        $this->cachePath = $cachePath;
+        $this->cache = $cache;
 
         $this->diskSpaceCheckPath = $transmitConfig['check_disk_space_path'] ?? '/';
         $this->isDiskSpaceCheckEnabled = ($transmitConfig['check_disk_space_enabled'] ?? true) !== 'off';
@@ -77,19 +78,9 @@ class ServerWatcher
 
     public function getSystemFilecount($maxAgeCache): int
     {
-
-        $cacheFile = $this->cachePath . '/filecount.cache';
-        if (file_exists($cacheFile)) {
-            $cacheAge = time() - filemtime($cacheFile);
-            if ($cacheAge <= $maxAgeCache) {
-                return (int) file_get_contents($cacheFile);
-            }
-        }
-
-        $count = (int) shell_exec('du -a ' . escapeshellarg($this->rootPath) . ' | wc -l');
-        file_put_contents($cacheFile, $count);
-
-        return $count;
+        return (int) $this->cache->remember('server/filecount', (int) $maxAgeCache, function (): int {
+            return (int) shell_exec('du -a ' . escapeshellarg($this->rootPath) . ' | wc -l');
+        });
     }
 
     public function getPhpProcesses(): array

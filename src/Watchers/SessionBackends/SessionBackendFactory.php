@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Mata\Watchers\SessionBackends;
 
+use Mata\Services\FileCache;
+
 final class SessionBackendFactory
 {
     public function __construct(
-        private ?RedisSessionClientFactoryInterface $redisClientFactory = null
+        private ?RedisSessionClientFactoryInterface $redisClientFactory = null,
+        private ?FileCache $fileCache = null
     ) {}
 
     /**
@@ -20,7 +23,7 @@ final class SessionBackendFactory
         return match ($type) {
             'none' => new UnconfiguredSessionBackend(),
             'file' => new FileSessionBackend(),
-            'redis' => new RedisSessionBackend($this->redisClientFactory ?? new RedisSocketClientFactory()),
+            'redis' => new RedisSessionBackend($this->redisClientFactory ?? new RedisSocketClientFactory(), $this->fileCache),
             default => new UnsupportedSessionBackend($type),
         };
     }

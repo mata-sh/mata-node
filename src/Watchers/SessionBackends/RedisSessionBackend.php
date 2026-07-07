@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Mata\Watchers\SessionBackends;
 
+use Mata\Services\FileCache;
 use RuntimeException;
 use Throwable;
 
@@ -14,7 +15,8 @@ final class RedisSessionBackend implements SessionBackendInterface
     private const DEFAULT_CACHE_TTL_SECONDS = 60;
 
     public function __construct(
-        private RedisSessionClientFactoryInterface $clientFactory
+        private RedisSessionClientFactoryInterface $clientFactory,
+        private ?FileCache $cache = null
     ) {}
 
     /**
@@ -22,12 +24,16 @@ final class RedisSessionBackend implements SessionBackendInterface
      *
      * @return array<string, mixed>
      */
-    public function getMetadata(array $config, string $rootPath, ?string $cachePath = null, ?string $cacheIdentity = null): array
+    public function getMetadata(array $config, string $rootPath, ?string $cacheIdentity = null): array
     {
         $countKey = $this->resolveCountKey($config);
+        $cacheKey = null;
+        $cacheTtlSeconds = $this->resolveCacheTtlSeconds($config);
+
         if ($countKey === null) {
-            $cached = $this->readCache($config, $cachePath, $cacheIdentity);
-            if ($cached !== null) {
+            $cacheKey = $this->cacheKey($config, $cacheIdentity);
+            $cached = $this->cache?->get($cacheKey, $cacheTtlSeconds);
+            if (is_array($cached)) {
                 return $cached;
             }
         }
@@ -40,8 +46,8 @@ final class RedisSessionBackend implements SessionBackendInterface
             $metadata['count_total'] = $countKey !== null
                 ? $this->countFromCounterKey($client, $countKey)
                 : $this->countKeys($client, $config);
-            if ($countKey === null) {
-                $this->writeCache($config, $cachePath, $metadata, $cacheIdentity);
+            if ($countKey === null && $cacheTtlSeconds > 0 && $cacheKey !== null) {
+                $this->cache?->set($cacheKey, $metadata);
             }
         } catch (Throwable $e) {
             $metadata['status'] = 'error';
@@ -88,65 +94,14 @@ final class RedisSessionBackend implements SessionBackendInterface
     }
 
     /**
-     * @return null|array<string, mixed>
+     * @param array<string, mixed> $config
      */
-    private function readCache(array $config, ?string $cachePath, ?string $cacheIdentity): ?array
+    private function cacheKey(array $config, ?string $cacheIdentity): string
     {
-        $cacheFile = $this->cacheFile($config, $cachePath, $cacheIdentity);
-        if ($cacheFile === null || !is_file($cacheFile)) {
-            return null;
-        }
-
-        $ttl = $this->resolveCacheTtlSeconds($config);
-        $cacheMtime = filemtime($cacheFile);
-        if ($ttl <= 0 || $cacheMtime === false || time() - $cacheMtime > $ttl) {
-            return null;
-        }
-
-        $data = json_decode((string) file_get_contents($cacheFile), true);
-        if (!is_array($data)) {
-            return null;
-        }
-
-        return $data;
-    }
-
-    /**
-     * @param array<string, mixed> $metadata
-     */
-    private function writeCache(array $config, ?string $cachePath, array $metadata, ?string $cacheIdentity): void
-    {
-        $cacheFile = $this->cacheFile($config, $cachePath, $cacheIdentity);
-        if ($cacheFile === null || $this->resolveCacheTtlSeconds($config) <= 0) {
-            return;
-        }
-
-        $cacheDir = dirname($cacheFile);
-        if (!is_dir($cacheDir) && !@mkdir($cacheDir, 0775, true) && !is_dir($cacheDir)) {
-            return;
-        }
-
-        @file_put_contents($cacheFile, json_encode($metadata), LOCK_EX);
-    }
-
-    private function cacheFile(array $config, ?string $cachePath, ?string $cacheIdentity): ?string
-    {
-        if ($cachePath === null || $cachePath === '') {
-            return null;
-        }
-
-        $cacheKey = [
+        return 'sessions/redis-' . sha1(json_encode([
             'connection' => $this->cacheConnectionIdentity($config),
             'identity' => $cacheIdentity,
-        ];
-
-        return rtrim($cachePath, DIRECTORY_SEPARATOR)
-            . DIRECTORY_SEPARATOR
-            . 'sessions'
-            . DIRECTORY_SEPARATOR
-            . 'redis-'
-            . sha1(json_encode($cacheKey) ?: '')
-            . '.json';
+        ]) ?: '');
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Mata\Tests\Unit\SessionBackends;
 
+use Mata\Services\FileCache;
 use Mata\Watchers\SessionBackends\RedisSessionBackend;
 use Mata\Watchers\SessionBackends\RedisSessionClientFactoryInterface;
 use Mata\Watchers\SessionBackends\RedisSessionClientInterface;
@@ -28,7 +29,7 @@ class RedisSessionBackendTest extends TestCase
         $metadata = $backend->getMetadata([
             'prefix' => 'PHPREDIS_SESSION:',
             'scan_count' => 25,
-        ], __DIR__);
+        ], __DIR__, 'testapp');
 
         $this->assertSame([
             'type' => 'redis',
@@ -50,7 +51,7 @@ class RedisSessionBackendTest extends TestCase
     {
         $backend = new RedisSessionBackend(new FakeRedisSessionClientFactory(null, new RuntimeException('Connection failed')));
 
-        $metadata = $backend->getMetadata([], __DIR__);
+        $metadata = $backend->getMetadata([], __DIR__, 'testapp');
 
         $this->assertSame('redis', $metadata['type']);
         $this->assertSame('error', $metadata['status']);
@@ -69,7 +70,7 @@ class RedisSessionBackendTest extends TestCase
 
         $metadata = $backend->getMetadata([
             'count_key' => 'mata:sessions:testapp:count',
-        ], __DIR__);
+        ], __DIR__, 'testapp');
 
         $this->assertSame(42, $metadata['count_total']);
         $this->assertSame(['mata:sessions:testapp:count'], $client->getCalls);
@@ -84,7 +85,7 @@ class RedisSessionBackendTest extends TestCase
 
         $metadata = $backend->getMetadata([
             'count_key' => 'mata:sessions:testapp:count',
-        ], __DIR__);
+        ], __DIR__, 'testapp');
 
         $this->assertSame(0, $metadata['count_total']);
         $this->assertSame(['mata:sessions:testapp:count'], $client->getCalls);
@@ -100,14 +101,14 @@ class RedisSessionBackendTest extends TestCase
             $client = new FakeRedisSessionClient([
                 ['cursor' => '0', 'keys' => ['PHPREDIS_SESSION:a', 'PHPREDIS_SESSION:b']],
             ]);
-            $backend = new RedisSessionBackend(new FakeRedisSessionClientFactory($client));
+            $backend = new RedisSessionBackend(new FakeRedisSessionClientFactory($client), new FileCache($cachePath));
             $config = [
                 'prefix' => 'PHPREDIS_SESSION:',
                 'cache_ttl_seconds' => 60,
             ];
 
-            $first = $backend->getMetadata($config, __DIR__, $cachePath);
-            $second = $backend->getMetadata($config, __DIR__, $cachePath);
+            $first = $backend->getMetadata($config, __DIR__, 'testapp');
+            $second = $backend->getMetadata($config, __DIR__, 'testapp');
 
             $this->assertSame($first, $second);
             $this->assertSame(2, $second['count_total']);
@@ -127,7 +128,7 @@ class RedisSessionBackendTest extends TestCase
                 ['cursor' => '0', 'keys' => ['PHPREDIS_SESSION:a']],
                 ['cursor' => '0', 'keys' => ['PHPREDIS_SESSION:a', 'PHPREDIS_SESSION:b']],
             ]);
-            $backend = new RedisSessionBackend(new FakeRedisSessionClientFactory($client));
+            $backend = new RedisSessionBackend(new FakeRedisSessionClientFactory($client), new FileCache($cachePath));
             $config = [
                 'dsn' => 'redis://user:old-secret@127.0.0.1:6379/0',
                 'prefix' => 'PHPREDIS_SESSION:',
@@ -139,8 +140,8 @@ class RedisSessionBackendTest extends TestCase
                 'cache_ttl_seconds' => 60,
             ];
 
-            $first = $backend->getMetadata($config, __DIR__, $cachePath, 'testapp');
-            $second = $backend->getMetadata($rotatedCredentialsConfig, __DIR__, $cachePath, 'testapp');
+            $first = $backend->getMetadata($config, __DIR__, 'testapp');
+            $second = $backend->getMetadata($rotatedCredentialsConfig, __DIR__, 'testapp');
 
             $this->assertSame($first, $second);
             $this->assertSame(1, $second['count_total']);
@@ -160,15 +161,15 @@ class RedisSessionBackendTest extends TestCase
                 ['cursor' => '0', 'keys' => ['PHPREDIS_SESSION:a']],
                 ['cursor' => '0', 'keys' => ['PHPREDIS_SESSION:a', 'PHPREDIS_SESSION:b']],
             ]);
-            $backend = new RedisSessionBackend(new FakeRedisSessionClientFactory($client));
+            $backend = new RedisSessionBackend(new FakeRedisSessionClientFactory($client), new FileCache($cachePath));
             $config = [
                 'prefix' => 'PHPREDIS_SESSION:',
                 'cache_ttl_seconds' => 60,
             ];
 
-            $appAFirst = $backend->getMetadata($config, __DIR__, $cachePath, 'app-a');
-            $appB = $backend->getMetadata($config, __DIR__, $cachePath, 'app-b');
-            $appASecond = $backend->getMetadata($config, __DIR__, $cachePath, 'app-a');
+            $appAFirst = $backend->getMetadata($config, __DIR__, 'app-a');
+            $appB = $backend->getMetadata($config, __DIR__, 'app-b');
+            $appASecond = $backend->getMetadata($config, __DIR__, 'app-a');
 
             $this->assertSame(1, $appAFirst['count_total']);
             $this->assertSame(2, $appB['count_total']);

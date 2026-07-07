@@ -10,6 +10,7 @@ use Mata\Core\App;
 use Mata\Core\Auth;
 use Mata\Factory\RateLimiterFactory;
 use Mata\Http\RouterSetup;
+use Mata\Services\FileCache;
 use Mata\Utils\PathResolver;
 use Mata\Utils\Tools;
 use Mata\Watchers\AppWatcher;
@@ -112,8 +113,9 @@ $watcherConfig = json_decode(file_get_contents($paths->appPath . '/config/apps.j
 $databasesConfig = json_decode(file_get_contents($paths->appPath . '/config/databases.json'), true);
 $transmitConfig = json_decode(file_get_contents($paths->appPath . '/config/transmit.json'), true);
 
-$appWatcher = new AppWatcher($tools, $log, $paths->rootPath, $watcherConfig, $transmitConfig, null, $paths->cachePath);
-$serverWatcher = new ServerWatcher($paths->rootPath, $paths->cachePath, $transmitConfig);
+$fileCache = new FileCache($paths->cachePath);
+$appWatcher = new AppWatcher($tools, $log, $paths->rootPath, $watcherConfig, $transmitConfig, null, $fileCache);
+$serverWatcher = new ServerWatcher($paths->rootPath, $fileCache, $transmitConfig);
 $databaseWatcher = new DatabaseWatcher($databasesConfig);
 
 $router = new Router();

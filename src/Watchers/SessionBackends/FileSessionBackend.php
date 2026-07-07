@@ -11,7 +11,7 @@ final class FileSessionBackend implements SessionBackendInterface
      *
      * @return array<string, mixed>
      */
-    public function getMetadata(array $config, string $rootPath, ?string $cachePath = null, ?string $cacheIdentity = null): array
+    public function getMetadata(array $config, string $rootPath, ?string $cacheIdentity = null): array
     {
         $sessionPath = is_string($config['path'] ?? null) ? $config['path'] : '';
         $metadata = $this->baseMetadata($sessionPath !== '' ? $sessionPath : null);

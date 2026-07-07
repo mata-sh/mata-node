@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Mata\Watchers;
 
+use Mata\Services\FileCache;
 use Mata\Utils\Tools;
 use Mata\Watchers\Exceptions\AppWatcherException;
 use Mata\Watchers\LogParsers\LogParserFactory;
@@ -30,7 +31,7 @@ class AppWatcher
     private array $watcherConfig;
     private array $transmitConfig;
     private array $appsConfig;
-    private ?string $cachePath;
+    private ?FileCache $fileCache;
     private SessionBackendFactory $sessionBackendFactory;
 
     public function __construct(
@@ -40,15 +41,15 @@ class AppWatcher
         array $watcherConfig,
         array $transmitConfig,
         ?SessionBackendFactory $sessionBackendFactory = null,
-        ?string $cachePath = null
+        ?FileCache $fileCache = null
     ) {
         $this->tools = $tools;
         $this->logger = $logger;
         $this->rootPath = $rootPath;
         $this->watcherConfig = $watcherConfig;
         $this->transmitConfig = $transmitConfig;
-        $this->cachePath = $cachePath;
-        $this->sessionBackendFactory = $sessionBackendFactory ?? new SessionBackendFactory();
+        $this->fileCache = $fileCache;
+        $this->sessionBackendFactory = $sessionBackendFactory ?? new SessionBackendFactory(null, $this->fileCache);
     }
 
     public function getApps(): array
@@ -256,7 +257,7 @@ class AppWatcher
 
         $backend = $this->sessionBackendFactory->create($sessionConfig);
 
-        return $backend->getMetadata($sessionConfig, $this->rootPath, $this->cachePath, $app);
+        return $backend->getMetadata($sessionConfig, $this->rootPath, $app);
     }
 
     public function getLogEntries(string $app, string $filter = '', ?int $limit = null): array
