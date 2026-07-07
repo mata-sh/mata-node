@@ -42,7 +42,7 @@ class PathResolver
     }
 
     /**
-     * Apply config overrides for log/temp/cache paths.
+     * Apply config overrides for log/temp paths.
      */
     public function applyConfig(ApplicationConfig $config): void
     {
@@ -57,12 +57,7 @@ class PathResolver
             $this->tempPath = $this->resolvePath($tempDir);
         }
 
-        $cacheDir = trim($config->environment->cacheDir);
-        if ($cacheDir !== '') {
-            $this->cachePath = $this->resolvePath($cacheDir);
-        } else {
-            $this->cachePath = $this->tempPath . DIRECTORY_SEPARATOR . 'cache';
-        }
+        $this->cachePath = $this->tempPath . DIRECTORY_SEPARATOR . 'cache';
 
         $this->ensureDirectory($this->logsPath);
         $this->ensureDirectory($this->tempPath);

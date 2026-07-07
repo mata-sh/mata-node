@@ -63,7 +63,6 @@ final class EnvConfigLoader
             domain: $this->getEnv('DOMAIN', ''),
             dir: $this->getEnv('DIR', ''),
             tempDir: $this->getEnv('TEMP_DIR', ''),
-            cacheDir: $this->getEnv('CACHE_DIR', ''),
         );
     }
 

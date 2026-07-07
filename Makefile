@@ -100,15 +100,15 @@ setup:
 	@$(MAKE) bootstrap-config
 	@if [ -d temp ]; then \
 		if [ ! -w temp ]; then \
-			echo "$(COLOR_YELLOW)⚠️  temp exists but is not writable; skipping temp/api_cache creation$(COLOR_RESET)"; \
+			echo "$(COLOR_YELLOW)⚠️  temp exists but is not writable; skipping temp/cache creation$(COLOR_RESET)"; \
 		else \
-			mkdir -p temp/api_cache; \
+			mkdir -p temp/cache; \
 		fi; \
 	else \
-		if mkdir -p temp/api_cache 2>/dev/null; then \
+		if mkdir -p temp/cache 2>/dev/null; then \
 			:; \
 		else \
-			echo "$(COLOR_YELLOW)⚠️  Could not create temp/api_cache; set TEMP_DIR in config/config.env or create manually$(COLOR_RESET)"; \
+			echo "$(COLOR_YELLOW)⚠️  Could not create temp/cache; set TEMP_DIR in config/config.env or create manually$(COLOR_RESET)"; \
 		fi; \
 	fi
 	@echo ""
@@ -262,15 +262,15 @@ docker-setup:
 	@$(MAKE) bootstrap-config
 	@if [ -d temp ]; then \
 		if [ ! -w temp ]; then \
-			echo "$(COLOR_YELLOW)⚠️  temp exists but is not writable; skipping temp/api_cache creation$(COLOR_RESET)"; \
+			echo "$(COLOR_YELLOW)⚠️  temp exists but is not writable; skipping temp/cache creation$(COLOR_RESET)"; \
 		else \
-			mkdir -p temp/api_cache; \
+			mkdir -p temp/cache; \
 		fi; \
 	else \
-		if mkdir -p temp/api_cache 2>/dev/null; then \
+		if mkdir -p temp/cache 2>/dev/null; then \
 			:; \
 		else \
-			echo "$(COLOR_YELLOW)⚠️  Could not create temp/api_cache; set TEMP_DIR in config/config.env or create manually$(COLOR_RESET)"; \
+			echo "$(COLOR_YELLOW)⚠️  Could not create temp/cache; set TEMP_DIR in config/config.env or create manually$(COLOR_RESET)"; \
 		fi; \
 	fi
 	@echo ""

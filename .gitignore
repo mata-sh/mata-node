@@ -31,8 +31,6 @@ config/*/*.json
 # config files
 php.ini
 config/*.json
-Dockerfile
-docker-compose.yaml
 xdebug.ini
 
 TODO.md

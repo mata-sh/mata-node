@@ -47,7 +47,7 @@ COPY composer.json composer.lock ./
 
 # Create required directories with proper permissions
 RUN mkdir -p \
-    /var/www/html/temp/api_cache \
+    /var/www/html/temp/cache \
     /var/www/html/logs \
     /var/www/html/config \
     && chown -R www-data:www-data /var/www/html \
