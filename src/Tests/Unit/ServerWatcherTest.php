@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Mata\Tests\Unit;
 
 use Mata\Services\FileCache;
+use Mata\Tests\Support\FakeShellRunner;
+use Mata\Watchers\DatabaseWatcher;
 use Mata\Watchers\ServerWatcher;
 use PHPUnit\Framework\TestCase;
 
@@ -53,6 +55,42 @@ class ServerWatcherTest extends TestCase
             $this->assertSame($count, json_decode((string) file_get_contents($cachePath . '/server/filecount.json'), true));
         } finally {
             $this->removeDirectory($rootPath);
+            $this->removeDirectory($cachePath);
+        }
+    }
+
+    public function testGetServerDataUsesInjectedShellRunner(): void
+    {
+        $cachePath = sys_get_temp_dir() . '/mata-node-server-cache-' . bin2hex(random_bytes(6));
+        mkdir($cachePath, 0777, true);
+        $cache = new FileCache($cachePath);
+        $cache->set('server/filecount', 5);
+
+        $runner = new FakeShellRunner(
+            [
+                "grep MemTotal /proc/meminfo | awk '{print $2}'" => "1000\n",
+                "grep MemAvailable /proc/meminfo | awk '{print $2}'" => "400\n",
+                "top -bn1 | grep 'Cpu(s)' | awk '{print 100 - $8}'" => "12.5\n",
+                'ps -e --no-headers | wc -l' => "42\n",
+            ],
+            [
+                FakeShellRunner::processCountKey('php', false) => 3,
+                FakeShellRunner::processCountKey(DatabaseWatcher::MYSQL_PROCESS_NAMES) => 2,
+            ]
+        );
+
+        try {
+            $watcher = new ServerWatcher(__DIR__, $cache, ['check_disk_space_enabled' => 'off'], $runner);
+            $data = $watcher->getServerData();
+
+            $this->assertSame(5, $data['total_system_filecount']);
+            $this->assertSame(1000, $data['ram_capacity']);
+            $this->assertSame(600, $data['ram_used']);
+            $this->assertSame('12.5', $data['cpu_usage']);
+            $this->assertSame(42, $data['processes']['total']);
+            $this->assertSame(3, $data['processes']['php']);
+            $this->assertSame(2, $data['processes']['sql']);
+        } finally {
             $this->removeDirectory($cachePath);
         }
     }

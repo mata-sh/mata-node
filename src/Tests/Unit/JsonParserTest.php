@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Mata\Tests\Unit;
 
+use Mata\Tests\Support\FakeShellRunner;
 use Mata\Watchers\LogParsers\JsonParser;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -54,6 +55,16 @@ class JsonParserTest extends TestCase
     public function testGetNameReturnsCorrectIdentifier(): void
     {
         $this->assertEquals('json', $this->parser->getName());
+    }
+
+    public function testDetectUsesInjectedShellRunner(): void
+    {
+        $logFile = $this->createTempLogFile("not used by fake runner\n");
+        $parser = new JsonParser(new FakeShellRunner([
+            'head -n 10 ' . escapeshellarg($logFile) => "{\"level\":\"error\",\"message\":\"failed\"}\n",
+        ]));
+
+        $this->assertTrue($parser->detect($logFile));
     }
 
     public function testDetectReturnsTrueForJsonFormat(): void

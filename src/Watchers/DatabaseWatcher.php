@@ -6,18 +6,24 @@ namespace Mata\Watchers;
 
 use Mata\Config\Dto\DatabaseConfig;
 use Mata\Core\Database;
+use Mata\Services\NativeShellRunner;
+use Mata\Services\ShellRunnerInterface;
 use Mata\Watchers\Exceptions\DatabaseWatcherException;
 use PDOException;
 use Throwable;
 
 class DatabaseWatcher
 {
+    public const MYSQL_PROCESS_NAMES = 'mysqld|mariadbd';
+
     private array $connections = [];
     private array $configs = [];
+    private ShellRunnerInterface $shellRunner;
 
-    public function __construct(array $databasesConfig)
+    public function __construct(array $databasesConfig, ?ShellRunnerInterface $shellRunner = null)
     {
         $this->configs = $databasesConfig;
+        $this->shellRunner = $shellRunner ?? new NativeShellRunner();
     }
 
     /**
@@ -76,7 +82,7 @@ class DatabaseWatcher
 
         return [
             'processes' => [
-                'sql' => $this->countSqlProcesses(),
+                'sql' => $this->shellRunner->countProcesses(self::MYSQL_PROCESS_NAMES),
             ],
             'databases' => $databases,
         ];
@@ -111,19 +117,6 @@ class DatabaseWatcher
             $status['connection_error'] = $error->getMessage();
 
             return $status;
-        }
-    }
-
-    private function countSqlProcesses(): int
-    {
-        if (!function_exists('shell_exec')) {
-            return 0;
-        }
-
-        try {
-            return (int) shell_exec('pgrep -c sql 2>/dev/null');
-        } catch (Throwable) {
-            return 0;
         }
     }
 

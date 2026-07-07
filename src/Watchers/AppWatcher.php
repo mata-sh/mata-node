@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Mata\Watchers;
 
 use Mata\Services\FileCache;
+use Mata\Services\NativeShellRunner;
+use Mata\Services\ShellRunnerInterface;
 use Mata\Utils\Tools;
 use Mata\Watchers\Exceptions\AppWatcherException;
 use Mata\Watchers\LogParsers\LogParserFactory;
@@ -33,6 +35,7 @@ class AppWatcher
     private array $appsConfig;
     private ?FileCache $fileCache;
     private SessionBackendFactory $sessionBackendFactory;
+    private ShellRunnerInterface $shellRunner;
 
     public function __construct(
         Tools $tools,
@@ -41,7 +44,8 @@ class AppWatcher
         array $watcherConfig,
         array $transmitConfig,
         ?SessionBackendFactory $sessionBackendFactory = null,
-        ?FileCache $fileCache = null
+        ?FileCache $fileCache = null,
+        ?ShellRunnerInterface $shellRunner = null
     ) {
         $this->tools = $tools;
         $this->logger = $logger;
@@ -49,6 +53,7 @@ class AppWatcher
         $this->watcherConfig = $watcherConfig;
         $this->transmitConfig = $transmitConfig;
         $this->fileCache = $fileCache;
+        $this->shellRunner = $shellRunner ?? new NativeShellRunner();
         $this->sessionBackendFactory = $sessionBackendFactory ?? new SessionBackendFactory(null, $this->fileCache);
     }
 
@@ -554,14 +559,14 @@ class AppWatcher
      */
     private function tailLogLines(string $logFile, int $maxLines): array
     {
-        $output = shell_exec('tail -n ' . max(1, $maxLines) . ' ' . escapeshellarg($logFile));
+        $output = $this->shellRunner->run('tail -n ' . max(1, $maxLines) . ' ' . escapeshellarg($logFile));
 
         return $output !== null && trim($output) !== '' ? explode("\n", trim($output)) : [];
     }
 
     private function countFileLines(string $logFile): int
     {
-        $output = shell_exec('wc -l < ' . escapeshellarg($logFile));
+        $output = $this->shellRunner->run('wc -l < ' . escapeshellarg($logFile));
 
         return $output === null ? 0 : (int) trim($output);
     }
@@ -787,10 +792,10 @@ class AppWatcher
     private function getLogParser(string $type, string $logFile): LogParserInterface
     {
         if ($type === '') {
-            return LogParserFactory::detectFormat($logFile, $this->logger);
+            return LogParserFactory::detectFormat($logFile, $this->logger, $this->shellRunner);
         }
 
-        $parser = LogParserFactory::getParser($type, $this->logger);
+        $parser = LogParserFactory::getParser($type, $this->logger, $this->shellRunner);
         if ($parser !== null) {
             return $parser;
         }
@@ -800,6 +805,6 @@ class AppWatcher
             'log' => $logFile,
         ]);
 
-        return LogParserFactory::detectFormat($logFile, $this->logger);
+        return LogParserFactory::detectFormat($logFile, $this->logger, $this->shellRunner);
     }
 }

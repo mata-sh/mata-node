@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Mata\Watchers\LogParsers;
 
+use Mata\Services\ShellRunnerInterface;
 use Psr\Log\LoggerInterface;
 use ReflectionClass;
 use Throwable;
@@ -29,9 +30,9 @@ class LogParserFactory
      *
      * @return array<int,LogParserInterface> Array of parser instances
      */
-    private static function getAllParsers(?LoggerInterface $logger = null): array
+    private static function getAllParsers(?LoggerInterface $logger = null, ?ShellRunnerInterface $shellRunner = null): array
     {
-        if (self::$parsersCache !== null) {
+        if ($shellRunner === null && self::$parsersCache !== null) {
             return self::$parsersCache;
         }
 
@@ -58,7 +59,7 @@ class LogParserFactory
                         continue;
                     }
 
-                    $parser = new $fullClass();
+                    $parser = $shellRunner === null ? new $fullClass() : new $fullClass($shellRunner);
                     if ($parser instanceof LogParserInterface) {
                         $parsers[] = $parser;
                     }
@@ -68,7 +69,9 @@ class LogParserFactory
             }
         }
 
-        self::$parsersCache = $parsers;
+        if ($shellRunner === null) {
+            self::$parsersCache = $parsers;
+        }
 
         return $parsers;
     }
@@ -84,27 +87,34 @@ class LogParserFactory
      *
      * @return LogParserInterface Parser instance (defaults to PhpErrorLogParser if no match)
      */
-    public static function detectFormat(string $logFile, ?LoggerInterface $logger = null): LogParserInterface
-    {
+    public static function detectFormat(
+        string $logFile,
+        ?LoggerInterface $logger = null,
+        ?ShellRunnerInterface $shellRunner = null
+    ): LogParserInterface {
         // Check cache first
-        if (isset(self::$detectionCache[$logFile])) {
+        if ($shellRunner === null && isset(self::$detectionCache[$logFile])) {
             return self::$detectionCache[$logFile];
         }
 
-        $parsers = self::getAllParsers($logger);
+        $parsers = self::getAllParsers($logger, $shellRunner);
 
         // Try each parser's detect() method
         foreach ($parsers as $parser) {
             if ($parser->detect($logFile)) {
-                self::$detectionCache[$logFile] = $parser;
+                if ($shellRunner === null) {
+                    self::$detectionCache[$logFile] = $parser;
+                }
 
                 return $parser;
             }
         }
 
         // Fallback to PHP error_log parser (backward compatibility)
-        $fallback = new PhpErrorLogParser();
-        self::$detectionCache[$logFile] = $fallback;
+        $fallback = new PhpErrorLogParser($shellRunner);
+        if ($shellRunner === null) {
+            self::$detectionCache[$logFile] = $fallback;
+        }
 
         return $fallback;
     }
@@ -119,9 +129,12 @@ class LogParserFactory
      *
      * @return null|LogParserInterface Parser instance or null if not found
      */
-    public static function getParser(string $formatName, ?LoggerInterface $logger = null): ?LogParserInterface
-    {
-        $parsers = self::getAllParsers($logger);
+    public static function getParser(
+        string $formatName,
+        ?LoggerInterface $logger = null,
+        ?ShellRunnerInterface $shellRunner = null
+    ): ?LogParserInterface {
+        $parsers = self::getAllParsers($logger, $shellRunner);
 
         foreach ($parsers as $parser) {
             if ($parser->getName() === $formatName) {
@@ -131,9 +144,9 @@ class LogParserFactory
 
         // Check for direct class match
         return match ($formatName) {
-            'php_error_log' => new PhpErrorLogParser(),
-            'monolog' => new MonologParser(),
-            'json' => new JsonParser(),
+            'php_error_log' => new PhpErrorLogParser($shellRunner),
+            'monolog' => new MonologParser($shellRunner),
+            'json' => new JsonParser($shellRunner),
             default => null,
         };
     }

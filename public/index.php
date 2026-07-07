@@ -11,6 +11,7 @@ use Mata\Core\Auth;
 use Mata\Factory\RateLimiterFactory;
 use Mata\Http\RouterSetup;
 use Mata\Services\FileCache;
+use Mata\Services\NativeShellRunner;
 use Mata\Utils\PathResolver;
 use Mata\Utils\Tools;
 use Mata\Watchers\AppWatcher;
@@ -114,9 +115,10 @@ $databasesConfig = json_decode(file_get_contents($paths->appPath . '/config/data
 $transmitConfig = json_decode(file_get_contents($paths->appPath . '/config/transmit.json'), true);
 
 $fileCache = new FileCache($paths->cachePath);
-$appWatcher = new AppWatcher($tools, $log, $paths->rootPath, $watcherConfig, $transmitConfig, null, $fileCache);
-$serverWatcher = new ServerWatcher($paths->rootPath, $fileCache, $transmitConfig);
-$databaseWatcher = new DatabaseWatcher($databasesConfig);
+$shellRunner = new NativeShellRunner();
+$appWatcher = new AppWatcher($tools, $log, $paths->rootPath, $watcherConfig, $transmitConfig, null, $fileCache, $shellRunner);
+$serverWatcher = new ServerWatcher($paths->rootPath, $fileCache, $transmitConfig, $shellRunner);
+$databaseWatcher = new DatabaseWatcher($databasesConfig, $shellRunner);
 
 $router = new Router();
 $routerSetup = new RouterSetup(

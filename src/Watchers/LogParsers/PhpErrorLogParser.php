@@ -25,7 +25,7 @@ class PhpErrorLogParser extends AbstractLogParser
             return false;
         }
 
-        $output = shell_exec('head -n 10 ' . escapeshellarg($logFile));
+        $output = $this->shell('head -n 10 ' . escapeshellarg($logFile));
         if ($output === null || $output === '') {
             return false;
         }
@@ -122,7 +122,7 @@ class PhpErrorLogParser extends AbstractLogParser
         $escapedLogFile = escapeshellarg($logFile);
         $escapedLines = intval($maxLines);
 
-        $output = shell_exec("tail -n {$escapedLines} {$escapedLogFile}");
+        $output = $this->shell("tail -n {$escapedLines} {$escapedLogFile}");
         if ($output === null) {
             throw new RuntimeException('failed to read log using tail');
         }
@@ -145,9 +145,9 @@ class PhpErrorLogParser extends AbstractLogParser
             ];
         }
 
-        $warningCount = (int) shell_exec("grep -c 'PHP Warning' " . escapeshellarg($logFile));
-        $errorCount = (int) shell_exec("grep -c 'PHP Fatal error\\|PHP Parse error\\|PHP Error' " . escapeshellarg($logFile));
-        $totalLines = (int) shell_exec('wc -l < ' . escapeshellarg($logFile));
+        $warningCount = (int) $this->shell("grep -c 'PHP Warning' " . escapeshellarg($logFile));
+        $errorCount = (int) $this->shell("grep -c 'PHP Fatal error\\|PHP Parse error\\|PHP Error' " . escapeshellarg($logFile));
+        $totalLines = (int) $this->shell('wc -l < ' . escapeshellarg($logFile));
 
         return [
             'fatal' => $errorCount,

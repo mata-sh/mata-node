@@ -25,7 +25,7 @@ class JsonParser extends AbstractLogParser
             return false;
         }
 
-        $output = shell_exec('head -n 10 ' . escapeshellarg($logFile));
+        $output = $this->shell('head -n 10 ' . escapeshellarg($logFile));
         if ($output === null || $output === '') {
             return false;
         }
@@ -139,7 +139,7 @@ class JsonParser extends AbstractLogParser
         $escapedLogFile = escapeshellarg($logFile);
         $escapedLines = intval($maxLines);
 
-        $output = shell_exec("tail -n {$escapedLines} {$escapedLogFile}");
+        $output = $this->shell("tail -n {$escapedLines} {$escapedLogFile}");
         if ($output === null) {
             throw new RuntimeException('failed to read log using tail');
         }
@@ -161,13 +161,13 @@ class JsonParser extends AbstractLogParser
 
         // Count error-level entries
         $errorPattern = '"level":"error"\|"level":"critical"\|"level":"emergency"\|"level":"alert"';
-        $errorCount = (int) shell_exec("grep -c '{$errorPattern}' " . escapeshellarg($logFile) . ' 2>/dev/null || echo 0');
+        $errorCount = (int) $this->shell("grep -c '{$errorPattern}' " . escapeshellarg($logFile) . ' 2>/dev/null || echo 0');
 
         // Count warning entries
-        $warningCount = (int) shell_exec("grep -c '\"level\":\"warning\"' " . escapeshellarg($logFile) . ' 2>/dev/null || echo 0');
+        $warningCount = (int) $this->shell("grep -c '\"level\":\"warning\"' " . escapeshellarg($logFile) . ' 2>/dev/null || echo 0');
 
         // Total lines
-        $totalLines = (int) shell_exec('wc -l < ' . escapeshellarg($logFile));
+        $totalLines = (int) $this->shell('wc -l < ' . escapeshellarg($logFile));
 
         return [
             'fatal' => $errorCount,
