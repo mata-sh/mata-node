@@ -135,7 +135,15 @@ final class RedisSocketClient implements RedisSessionClientInterface
         $target = sprintf('%s://%s:%d', $this->scheme, $this->host, $this->port);
         $socket = @stream_socket_client($target, $errno, $errstr, $this->timeoutSeconds);
         if ($socket === false) {
-            throw new RuntimeException('Redis connection failed');
+            $message = 'Redis connection failed';
+            if ($errstr !== '') {
+                $message .= ': ' . $errstr;
+            }
+            if ($errno !== 0) {
+                $message .= sprintf(' (%d)', $errno);
+            }
+
+            throw new RuntimeException($message);
         }
 
         stream_set_timeout($socket, (int) $this->timeoutSeconds, (int) (($this->timeoutSeconds - (int) $this->timeoutSeconds) * 1000000));
@@ -160,7 +168,7 @@ final class RedisSocketClient implements RedisSessionClientInterface
 
         return match ($prefix) {
             '+' => $this->readLine(),
-            '-' => throw new RuntimeException('Redis command failed'),
+            '-' => throw new RuntimeException('Redis command failed: ' . $this->readLine()),
             ':' => (int) $this->readLine(),
             '$' => $this->readBulkString(),
             '*' => $this->readArray(),
