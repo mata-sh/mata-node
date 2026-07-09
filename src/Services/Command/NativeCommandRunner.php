@@ -25,8 +25,6 @@ class NativeCommandRunner implements CommandRunnerInterface
 
     public function countProcesses(string $namePattern, bool $exact = true): int
     {
-        $flags = $exact ? '-cx' : '-c';
-
-        return (int) $this->run('pgrep ' . $flags . ' ' . escapeshellarg($namePattern) . ' 2>/dev/null');
+        return (int) $this->run(ShellCommands::processCount($namePattern, $exact));
     }
 }

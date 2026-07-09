@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Mata\Tests\Unit;
 
+use Mata\Services\Command\ShellCommands;
 use Mata\Tests\Support\FakeCommandRunner;
 use Mata\Watchers\LogParsers\JsonParser;
 use PHPUnit\Framework\TestCase;
@@ -61,7 +62,7 @@ class JsonParserTest extends TestCase
     {
         $logFile = $this->createTempLogFile("not used by fake runner\n");
         $parser = new JsonParser(new FakeCommandRunner([
-            'head -n 10 ' . escapeshellarg($logFile) => "{\"level\":\"error\",\"message\":\"failed\"}\n",
+            ShellCommands::head($logFile, 10) => "{\"level\":\"error\",\"message\":\"failed\"}\n",
         ]));
 
         $this->assertTrue($parser->detect($logFile));

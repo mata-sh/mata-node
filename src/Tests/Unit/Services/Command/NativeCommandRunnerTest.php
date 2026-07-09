@@ -6,6 +6,7 @@ namespace Mata\Tests\Unit\Services\Command;
 
 use Mata\Services\Command\CommandResult;
 use Mata\Services\Command\NativeCommandRunner;
+use Mata\Services\Command\ShellCommands;
 use Mata\Tests\Support\FakeProcessCommandRunner;
 use PHPUnit\Framework\TestCase;
 
@@ -49,6 +50,6 @@ final class NativeCommandRunnerTest extends TestCase
         $runner = new NativeCommandRunner($processRunner);
 
         $this->assertSame(0, $runner->countProcesses('definitely-missing-process'));
-        $this->assertSame('pgrep -cx ' . escapeshellarg('definitely-missing-process') . ' 2>/dev/null', $processRunner->calls[0]['command']);
+        $this->assertSame(ShellCommands::processCount('definitely-missing-process', true), $processRunner->calls[0]['command']);
     }
 }

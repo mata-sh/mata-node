@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Mata\Tests\Unit;
 
+use Mata\Services\Command\ShellCommands;
 use Mata\Tests\Support\FakeCommandRunner;
 use Mata\Watchers\LogParsers\JsonParser;
 use Mata\Watchers\LogParsers\LogParserFactory;
@@ -146,13 +147,12 @@ class LogParserFactoryTest extends TestCase
         $jsonLog = implode("\n", array_fill(0, 10, $jsonLine)) . "\n";
         file_put_contents($logFile, $jsonLog);
 
-        $escapedLogFile = escapeshellarg($logFile);
-        $headCommand = 'head -n 10 ' . $escapedLogFile;
+        $headCommand = ShellCommands::head($logFile, 10);
         $errorPattern = '"level":"error"\|"level":"critical"\|"level":"emergency"\|"level":"alert"';
-        $errorCommand = "grep -c '{$errorPattern}' " . $escapedLogFile . ' 2>/dev/null || echo 0';
+        $errorCommand = ShellCommands::grepCount($errorPattern, $logFile);
         $warningPattern = '"level":"warning"';
-        $warningCommand = "grep -c '{$warningPattern}' " . $escapedLogFile . ' 2>/dev/null || echo 0';
-        $totalCommand = 'wc -l < ' . $escapedLogFile;
+        $warningCommand = ShellCommands::grepCount($warningPattern, $logFile);
+        $totalCommand = ShellCommands::lineCount($logFile);
 
         $runnerA = new FakeCommandRunner([$headCommand => $jsonLog]);
         $runnerB = new FakeCommandRunner([

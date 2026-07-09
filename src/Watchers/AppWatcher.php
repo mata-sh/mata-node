@@ -8,6 +8,7 @@ use Mata\Services\Command\CommandRunnerInterface;
 use Mata\Services\Command\NativeCommandRunner;
 use Mata\Services\Command\ProcessCommandRunner;
 use Mata\Services\Command\ProcessCommandRunnerInterface;
+use Mata\Services\Command\ShellCommands;
 use Mata\Services\FileCache;
 use Mata\Utils\Tools;
 use Mata\Watchers\Exceptions\AppWatcherException;
@@ -565,14 +566,14 @@ class AppWatcher
      */
     private function tailLogLines(string $logFile, int $maxLines): array
     {
-        $output = $this->commandRunner->run('tail -n ' . max(1, $maxLines) . ' ' . escapeshellarg($logFile));
+        $output = $this->commandRunner->run(ShellCommands::tail($logFile, $maxLines));
 
         return $output !== null && trim($output) !== '' ? explode("\n", trim($output)) : [];
     }
 
     private function countFileLines(string $logFile): int
     {
-        $output = $this->commandRunner->run('wc -l < ' . escapeshellarg($logFile));
+        $output = $this->commandRunner->run(ShellCommands::lineCount($logFile));
 
         return $output === null ? 0 : (int) trim($output);
     }
@@ -687,8 +688,7 @@ class AppWatcher
         }
 
         $workingDir = dirname($jsonPath);
-        $composerCmd = $this->buildComposerCommand($binPath);
-        $cmd = $composerCmd . ' audit --format=json --no-ansi --no-interaction --working-dir=' . escapeshellarg($workingDir);
+        $cmd = ShellCommands::composerAudit($binPath, $workingDir);
 
         $processResult = $this->processRunner->run($cmd, self::COMPOSER_AUDIT_TIMEOUT_SECONDS);
         $stdout = trim($processResult->stdout);
@@ -736,20 +736,6 @@ class AppWatcher
             'stdout' => $stdout,
             'stderr' => $stderr,
         ];
-    }
-
-    private function buildComposerCommand(?string $binPath): string
-    {
-        if (!$binPath) {
-            return 'composer';
-        }
-
-        $normalized = strtolower($binPath);
-        if (str_ends_with($normalized, '.phar')) {
-            return 'php ' . escapeshellarg($binPath);
-        }
-
-        return escapeshellarg($binPath);
     }
 
     /**

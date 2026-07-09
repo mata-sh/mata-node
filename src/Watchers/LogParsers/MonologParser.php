@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Mata\Watchers\LogParsers;
 
+use Mata\Services\Command\ShellCommands;
 use RuntimeException;
 
 /**
@@ -25,7 +26,7 @@ class MonologParser extends AbstractLogParser
             return false;
         }
 
-        $output = $this->shell('head -n 10 ' . escapeshellarg($logFile));
+        $output = $this->shell(ShellCommands::head($logFile, 10));
         if ($output === null || $output === '') {
             return false;
         }
@@ -121,10 +122,7 @@ class MonologParser extends AbstractLogParser
             throw new RuntimeException("log file not found or unreadable: {$logFile}");
         }
 
-        $escapedLogFile = escapeshellarg($logFile);
-        $escapedLines = intval($maxLines);
-
-        $output = $this->shell("tail -n {$escapedLines} {$escapedLogFile}");
+        $output = $this->shell(ShellCommands::tail($logFile, $maxLines));
         if ($output === null) {
             throw new RuntimeException('failed to read log using tail');
         }
@@ -146,14 +144,14 @@ class MonologParser extends AbstractLogParser
 
         // Count error-level entries
         $errorPattern = $this->getGrepPattern('errors');
-        $errorCount = (int) $this->shell("grep -c '{$errorPattern}' " . escapeshellarg($logFile) . ' 2>/dev/null || echo 0');
+        $errorCount = (int) $this->shell(ShellCommands::grepCount($errorPattern, $logFile));
 
         // Count warning entries
         $warningPattern = $this->getGrepPattern('warnings');
-        $warningCount = (int) $this->shell("grep -c '{$warningPattern}' " . escapeshellarg($logFile) . ' 2>/dev/null || echo 0');
+        $warningCount = (int) $this->shell(ShellCommands::grepCount($warningPattern, $logFile));
 
         // Total lines
-        $totalLines = (int) $this->shell('wc -l < ' . escapeshellarg($logFile));
+        $totalLines = (int) $this->shell(ShellCommands::lineCount($logFile));
 
         return [
             'fatal' => $errorCount,

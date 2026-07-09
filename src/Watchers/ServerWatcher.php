@@ -6,6 +6,7 @@ namespace Mata\Watchers;
 
 use Mata\Services\Command\CommandRunnerInterface;
 use Mata\Services\Command\NativeCommandRunner;
+use Mata\Services\Command\ShellCommands;
 use Mata\Services\FileCache;
 
 class ServerWatcher
@@ -43,13 +44,13 @@ class ServerWatcher
 
         $data = [
             'total_system_filecount' => $filecount,
-            'ram_capacity' => (int) $this->commandRunner->run("grep MemTotal /proc/meminfo | awk '{print $2}'"), // in bytes
-            'ram_used' => (int) $this->commandRunner->run("grep MemAvailable /proc/meminfo | awk '{print $2}'"),
+            'ram_capacity' => (int) $this->commandRunner->run(ShellCommands::memoryTotalKb()), // in bytes
+            'ram_used' => (int) $this->commandRunner->run(ShellCommands::memoryAvailableKb()),
             'disk_space_capacity' => $diskSpaceCapacity, // in bytes
             'disk_space_used' => $diskSpaceUsed,
-            'cpu_usage' => trim($this->commandRunner->run("top -bn1 | grep 'Cpu(s)' | awk '{print 100 - $8}'") ?? ''), // % used
+            'cpu_usage' => trim($this->commandRunner->run(ShellCommands::cpuUsagePercent()) ?? ''), // % used
             'processes' => [
-                'total' => (int) $this->commandRunner->run('ps -e --no-headers | wc -l'),
+                'total' => (int) $this->commandRunner->run(ShellCommands::totalProcessCount()),
                 'php' => $this->commandRunner->countProcesses('php', exact: false),
                 'sql' => $this->commandRunner->countProcesses(DatabaseWatcher::MYSQL_PROCESS_NAMES),
             ],
@@ -82,14 +83,14 @@ class ServerWatcher
     public function getSystemFilecount($maxAgeCache): int
     {
         return (int) $this->cache->remember('server/filecount', (int) $maxAgeCache, function (): int {
-            return (int) $this->commandRunner->run('du -a ' . escapeshellarg($this->rootPath) . ' | wc -l');
+            return (int) $this->commandRunner->run(ShellCommands::fileCount($this->rootPath));
         });
     }
 
     public function getPhpProcesses(): array
     {
         // Get all running PHP processes
-        $rawOutput = $this->commandRunner->run('ps -eo user,pid,ppid,%cpu,%mem,etime,args | grep "[p]hp"');
+        $rawOutput = $this->commandRunner->run(ShellCommands::phpProcesses());
         if (!$rawOutput) {
             return [];
         }
@@ -143,13 +144,7 @@ class ServerWatcher
 
     private function getPackageCount(): int
     {
-        $commands = [
-            'dpkg-query -f \'.\' -W 2>/dev/null | wc -c',
-            'rpm -qa 2>/dev/null | wc -l',
-            'pacman -Q 2>/dev/null | wc -l',
-        ];
-
-        foreach ($commands as $command) {
+        foreach (ShellCommands::packageCountCommands() as $command) {
             $output = $this->commandRunner->run($command) ?? '';
             if ($output === '') {
                 continue;
@@ -171,7 +166,7 @@ class ServerWatcher
 
         // Fallback if PHP functions return 0
         if (!$total || !$free) {
-            $output = $this->commandRunner->run('df -k ' . escapeshellarg($path) . ' 2>/dev/null');
+            $output = $this->commandRunner->run(ShellCommands::diskFree((string) $path));
             if ($output) {
                 $lines = explode("\n", trim($output));
                 if (count($lines) > 1) {

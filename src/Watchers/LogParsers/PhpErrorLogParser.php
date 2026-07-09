@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Mata\Watchers\LogParsers;
 
+use Mata\Services\Command\ShellCommands;
 use RuntimeException;
 
 /**
@@ -25,7 +26,7 @@ class PhpErrorLogParser extends AbstractLogParser
             return false;
         }
 
-        $output = $this->shell('head -n 10 ' . escapeshellarg($logFile));
+        $output = $this->shell(ShellCommands::head($logFile, 10));
         if ($output === null || $output === '') {
             return false;
         }
@@ -119,10 +120,7 @@ class PhpErrorLogParser extends AbstractLogParser
             throw new RuntimeException("errorlog not found or unreadable: {$logFile}");
         }
 
-        $escapedLogFile = escapeshellarg($logFile);
-        $escapedLines = intval($maxLines);
-
-        $output = $this->shell("tail -n {$escapedLines} {$escapedLogFile}");
+        $output = $this->shell(ShellCommands::tail($logFile, $maxLines));
         if ($output === null) {
             throw new RuntimeException('failed to read log using tail');
         }
@@ -146,10 +144,10 @@ class PhpErrorLogParser extends AbstractLogParser
         }
 
         $warningPattern = $this->getGrepPattern('warnings');
-        $warningCount = (int) $this->shell("grep -c '{$warningPattern}' " . escapeshellarg($logFile));
+        $warningCount = (int) $this->shell(ShellCommands::grepCount($warningPattern, $logFile));
         $errorPattern = $this->getGrepPattern('errors');
-        $errorCount = (int) $this->shell("grep -c '{$errorPattern}' " . escapeshellarg($logFile));
-        $totalLines = (int) $this->shell('wc -l < ' . escapeshellarg($logFile));
+        $errorCount = (int) $this->shell(ShellCommands::grepCount($errorPattern, $logFile));
+        $totalLines = (int) $this->shell(ShellCommands::lineCount($logFile));
 
         return [
             'fatal' => $errorCount,
