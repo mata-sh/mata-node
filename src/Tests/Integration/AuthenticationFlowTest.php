@@ -6,6 +6,7 @@ namespace Mata\Tests\Integration;
 
 use Mata\Config\Dto\AuthConfig;
 use Mata\Core\Auth;
+use Mata\Security\NonceStore\InMemoryNonceStore;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -31,7 +32,7 @@ class AuthenticationFlowTest extends TestCase
             dashboardApiKey: $this->testApiKey,
             clockSkewWindow: 120
         );
-        $this->auth = new Auth($authConfig);
+        $this->auth = new Auth($authConfig, new InMemoryNonceStore());
         $this->auth->clearNonceCache();
 
         // Clear server globals

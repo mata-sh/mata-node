@@ -6,6 +6,7 @@ namespace Mata\Tests\Unit;
 
 use Mata\Config\Dto\AuthConfig;
 use Mata\Core\Auth;
+use Mata\Security\NonceStore\InMemoryNonceStore;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -29,7 +30,7 @@ class AuthTest extends TestCase
             dashboardApiKey: $this->testApiKey,
             clockSkewWindow: 120
         );
-        $this->auth = new Auth($this->authConfig);
+        $this->auth = new Auth($this->authConfig, new InMemoryNonceStore());
         $this->auth->clearNonceCache();
 
         // Clear any existing X-Mata-Auth header

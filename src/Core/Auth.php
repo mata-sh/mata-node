@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Mata\Core;
 
 use Mata\Config\Dto\AuthConfig;
+use Mata\Security\NonceStore\NonceStoreInterface;
 
 /**
  * HMAC-based authentication system.
@@ -19,14 +20,12 @@ use Mata\Config\Dto\AuthConfig;
  */
 class Auth
 {
-    /** @var array<string,int> In-memory nonce cache: nonce => expiry_timestamp */
-    private static array $nonceCache = [];
-
     private const MIN_NONCE_LENGTH = 16;
     private const MAX_NONCE_LENGTH = 64;
 
     public function __construct(
         private readonly AuthConfig $authConfig,
+        private readonly NonceStoreInterface $nonceStore,
     ) {}
 
     /**
@@ -70,8 +69,8 @@ class Auth
             return ['success' => false, 'error' => 'Invalid server ID'];
         }
 
-        // 5. Validate nonce format and check for replay
-        $nonceValidation = $this->validateNonce($nonce, $timestamp);
+        // 5. Validate nonce format
+        $nonceValidation = $this->validateNonce($nonce);
         if (!$nonceValidation['success']) {
             return $nonceValidation;
         }
@@ -86,7 +85,9 @@ class Auth
         }
 
         // 8. Store nonce to prevent replay
-        $this->storeNonce($nonce, $timestamp);
+        if (!$this->storeNonce($nonce, $timestamp)) {
+            return ['success' => false, 'error' => 'Nonce already used (replay attack detected)'];
+        }
 
         return ['success' => true, 'serverId' => $serverId];
     }
@@ -113,13 +114,12 @@ class Auth
     }
 
     /**
-     * Validate nonce format and check for replay attacks.
+     * Validate nonce format.
      *
      * @return array{success: bool, error?: string}
      */
-    private function validateNonce(string $nonce, int $timestamp): array
+    private function validateNonce(string $nonce): array
     {
-        // Check nonce length
         $nonceLength = strlen($nonce);
         if ($nonceLength < self::MIN_NONCE_LENGTH || $nonceLength > self::MAX_NONCE_LENGTH) {
             return [
@@ -128,37 +128,17 @@ class Auth
             ];
         }
 
-        // Clean up expired nonces from cache
-        $this->cleanupExpiredNonces();
-
-        // Check if nonce was already used
-        if (isset(self::$nonceCache[$nonce])) {
-            return ['success' => false, 'error' => 'Nonce already used (replay attack detected)'];
-        }
-
         return ['success' => true];
     }
 
     /**
      * Store nonce in cache to prevent replay attacks.
      */
-    private function storeNonce(string $nonce, int $timestamp): void
+    private function storeNonce(string $nonce, int $timestamp): bool
     {
-        // Nonces expire after twice the clock skew window
         $expiry = $timestamp + ($this->authConfig->clockSkewWindow * 2);
-        self::$nonceCache[$nonce] = $expiry;
-    }
 
-    /**
-     * Remove expired nonces from cache to prevent memory bloat.
-     */
-    private function cleanupExpiredNonces(): void
-    {
-        $now = time();
-        self::$nonceCache = array_filter(
-            self::$nonceCache,
-            static fn (int $expiry): bool => $expiry > $now
-        );
+        return $this->nonceStore->consume($nonce, $expiry);
     }
 
     /**
@@ -166,7 +146,7 @@ class Auth
      */
     public function getNonceCacheSize(): int
     {
-        return count(self::$nonceCache);
+        return $this->nonceStore->count();
     }
 
     /**
@@ -174,6 +154,6 @@ class Auth
      */
     public function clearNonceCache(): void
     {
-        self::$nonceCache = [];
+        $this->nonceStore->clear();
     }
 }

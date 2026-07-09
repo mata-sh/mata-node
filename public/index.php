@@ -8,6 +8,7 @@ use Mata\Config\EnvConfigManager;
 use Mata\Config\LogConfigurator;
 use Mata\Core\App;
 use Mata\Core\Auth;
+use Mata\Factory\NonceStoreFactory;
 use Mata\Factory\RateLimiterFactory;
 use Mata\Http\RouterSetup;
 use Mata\Services\Command\NativeCommandRunner;
@@ -87,7 +88,7 @@ $log = $logConfigurator->createConfiguredLogger($appConfig->logging, $paths, 'ap
 // ************************************************************************************************
 // Authentication Setup
 // ************************************************************************************************
-$auth = new Auth($appConfig->auth);
+$auth = new Auth($appConfig->auth, NonceStoreFactory::create($paths->cachePath));
 
 // ************************************************************************************************
 // Rate Limiter Setup
