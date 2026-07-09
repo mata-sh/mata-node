@@ -121,13 +121,16 @@ class AppWatcher
         return $this->composerInspector->librariesToArray($paths['lock']);
     }
 
+    /**
+     * @return array{content: string}
+     */
     public function getAppReadme(string $app): array
     {
         $app = $this->requireAppKey($app);
         $readmeFile = $this->watcherConfig[$app]['readme'] ?? $this->watcherConfig[$app]['path'] . '/README.md';
 
         try {
-            return [$app => $this->readmeReader->read($this->rootPath . '/' . $readmeFile)];
+            return ['content' => $this->readmeReader->read($this->rootPath . '/' . $readmeFile)];
         } catch (RuntimeException $e) {
             throw new AppWatcherException(
                 message: $e->getMessage(),
