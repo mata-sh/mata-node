@@ -33,11 +33,12 @@ echo "📁 Fixing permissions for mounted source code..."
 # Make all files readable by www-data (keep host user as owner for editing)
 chmod -R a+rX /var/www/html
 
-# Fix ownership and permissions for writable directories
+# Fix permissions for writable directories without taking ownership from the host user.
+# Chowning bind mounts to www-data breaks later Docker builds: the host user
+# cannot read temp/logs and Docker cannot package the build context.
 echo "📁 Setting up writable directories..."
-chown -R www-data:www-data /var/www/html/temp /var/www/html/logs /var/www/html/config
-chmod -R 770 /var/www/html/temp /var/www/html/logs
-chmod -R 755 /var/www/html/config
+chmod -R a+rwX /var/www/html/temp /var/www/html/logs
+chmod -R a+rX /var/www/html/config
 
 # If vendor autoload doesn't exist, run composer install
 if [ ! -f "/var/www/html/vendor/autoload.php" ]; then
