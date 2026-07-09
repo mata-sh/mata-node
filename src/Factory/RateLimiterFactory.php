@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace Mata\Factory;
 
 use Mata\Config\Dto\RateLimitingConfig;
-use Mata\Services\RateLimiterService;
-use MataSh\RateLimiter\RateLimiter;
+use Mata\Services\RateLimiter;
+use MataSh\RateLimiter\RateLimiter as MataShRateLimiter;
 use Psr\Log\LoggerInterface;
 use Redis;
 use RuntimeException;
 use Throwable;
 
 /**
- * Factory for creating RateLimiterService instances.
+ * Factory for creating RateLimiter instances.
  *
  * Handles initialization of rate limiter with different storage backends
  * (file, Redis) based on configuration.
@@ -21,17 +21,17 @@ use Throwable;
 final class RateLimiterFactory
 {
     /**
-     * Create RateLimiterService from configuration.
+     * Create RateLimiter from configuration.
      *
      * @param RateLimitingConfig $config Configuration for rate limiting
      * @param LoggerInterface    $logger Logger for initialization messages
      *
-     * @return null|RateLimiterService Service instance or null if initialization fails
+     * @return null|RateLimiter Rate limiter or null if initialization fails
      */
     public static function create(
         RateLimitingConfig $config,
         LoggerInterface $logger
-    ): ?RateLimiterService {
+    ): ?RateLimiter {
         try {
             $redis = null;
 
@@ -63,22 +63,21 @@ final class RateLimiterFactory
             }
 
             // Initialize RateLimiter with configured backend
-            $rateLimiter = new RateLimiter(
+            $packageRateLimiter = new MataShRateLimiter(
                 storageType: $config->storageType,
                 fileStoragePath: $config->filePath,
                 redis: $redis,
                 logger: $logger
             );
 
-            // Wrap in service layer
-            $rateLimiterService = new RateLimiterService($rateLimiter, $config);
+            $rateLimiter = new RateLimiter($packageRateLimiter, $config);
 
             $logger->info('Rate limiting initialized', [
                 'storage' => $config->storageType,
                 'enabled' => $config->enabled,
             ]);
 
-            return $rateLimiterService;
+            return $rateLimiter;
         } catch (Throwable $e) {
             $logger->error('Failed to initialize rate limiter: ' . $e->getMessage());
 

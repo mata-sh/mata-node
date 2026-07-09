@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Mata\Watchers\LogParsers;
 
 use DateTimeImmutable;
-use Mata\Services\NativeShellRunner;
-use Mata\Services\ShellRunnerInterface;
+use Mata\Services\Command\CommandRunnerInterface;
+use Mata\Services\Command\NativeCommandRunner;
 use Throwable;
 
 /**
@@ -14,16 +14,16 @@ use Throwable;
  */
 abstract class AbstractLogParser implements LogParserInterface
 {
-    protected ShellRunnerInterface $shellRunner;
+    protected CommandRunnerInterface $commandRunner;
 
-    public function __construct(?ShellRunnerInterface $shellRunner = null)
+    public function __construct(?CommandRunnerInterface $commandRunner = null)
     {
-        $this->shellRunner = $shellRunner ?? new NativeShellRunner();
+        $this->commandRunner = $commandRunner ?? new NativeCommandRunner();
     }
 
     protected function shell(string $command): ?string
     {
-        return $this->shellRunner->run($command);
+        return $this->commandRunner->run($command);
     }
 
     protected function normalizeTimestamp(string $timestamp): string

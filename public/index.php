@@ -10,8 +10,8 @@ use Mata\Core\App;
 use Mata\Core\Auth;
 use Mata\Factory\RateLimiterFactory;
 use Mata\Http\RouterSetup;
+use Mata\Services\Command\NativeCommandRunner;
 use Mata\Services\FileCache;
-use Mata\Services\NativeShellRunner;
 use Mata\Utils\PathResolver;
 use Mata\Utils\Tools;
 use Mata\Watchers\AppWatcher;
@@ -92,8 +92,8 @@ $auth = new Auth($appConfig->auth);
 // ************************************************************************************************
 // Rate Limiter Setup
 // ************************************************************************************************
-$rateLimiterService = RateLimiterFactory::create($appConfig->rateLimiting, $log);
-$app = new App($auth, $appConfig, $paths, $rateLimiterService);
+$rateLimiter = RateLimiterFactory::create($appConfig->rateLimiting, $log);
+$app = new App($auth, $appConfig, $paths, $rateLimiter);
 $app->setBaseUrl($appConfig->environment->domain);
 
 // ************************************************************************************************
@@ -115,10 +115,10 @@ $databasesConfig = json_decode(file_get_contents($paths->appPath . '/config/data
 $transmitConfig = json_decode(file_get_contents($paths->appPath . '/config/transmit.json'), true);
 
 $fileCache = new FileCache($paths->cachePath);
-$shellRunner = new NativeShellRunner();
-$appWatcher = new AppWatcher($tools, $log, $paths->rootPath, $watcherConfig, $transmitConfig, null, $fileCache, $shellRunner);
-$serverWatcher = new ServerWatcher($paths->rootPath, $fileCache, $transmitConfig, $shellRunner);
-$databaseWatcher = new DatabaseWatcher($databasesConfig, $shellRunner);
+$commandRunner = new NativeCommandRunner();
+$appWatcher = new AppWatcher($tools, $log, $paths->rootPath, $watcherConfig, $transmitConfig, null, $fileCache, $commandRunner);
+$serverWatcher = new ServerWatcher($paths->rootPath, $fileCache, $transmitConfig, $commandRunner);
+$databaseWatcher = new DatabaseWatcher($databasesConfig, $commandRunner);
 
 $router = new Router();
 $routerSetup = new RouterSetup(
@@ -130,7 +130,7 @@ $routerSetup = new RouterSetup(
     $serverWatcher,
     $databaseWatcher,
     $appConfig->general,
-    $rateLimiterService
+    $rateLimiter
 );
 $routerSetup->setup();
 $routerSetup->run();

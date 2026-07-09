@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Mata\Tests\Unit;
 
 use Mata\Services\FileCache;
-use Mata\Tests\Support\FakeShellRunner;
+use Mata\Tests\Support\FakeCommandRunner;
 use Mata\Watchers\DatabaseWatcher;
 use Mata\Watchers\ServerWatcher;
 use PHPUnit\Framework\TestCase;
@@ -59,14 +59,14 @@ class ServerWatcherTest extends TestCase
         }
     }
 
-    public function testGetServerDataUsesInjectedShellRunner(): void
+    public function testGetServerDataUsesInjectedCommandRunner(): void
     {
         $cachePath = sys_get_temp_dir() . '/mata-node-server-cache-' . bin2hex(random_bytes(6));
         mkdir($cachePath, 0777, true);
         $cache = new FileCache($cachePath);
         $cache->set('server/filecount', 5);
 
-        $runner = new FakeShellRunner(
+        $runner = new FakeCommandRunner(
             [
                 "grep MemTotal /proc/meminfo | awk '{print $2}'" => "1000\n",
                 "grep MemAvailable /proc/meminfo | awk '{print $2}'" => "400\n",
@@ -74,8 +74,8 @@ class ServerWatcherTest extends TestCase
                 'ps -e --no-headers | wc -l' => "42\n",
             ],
             [
-                FakeShellRunner::processCountKey('php', false) => 3,
-                FakeShellRunner::processCountKey(DatabaseWatcher::MYSQL_PROCESS_NAMES) => 2,
+                FakeCommandRunner::processCountKey('php', false) => 3,
+                FakeCommandRunner::processCountKey(DatabaseWatcher::MYSQL_PROCESS_NAMES) => 2,
             ]
         );
 

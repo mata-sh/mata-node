@@ -8,7 +8,7 @@ use Bramus\Router\Router;
 use Mata\Config\Dto\GeneralConfig;
 use Mata\Core\Auth;
 use Mata\Security\IpAllowlist;
-use Mata\Services\RateLimiterService;
+use Mata\Services\RateLimiter;
 use Mata\Utils\PathResolver;
 use Mata\Watchers\AppWatcher;
 use Mata\Watchers\DatabaseWatcher;
@@ -27,7 +27,7 @@ class RouterSetup
         private ServerWatcher $serverWatcher,
         private DatabaseWatcher $databaseWatcher,
         private GeneralConfig $generalConfig,
-        private ?RateLimiterService $rateLimiterService = null,
+        private ?RateLimiter $rateLimiter = null,
         private ClientIpResolver $clientIpResolver = new ClientIpResolver(),
         private IpAllowlist $ipAllowlist = new IpAllowlist(),
     ) {}
@@ -113,8 +113,8 @@ class RouterSetup
                 exit;
             }
 
-            if ($this->rateLimiterService?->isRateLimited('api', $ip)) {
-                $status = $this->rateLimiterService->check('api', $ip);
+            if ($this->rateLimiter?->isRateLimited('api', $ip)) {
+                $status = $this->rateLimiter->check('api', $ip);
                 $this->logger->warning('Rate limit exceeded', [
                     'group' => 'api',
                     'ip' => $ip,
@@ -134,8 +134,8 @@ class RouterSetup
             $authResult = $this->auth->validateHmacAuth();
 
             if (!$authResult['success']) {
-                if ($this->rateLimiterService?->isRateLimited('auth_failed', $ip)) {
-                    $status = $this->rateLimiterService->check('auth_failed', $ip);
+                if ($this->rateLimiter?->isRateLimited('auth_failed', $ip)) {
+                    $status = $this->rateLimiter->check('auth_failed', $ip);
                     $this->logger->warning('Failed auth rate limit exceeded', [
                         'ip' => $ip,
                         'limit' => $status['limit'],

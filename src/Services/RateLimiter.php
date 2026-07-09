@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Mata\Services;
 
 use Mata\Config\Dto\RateLimitingConfig;
-use MataSh\RateLimiter\RateLimiter;
+use MataSh\RateLimiter\RateLimiter as MataShRateLimiter;
 use MataSh\RateLimiter\RateLimitIdentifier;
 
 /**
@@ -14,12 +14,12 @@ use MataSh\RateLimiter\RateLimitIdentifier;
  * Provides application-specific rate limiting logic with
  * route group awareness and IP-based identification.
  */
-class RateLimiterService
+class RateLimiter
 {
-    private RateLimiter $rateLimiter;
+    private MataShRateLimiter $rateLimiter;
     private RateLimitingConfig $config;
 
-    public function __construct(RateLimiter $rateLimiter, RateLimitingConfig $config)
+    public function __construct(MataShRateLimiter $rateLimiter, RateLimitingConfig $config)
     {
         $this->rateLimiter = $rateLimiter;
         $this->config = $config;
@@ -76,7 +76,7 @@ class RateLimiterService
     /**
      * Get underlying RateLimiter instance.
      */
-    public function getRateLimiter(): RateLimiter
+    public function getRateLimiter(): MataShRateLimiter
     {
         return $this->rateLimiter;
     }

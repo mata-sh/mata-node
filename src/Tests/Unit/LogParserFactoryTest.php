@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Mata\Tests\Unit;
 
-use Mata\Tests\Support\FakeShellRunner;
+use Mata\Tests\Support\FakeCommandRunner;
 use Mata\Watchers\LogParsers\JsonParser;
 use Mata\Watchers\LogParsers\LogParserFactory;
 use Mata\Watchers\LogParsers\MonologParser;
@@ -154,8 +154,8 @@ class LogParserFactoryTest extends TestCase
         $warningCommand = "grep -c '{$warningPattern}' " . $escapedLogFile . ' 2>/dev/null || echo 0';
         $totalCommand = 'wc -l < ' . $escapedLogFile;
 
-        $runnerA = new FakeShellRunner([$headCommand => $jsonLog]);
-        $runnerB = new FakeShellRunner([
+        $runnerA = new FakeCommandRunner([$headCommand => $jsonLog]);
+        $runnerB = new FakeCommandRunner([
             $errorCommand => '10',
             $warningCommand => '0',
             $totalCommand => '10',

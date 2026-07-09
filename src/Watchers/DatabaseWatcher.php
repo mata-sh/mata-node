@@ -6,8 +6,8 @@ namespace Mata\Watchers;
 
 use Mata\Config\Dto\DatabaseConfig;
 use Mata\Core\Database;
-use Mata\Services\NativeShellRunner;
-use Mata\Services\ShellRunnerInterface;
+use Mata\Services\Command\CommandRunnerInterface;
+use Mata\Services\Command\NativeCommandRunner;
 use Mata\Watchers\Exceptions\DatabaseWatcherException;
 use PDOException;
 use Throwable;
@@ -18,12 +18,12 @@ class DatabaseWatcher
 
     private array $connections = [];
     private array $configs = [];
-    private ShellRunnerInterface $shellRunner;
+    private CommandRunnerInterface $commandRunner;
 
-    public function __construct(array $databasesConfig, ?ShellRunnerInterface $shellRunner = null)
+    public function __construct(array $databasesConfig, ?CommandRunnerInterface $commandRunner = null)
     {
         $this->configs = $databasesConfig;
-        $this->shellRunner = $shellRunner ?? new NativeShellRunner();
+        $this->commandRunner = $commandRunner ?? new NativeCommandRunner();
     }
 
     /**
@@ -82,7 +82,7 @@ class DatabaseWatcher
 
         return [
             'processes' => [
-                'sql' => $this->shellRunner->countProcesses(self::MYSQL_PROCESS_NAMES),
+                'sql' => $this->commandRunner->countProcesses(self::MYSQL_PROCESS_NAMES),
             ],
             'databases' => $databases,
         ];

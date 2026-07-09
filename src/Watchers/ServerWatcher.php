@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Mata\Watchers;
 
+use Mata\Services\Command\CommandRunnerInterface;
+use Mata\Services\Command\NativeCommandRunner;
 use Mata\Services\FileCache;
-use Mata\Services\NativeShellRunner;
-use Mata\Services\ShellRunnerInterface;
 
 class ServerWatcher
 {
@@ -15,13 +15,13 @@ class ServerWatcher
     private bool $isDiskSpaceCheckEnabled;
     private string $diskSpaceCheckPath;
     private int $filecountCacheMaxAge;
-    private ShellRunnerInterface $shellRunner;
+    private CommandRunnerInterface $commandRunner;
 
-    public function __construct(string $rootPath, FileCache $cache, array $transmitConfig, ?ShellRunnerInterface $shellRunner = null)
+    public function __construct(string $rootPath, FileCache $cache, array $transmitConfig, ?CommandRunnerInterface $commandRunner = null)
     {
         $this->rootPath = $rootPath;
         $this->cache = $cache;
-        $this->shellRunner = $shellRunner ?? new NativeShellRunner();
+        $this->commandRunner = $commandRunner ?? new NativeCommandRunner();
 
         $this->diskSpaceCheckPath = $transmitConfig['check_disk_space_path'] ?? '/';
         $this->isDiskSpaceCheckEnabled = ($transmitConfig['check_disk_space_enabled'] ?? true) !== 'off';
@@ -43,15 +43,15 @@ class ServerWatcher
 
         $data = [
             'total_system_filecount' => $filecount,
-            'ram_capacity' => (int) $this->shellRunner->run("grep MemTotal /proc/meminfo | awk '{print $2}'"), // in bytes
-            'ram_used' => (int) $this->shellRunner->run("grep MemAvailable /proc/meminfo | awk '{print $2}'"),
+            'ram_capacity' => (int) $this->commandRunner->run("grep MemTotal /proc/meminfo | awk '{print $2}'"), // in bytes
+            'ram_used' => (int) $this->commandRunner->run("grep MemAvailable /proc/meminfo | awk '{print $2}'"),
             'disk_space_capacity' => $diskSpaceCapacity, // in bytes
             'disk_space_used' => $diskSpaceUsed,
-            'cpu_usage' => trim($this->shellRunner->run("top -bn1 | grep 'Cpu(s)' | awk '{print 100 - $8}'") ?? ''), // % used
+            'cpu_usage' => trim($this->commandRunner->run("top -bn1 | grep 'Cpu(s)' | awk '{print 100 - $8}'") ?? ''), // % used
             'processes' => [
-                'total' => (int) $this->shellRunner->run('ps -e --no-headers | wc -l'),
-                'php' => $this->shellRunner->countProcesses('php', exact: false),
-                'sql' => $this->shellRunner->countProcesses(DatabaseWatcher::MYSQL_PROCESS_NAMES),
+                'total' => (int) $this->commandRunner->run('ps -e --no-headers | wc -l'),
+                'php' => $this->commandRunner->countProcesses('php', exact: false),
+                'sql' => $this->commandRunner->countProcesses(DatabaseWatcher::MYSQL_PROCESS_NAMES),
             ],
         ];
 
@@ -82,14 +82,14 @@ class ServerWatcher
     public function getSystemFilecount($maxAgeCache): int
     {
         return (int) $this->cache->remember('server/filecount', (int) $maxAgeCache, function (): int {
-            return (int) $this->shellRunner->run('du -a ' . escapeshellarg($this->rootPath) . ' | wc -l');
+            return (int) $this->commandRunner->run('du -a ' . escapeshellarg($this->rootPath) . ' | wc -l');
         });
     }
 
     public function getPhpProcesses(): array
     {
         // Get all running PHP processes
-        $rawOutput = $this->shellRunner->run('ps -eo user,pid,ppid,%cpu,%mem,etime,args | grep "[p]hp"');
+        $rawOutput = $this->commandRunner->run('ps -eo user,pid,ppid,%cpu,%mem,etime,args | grep "[p]hp"');
         if (!$rawOutput) {
             return [];
         }
@@ -150,7 +150,7 @@ class ServerWatcher
         ];
 
         foreach ($commands as $command) {
-            $output = $this->shellRunner->run($command) ?? '';
+            $output = $this->commandRunner->run($command) ?? '';
             if ($output === '') {
                 continue;
             }
@@ -171,7 +171,7 @@ class ServerWatcher
 
         // Fallback if PHP functions return 0
         if (!$total || !$free) {
-            $output = $this->shellRunner->run('df -k ' . escapeshellarg($path) . ' 2>/dev/null');
+            $output = $this->commandRunner->run('df -k ' . escapeshellarg($path) . ' 2>/dev/null');
             if ($output) {
                 $lines = explode("\n", trim($output));
                 if (count($lines) > 1) {

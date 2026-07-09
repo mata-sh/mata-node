@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Mata\Tests\Support;
 
-use Mata\Services\ShellRunnerInterface;
+use Mata\Services\Command\CommandRunnerInterface;
 
-final class FakeShellRunner implements ShellRunnerInterface
+final class FakeCommandRunner implements CommandRunnerInterface
 {
     /** @var array<int,string> */
     public array $commands = [];

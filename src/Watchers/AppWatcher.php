@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Mata\Watchers;
 
+use Mata\Services\Command\CommandRunnerInterface;
+use Mata\Services\Command\NativeCommandRunner;
+use Mata\Services\Command\ProcessCommandRunner;
+use Mata\Services\Command\ProcessCommandRunnerInterface;
 use Mata\Services\FileCache;
-use Mata\Services\NativeShellRunner;
-use Mata\Services\ShellRunnerInterface;
 use Mata\Utils\Tools;
 use Mata\Watchers\Exceptions\AppWatcherException;
 use Mata\Watchers\LogParsers\LogParserFactory;
@@ -23,6 +25,7 @@ class AppWatcher
     private const DEFAULT_CRONJOB_HEARTBEAT_STALE_SECONDS = 86400;
     private const DEFAULT_CRONJOB_HEARTBEAT_TAIL_LINE_LIMIT = 50;
     private const DEFAULT_LOG_SCAN_LINE_LIMIT = 20000;
+    private const COMPOSER_AUDIT_TIMEOUT_SECONDS = 60;
     private const LOG_FILTER_ALL = '';
     private const LOG_FILTER_ERRORS = 'errors';
     private const LOG_FILTER_WARNINGS = 'warnings';
@@ -35,7 +38,8 @@ class AppWatcher
     private array $appsConfig;
     private ?FileCache $fileCache;
     private SessionBackendFactory $sessionBackendFactory;
-    private ShellRunnerInterface $shellRunner;
+    private CommandRunnerInterface $commandRunner;
+    private ProcessCommandRunnerInterface $processRunner;
 
     public function __construct(
         Tools $tools,
@@ -45,7 +49,8 @@ class AppWatcher
         array $transmitConfig,
         ?SessionBackendFactory $sessionBackendFactory = null,
         ?FileCache $fileCache = null,
-        ?ShellRunnerInterface $shellRunner = null
+        ?CommandRunnerInterface $commandRunner = null,
+        ?ProcessCommandRunnerInterface $processRunner = null
     ) {
         $this->tools = $tools;
         $this->logger = $logger;
@@ -53,7 +58,8 @@ class AppWatcher
         $this->watcherConfig = $watcherConfig;
         $this->transmitConfig = $transmitConfig;
         $this->fileCache = $fileCache;
-        $this->shellRunner = $shellRunner ?? new NativeShellRunner();
+        $this->processRunner = $processRunner ?? new ProcessCommandRunner();
+        $this->commandRunner = $commandRunner ?? new NativeCommandRunner($this->processRunner);
         $this->sessionBackendFactory = $sessionBackendFactory ?? new SessionBackendFactory(null, $this->fileCache);
     }
 
@@ -559,14 +565,14 @@ class AppWatcher
      */
     private function tailLogLines(string $logFile, int $maxLines): array
     {
-        $output = $this->shellRunner->run('tail -n ' . max(1, $maxLines) . ' ' . escapeshellarg($logFile));
+        $output = $this->commandRunner->run('tail -n ' . max(1, $maxLines) . ' ' . escapeshellarg($logFile));
 
         return $output !== null && trim($output) !== '' ? explode("\n", trim($output)) : [];
     }
 
     private function countFileLines(string $logFile): int
     {
-        $output = $this->shellRunner->run('wc -l < ' . escapeshellarg($logFile));
+        $output = $this->commandRunner->run('wc -l < ' . escapeshellarg($logFile));
 
         return $output === null ? 0 : (int) trim($output);
     }
@@ -684,33 +690,35 @@ class AppWatcher
         $composerCmd = $this->buildComposerCommand($binPath);
         $cmd = $composerCmd . ' audit --format=json --no-ansi --no-interaction --working-dir=' . escapeshellarg($workingDir);
 
-        $descriptorSpec = [
-            1 => ['pipe', 'w'],
-            2 => ['pipe', 'w'],
-        ];
+        $processResult = $this->processRunner->run($cmd, self::COMPOSER_AUDIT_TIMEOUT_SECONDS);
+        $stdout = trim($processResult->stdout);
+        $stderr = trim($processResult->stderr);
 
-        $process = proc_open($cmd, $descriptorSpec, $pipes);
-        if (!is_resource($process)) {
+        if ($processResult->timedOut) {
             return [
                 'status' => 'error',
-                'message' => 'Failed to start composer audit process',
+                'exit_code' => $processResult->exitCode,
+                'message' => 'composer audit timed out',
+                'stderr' => $stderr,
             ];
         }
 
-        $stdout = stream_get_contents($pipes[1]);
-        fclose($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[2]);
-        $exitCode = proc_close($process);
+        if ($processResult->outputTruncated) {
+            return [
+                'status' => 'error',
+                'exit_code' => $processResult->exitCode,
+                'message' => 'composer audit output exceeded maximum size',
+                'stdout' => $stdout,
+                'stderr' => $stderr,
+            ];
+        }
 
-        $stdout = trim($stdout);
-        $stderr = trim($stderr);
         $data = $stdout !== '' ? json_decode($stdout, true) : null;
 
         if (is_array($data)) {
             $result = [
                 'status' => 'ok',
-                'exit_code' => $exitCode,
+                'exit_code' => $processResult->exitCode,
                 'audit' => $data,
             ];
 
@@ -723,7 +731,7 @@ class AppWatcher
 
         return [
             'status' => 'error',
-            'exit_code' => $exitCode,
+            'exit_code' => $processResult->exitCode,
             'message' => 'composer audit did not return valid JSON',
             'stdout' => $stdout,
             'stderr' => $stderr,
@@ -792,10 +800,10 @@ class AppWatcher
     private function getLogParser(string $type, string $logFile): LogParserInterface
     {
         if ($type === '') {
-            return LogParserFactory::detectFormat($logFile, $this->logger, $this->shellRunner);
+            return LogParserFactory::detectFormat($logFile, $this->logger, $this->commandRunner);
         }
 
-        $parser = LogParserFactory::getParser($type, $this->logger, $this->shellRunner);
+        $parser = LogParserFactory::getParser($type, $this->logger, $this->commandRunner);
         if ($parser !== null) {
             return $parser;
         }
@@ -805,6 +813,6 @@ class AppWatcher
             'log' => $logFile,
         ]);
 
-        return LogParserFactory::detectFormat($logFile, $this->logger, $this->shellRunner);
+        return LogParserFactory::detectFormat($logFile, $this->logger, $this->commandRunner);
     }
 }

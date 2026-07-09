@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Mata\Services;
+namespace Mata\Services\Command;
 
-interface ShellRunnerInterface
+interface CommandRunnerInterface
 {
     public function run(string $command): ?string;
 
