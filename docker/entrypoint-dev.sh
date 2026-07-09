@@ -2,15 +2,27 @@
 set -e
 
 # Development entrypoint script
-# Fixes file permissions for mounted volumes to allow www-data to write
+# Runs Apache as the host repo owner so bind mounts do not need broad chmod/chown.
 
 echo "🔧 Setting up development environment..."
 
-# Ensure directories exist and have correct permissions
+HOST_UID="${HOST_UID:-$(stat -c '%u' /var/www/html)}"
+HOST_GID="${HOST_GID:-$(stat -c '%g' /var/www/html)}"
+
+if [ "$HOST_UID" != "0" ]; then
+    echo "👤 Mapping www-data to host uid:gid ${HOST_UID}:${HOST_GID}"
+    groupmod -o -g "$HOST_GID" www-data
+    usermod -o -u "$HOST_UID" -g www-data www-data
+fi
+
+# Ensure runtime directories exist. If created by root, hand them to the host owner.
 mkdir -p \
     /var/www/html/temp/cache \
     /var/www/html/logs \
     /var/www/html/config
+chown -R "$HOST_UID:$HOST_GID" /var/www/html/temp /var/www/html/logs
+chown "$HOST_UID:$HOST_GID" /var/www/html/config
+chmod -R u+rwX,go-rwx /var/www/html/temp /var/www/html/logs
 
 # Copy config files from examples if they don't exist
 echo "📋 Checking for config files..."
@@ -18,6 +30,8 @@ for file in config.env mail.config.env; do
     if [ ! -f "/var/www/html/config/$file" ]; then
         if [ -f "/var/www/html/config/example/${file}.example" ]; then
             cp "/var/www/html/config/example/${file}.example" "/var/www/html/config/$file"
+            chown "$HOST_UID:$HOST_GID" "/var/www/html/config/$file"
+            chmod 600 "/var/www/html/config/$file"
             echo "✅ Created config/$file from example"
         else
             echo "⚠️  Warning: config/example/${file}.example not found"
@@ -25,20 +39,6 @@ for file in config.env mail.config.env; do
     fi
 done
 
-# Fix permissions for ALL mounted files (source code, vendor, etc.)
-# In dev mode, entire /var/www/html is mounted from host with host user ownership
-# We need to ensure www-data can read everything and write to specific dirs
-echo "📁 Fixing permissions for mounted source code..."
-
-# Make all files readable by www-data (keep host user as owner for editing)
-chmod -R a+rX /var/www/html
-
-# Fix permissions for writable directories without taking ownership from the host user.
-# Chowning bind mounts to www-data breaks later Docker builds: the host user
-# cannot read temp/logs and Docker cannot package the build context.
-echo "📁 Setting up writable directories..."
-chmod -R a+rwX /var/www/html/temp /var/www/html/logs
-chmod -R a+rX /var/www/html/config
 
 # If vendor autoload doesn't exist, run composer install
 if [ ! -f "/var/www/html/vendor/autoload.php" ]; then
@@ -49,4 +49,5 @@ fi
 echo "✅ Development environment ready!"
 
 # Start cron (www-data crontab will run) and Apache
+umask 0077
 exec sh -c "cron && apache2-foreground"
