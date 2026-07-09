@@ -13,6 +13,7 @@ use Mata\Config\Dto\LoggingConfig;
 use Mata\Config\Dto\MailConfig;
 use Mata\Config\Dto\PhpConfig;
 use Mata\Config\Dto\RateLimitingConfig;
+use Mata\Security\IpAllowlist;
 
 /**
  * Configuration file loader supporting multiple .env formats.
@@ -72,6 +73,7 @@ final class EnvConfigLoader
             maintenanceModeEnabled: $this->getEnvBool('MAINTENANCE_MODE_ENABLED', false),
             ipWhitelistEnabled: $this->getEnvBool('IP_WHITELIST_ENABLED', false),
             allowedIps: $this->parseCommaSeparated($this->getEnv('ALLOWED_IPS', '')),
+            trustedProxies: $this->parseCommaSeparated($this->getEnv('TRUSTED_PROXIES', '')),
         );
     }
 
@@ -199,6 +201,32 @@ final class EnvConfigLoader
                 'identifier' => 'config.auth.dashboard_api_key.missing',
                 'message' => 'DASHBOARD_API_KEY is required but missing from configuration',
             ];
+        }
+
+        // Critical validation - IP allowlist
+        if ($config->general->ipWhitelistEnabled && [] === $config->general->allowedIps) {
+            $criticalErrors[] = [
+                'identifier' => 'config.ip_whitelist.allowed_ips.missing',
+                'message' => 'IP_WHITELIST_ENABLED is ON but ALLOWED_IPS is empty',
+            ];
+        }
+
+        foreach ($config->general->allowedIps as $entry) {
+            if (!IpAllowlist::isValidEntry($entry)) {
+                $criticalErrors[] = [
+                    'identifier' => 'config.ip_whitelist.allowed_ips.invalid',
+                    'message' => "Invalid ALLOWED_IPS entry: {$entry}",
+                ];
+            }
+        }
+
+        foreach ($config->general->trustedProxies as $entry) {
+            if (!IpAllowlist::isValidEntry($entry)) {
+                $criticalErrors[] = [
+                    'identifier' => 'config.ip_whitelist.trusted_proxies.invalid',
+                    'message' => "Invalid TRUSTED_PROXIES entry: {$entry}",
+                ];
+            }
         }
 
         // Logging configuration warnings

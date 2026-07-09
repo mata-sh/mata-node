@@ -52,8 +52,60 @@ class EnvConfigLoaderTest extends TestCase
         $this->assertSame([], $result['critical_errors']);
     }
 
-    private function createConfig(string $dashboardApiKey): ApplicationConfig
+    public function testEnabledIpWhitelistWithEmptyAllowedIpsIsCriticalConfigError(): void
     {
+        $result = (new EnvConfigLoader())->validateConfig($this->createConfig(
+            dashboardApiKey: 'test-secret',
+            ipWhitelistEnabled: true,
+            allowedIps: [],
+        ));
+
+        $this->assertFalse($result['is_valid']);
+        $this->assertContains(
+            'config.ip_whitelist.allowed_ips.missing',
+            array_column($result['critical_errors'], 'identifier')
+        );
+    }
+
+    public function testInvalidAllowedIpIsCriticalConfigError(): void
+    {
+        $result = (new EnvConfigLoader())->validateConfig($this->createConfig(
+            dashboardApiKey: 'test-secret',
+            allowedIps: ['not-an-ip'],
+        ));
+
+        $this->assertFalse($result['is_valid']);
+        $this->assertContains(
+            'config.ip_whitelist.allowed_ips.invalid',
+            array_column($result['critical_errors'], 'identifier')
+        );
+    }
+
+    public function testInvalidTrustedProxyIsCriticalConfigError(): void
+    {
+        $result = (new EnvConfigLoader())->validateConfig($this->createConfig(
+            dashboardApiKey: 'test-secret',
+            trustedProxies: ['10.0.0.0/999'],
+        ));
+
+        $this->assertFalse($result['is_valid']);
+        $this->assertContains(
+            'config.ip_whitelist.trusted_proxies.invalid',
+            array_column($result['critical_errors'], 'identifier')
+        );
+    }
+
+    /**
+     * @param array<int,string> $allowedIps
+     * @param array<int,string> $trustedProxies
+     */
+    private function createConfig(
+        string $dashboardApiKey,
+        bool $ipWhitelistEnabled = false,
+        array $allowedIps = [],
+        array $trustedProxies = [],
+    ): ApplicationConfig {
+
         return new ApplicationConfig(
             environment: new EnvironmentConfig(
                 env: 'test',
@@ -63,8 +115,9 @@ class EnvConfigLoaderTest extends TestCase
             ),
             general: new GeneralConfig(
                 maintenanceModeEnabled: false,
-                ipWhitelistEnabled: false,
-                allowedIps: [],
+                ipWhitelistEnabled: $ipWhitelistEnabled,
+                allowedIps: $allowedIps,
+                trustedProxies: $trustedProxies,
             ),
             php: new PhpConfig(
                 displayErrors: 0,

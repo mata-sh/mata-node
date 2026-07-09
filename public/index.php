@@ -129,6 +129,7 @@ $routerSetup = new RouterSetup(
     $appWatcher,
     $serverWatcher,
     $databaseWatcher,
+    $appConfig->general,
     $rateLimiterService
 );
 $routerSetup->setup();

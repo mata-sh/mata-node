@@ -75,6 +75,7 @@ class PathResolverTest extends TestCase
                 maintenanceModeEnabled: false,
                 ipWhitelistEnabled: false,
                 allowedIps: [],
+                trustedProxies: [],
             ),
             php: new PhpConfig(
                 displayErrors: 0,

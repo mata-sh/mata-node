@@ -155,6 +155,16 @@ DASHBOARD_SERVER_ID=dashboard
 DASHBOARD_API_KEY=your-shared-secret
 ```
 
+Optional app-level IP allowlisting is available for shared hosting:
+
+```env
+IP_WHITELIST_ENABLED=ON
+ALLOWED_IPS=198.51.100.10,2001:db8::/32
+TRUSTED_PROXIES=
+```
+
+By default, client IP detection uses `REMOTE_ADDR`. `X-Forwarded-For` is used only when `REMOTE_ADDR` matches `TRUSTED_PROXIES`. Do not add untrusted proxies.
+
 ## Health check
 
 - Endpoint: `/health`

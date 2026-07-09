@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Mata\Http;
 
 use Bramus\Router\Router;
+use Mata\Config\Dto\GeneralConfig;
 use Mata\Core\Auth;
+use Mata\Security\IpAllowlist;
 use Mata\Services\RateLimiterService;
 use Mata\Utils\PathResolver;
 use Mata\Watchers\AppWatcher;
@@ -24,7 +26,10 @@ class RouterSetup
         private AppWatcher $appWatcher,
         private ServerWatcher $serverWatcher,
         private DatabaseWatcher $databaseWatcher,
-        private ?RateLimiterService $rateLimiterService = null
+        private GeneralConfig $generalConfig,
+        private ?RateLimiterService $rateLimiterService = null,
+        private ClientIpResolver $clientIpResolver = new ClientIpResolver(),
+        private IpAllowlist $ipAllowlist = new IpAllowlist(),
     ) {}
 
     public function setup(): void
@@ -73,7 +78,24 @@ class RouterSetup
     private function setupAuthAndRateLimiting(): void
     {
         $this->router->before('GET|POST', '/(?!health$).*', function () {
-            $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+            $ipResolution = $this->clientIpResolver->resolve($_SERVER, $this->generalConfig->trustedProxies);
+            $ip = $ipResolution->clientIp;
+
+            if ($this->generalConfig->ipWhitelistEnabled && !$this->ipAllowlist->isAllowed($ip, $this->generalConfig->allowedIps)) {
+                $this->logger->warning('IP allowlist denied request', [
+                    'client_ip' => $ipResolution->clientIp,
+                    'remote_addr' => $ipResolution->remoteAddr,
+                    'x_forwarded_for' => $ipResolution->forwardedFor,
+                    'trusted_proxy' => $ipResolution->usedTrustedProxy,
+                    'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
+                ]);
+
+                $this->sendJson([
+                    'error' => 'Forbidden',
+                ], 403);
+
+                exit;
+            }
 
             if ($this->rateLimiterService?->isRateLimited('api', $ip)) {
                 $status = $this->rateLimiterService->check('api', $ip);
@@ -108,6 +130,8 @@ class RouterSetup
                 $this->logger->warning('Authentication failed', [
                     'error' => $authResult['error'],
                     'ip' => $ip,
+                    'remote_addr' => $ipResolution->remoteAddr,
+                    'trusted_proxy' => $ipResolution->usedTrustedProxy,
                     'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
                 ]);
 
