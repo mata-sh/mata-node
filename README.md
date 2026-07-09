@@ -165,6 +165,14 @@ TRUSTED_PROXIES=
 
 By default, client IP detection uses `REMOTE_ADDR`. `X-Forwarded-For` is used only when `REMOTE_ADDR` matches `TRUSTED_PROXIES`. Do not add untrusted proxies.
 
+To pause authenticated API access during maintenance:
+
+```env
+MAINTENANCE_MODE_ENABLED=ON
+```
+
+Maintenance mode leaves `/health` available and returns `503 Service Unavailable` with `Retry-After: 300` for all other routes.
+
 ## Health check
 
 - Endpoint: `/health`

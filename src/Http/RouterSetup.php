@@ -68,6 +68,7 @@ class RouterSetup
             $response = [
                 'status' => $healthy ? 'healthy' : 'unhealthy',
                 'timestamp' => date('Y-m-d H:i:s'),
+                'maintenance_mode' => $this->generalConfig->maintenanceModeEnabled,
                 'checks' => $checks,
             ];
 
@@ -78,6 +79,21 @@ class RouterSetup
     private function setupAuthAndRateLimiting(): void
     {
         $this->router->before('GET|POST', '/(?!health$).*', function () {
+            if ($this->generalConfig->maintenanceModeEnabled) {
+                $this->logger->notice('Maintenance mode denied request', [
+                    'remote_addr' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+                    'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
+                ]);
+
+                header('Retry-After: 300');
+                $this->sendJson([
+                    'error' => 'Service unavailable',
+                    'message' => 'Maintenance mode enabled',
+                ], 503);
+
+                exit;
+            }
+
             $ipResolution = $this->clientIpResolver->resolve($_SERVER, $this->generalConfig->trustedProxies);
             $ip = $ipResolution->clientIp;
 
