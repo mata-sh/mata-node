@@ -193,6 +193,14 @@ final class EnvConfigLoader
             ];
         }
 
+        // Critical validation - dashboard HMAC secret
+        if ('' === trim($config->auth->dashboardApiKey)) {
+            $criticalErrors[] = [
+                'identifier' => 'config.auth.dashboard_api_key.missing',
+                'message' => 'DASHBOARD_API_KEY is required but missing from configuration',
+            ];
+        }
+
         // Logging configuration warnings
         if (empty($config->logging->path)) {
             $warnings[] = [
