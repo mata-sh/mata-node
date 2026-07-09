@@ -47,6 +47,17 @@ final class ProcessCommandRunnerTest extends TestCase
         $this->assertLessThan(2.5, microtime(true) - $startedAt);
     }
 
+    public function testRunKillsProcessThatIgnoresTermOnTimeout(): void
+    {
+        $startedAt = microtime(true);
+        $command = '/bin/sh -c ' . escapeshellarg('trap "" TERM; while true; do sleep 1; done');
+        $result = (new ProcessCommandRunner())->run($command, 1);
+
+        $this->assertTrue($result->timedOut);
+        $this->assertSame(124, $result->exitCode);
+        $this->assertLessThan(3.0, microtime(true) - $startedAt);
+    }
+
     public function testRunStopsWhenOutputExceedsMaximumSize(): void
     {
         $result = (new ProcessCommandRunner())->run($this->phpCommand('echo str_repeat("A", 2048);'), 2, 1024);

@@ -11,6 +11,10 @@ final class ProcessCommandRunner implements ProcessCommandRunnerInterface
     private const EXIT_OUTPUT_TRUNCATED = 125;
     private const READ_BYTES = 8192;
     private const SLEEP_MICROSECONDS = 50_000;
+    private const TERMINATE_GRACE_MICROSECONDS = 1_000_000;
+    private const KILL_GRACE_MICROSECONDS = 500_000;
+    private const SIGNAL_TERM = 15;
+    private const SIGNAL_KILL = 9;
 
     public const DEFAULT_TIMEOUT_SECONDS = 10;
     public const DEFAULT_MAX_OUTPUT_BYTES = 5_242_880;
@@ -33,7 +37,8 @@ final class ProcessCommandRunner implements ProcessCommandRunnerInterface
             return new CommandResult('', 'Failed to start process', self::EXIT_START_FAILED, false, false, 0);
         }
 
-        $process = proc_open($command, [
+        $usesProcessGroup = $this->canUseProcessGroups();
+        $process = proc_open($this->prepareCommand($command, $usesProcessGroup), [
             1 => ['pipe', 'w'],
             2 => ['pipe', 'w'],
         ], $pipes);
@@ -50,6 +55,7 @@ final class ProcessCommandRunner implements ProcessCommandRunnerInterface
         $exitCode = null;
         $timedOut = false;
         $outputTruncated = false;
+        $processStopped = false;
         $deadline = $start + $timeoutSeconds;
 
         while (true) {
@@ -59,13 +65,14 @@ final class ProcessCommandRunner implements ProcessCommandRunnerInterface
             $status = proc_get_status($process);
 
             if (!$status['running']) {
+                $processStopped = true;
                 $exitCode = $status['exitcode'];
 
                 break;
             }
 
             if ($outputTruncated) {
-                proc_terminate($process);
+                $processStopped = $this->terminateProcess($process, $usesProcessGroup);
                 $exitCode = self::EXIT_OUTPUT_TRUNCATED;
 
                 break;
@@ -73,7 +80,7 @@ final class ProcessCommandRunner implements ProcessCommandRunnerInterface
 
             if (microtime(true) >= $deadline) {
                 $timedOut = true;
-                proc_terminate($process);
+                $processStopped = $this->terminateProcess($process, $usesProcessGroup);
                 $exitCode = self::EXIT_TIMEOUT;
 
                 break;
@@ -88,9 +95,11 @@ final class ProcessCommandRunner implements ProcessCommandRunnerInterface
         fclose($pipes[1]);
         fclose($pipes[2]);
 
-        $closeExitCode = proc_close($process);
-        if ($exitCode === null && $closeExitCode >= 0) {
-            $exitCode = $closeExitCode;
+        if ($processStopped || !proc_get_status($process)['running']) {
+            $closeExitCode = proc_close($process);
+            if ($exitCode === null && $closeExitCode >= 0) {
+                $exitCode = $closeExitCode;
+            }
         }
 
         if ($outputTruncated && !$timedOut) {
@@ -105,6 +114,92 @@ final class ProcessCommandRunner implements ProcessCommandRunnerInterface
             $outputTruncated,
             (int) ((microtime(true) - $start) * 1000),
         );
+    }
+
+    private function prepareCommand(string $command, bool $usesProcessGroup): string
+    {
+        if (!$usesProcessGroup) {
+            return $command;
+        }
+
+        $setsidPath = $this->setsidPath();
+        if ($setsidPath === null) {
+            return $command;
+        }
+
+        return 'exec ' . escapeshellarg($setsidPath) . ' sh -c ' . escapeshellarg($command);
+    }
+
+    private function canUseProcessGroups(): bool
+    {
+        return function_exists('posix_kill') && $this->setsidPath() !== null;
+    }
+
+    private function setsidPath(): ?string
+    {
+        foreach (['/usr/bin/setsid', '/bin/setsid'] as $path) {
+            if (is_executable($path)) {
+                return $path;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param resource $process
+     */
+    private function terminateProcess(mixed $process, bool $usesProcessGroup): bool
+    {
+        $this->signalProcess($process, $usesProcessGroup, self::SIGNAL_TERM);
+        if ($this->waitForExit($process, self::TERMINATE_GRACE_MICROSECONDS)) {
+            return true;
+        }
+
+        $this->signalProcess($process, $usesProcessGroup, self::SIGNAL_KILL);
+
+        return $this->waitForExit($process, self::KILL_GRACE_MICROSECONDS);
+    }
+
+    /**
+     * @param resource $process
+     */
+    private function signalProcess(mixed $process, bool $usesProcessGroup, int $signal): void
+    {
+        $status = proc_get_status($process);
+        if (!$status['running']) {
+            return;
+        }
+
+        $pid = (int) $status['pid'];
+        if ($pid < 1) {
+            return;
+        }
+
+        if ($usesProcessGroup && function_exists('posix_kill') && @posix_kill(-$pid, $signal)) {
+            return;
+        }
+
+        proc_terminate($process, $signal);
+    }
+
+    /**
+     * @param resource $process
+     */
+    private function waitForExit(mixed $process, int $timeoutMicroseconds): bool
+    {
+        $deadline = microtime(true) + ($timeoutMicroseconds / 1_000_000);
+
+        do {
+            $status = proc_get_status($process);
+            if (!$status['running']) {
+                return true;
+            }
+
+            usleep(self::SLEEP_MICROSECONDS);
+        } while (microtime(true) < $deadline);
+
+        return false;
     }
 
     /**
@@ -124,10 +219,11 @@ final class ProcessCommandRunner implements ProcessCommandRunnerInterface
                 break;
             }
 
+            $usedBytes = strlen($stdout) + strlen($stderr);
             if ($isStdout) {
-                $this->appendOutput($stdout, $stdout, $stderr, $chunk, $maxOutputBytes, $outputTruncated);
+                $this->appendOutput($stdout, $usedBytes, $chunk, $maxOutputBytes, $outputTruncated);
             } else {
-                $this->appendOutput($stderr, $stdout, $stderr, $chunk, $maxOutputBytes, $outputTruncated);
+                $this->appendOutput($stderr, $usedBytes, $chunk, $maxOutputBytes, $outputTruncated);
             }
 
             if ($outputTruncated) {
@@ -138,13 +234,12 @@ final class ProcessCommandRunner implements ProcessCommandRunnerInterface
 
     private function appendOutput(
         string &$target,
-        string $stdout,
-        string $stderr,
+        int $usedBytes,
         string $chunk,
         int $maxOutputBytes,
         bool &$outputTruncated,
     ): void {
-        $remainingBytes = $maxOutputBytes - strlen($stdout) - strlen($stderr);
+        $remainingBytes = $maxOutputBytes - $usedBytes;
 
         if ($remainingBytes <= 0) {
             $outputTruncated = true;
