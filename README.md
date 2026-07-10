@@ -71,20 +71,20 @@ MATA Node runs on each monitored environment and answers authenticated requests 
 - `GET /health` — health check
 
 ### Authenticated
-- `GET /server-data`
-- `GET /server-info`
-- `GET /server-php`
+- `GET /server/data`
+- `GET /server/info`
+- `GET /server/php`
 - `GET /apps`
 - `GET /apps/libraries`
 - `GET /apps/composer-audit`
 - `GET /{app}/readme`
 - `GET /{app}/sessions`
-- `GET /server-cronjobs`
+- `GET /server/cronjobs`
 - `GET /{app}/logs`
 - `GET /{app}/logs-status`
 - `GET /{app}/app-config`
 - `GET /{app}/libraries`
-- `GET /server-databases`
+- `GET /server/databases`
 - `GET /{dbname}/database-status`
 - `GET /{dbname}/database-connections`
 - `GET /{dbname}/database-processes`

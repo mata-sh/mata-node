@@ -166,10 +166,10 @@ class RouterSetup
     private function setupRoutes(): void
     {
         $serverRoutes = [
-            ['/server-data', fn () => $this->serverWatcher->getServerData()],
-            ['/server-info', fn () => $this->serverWatcher->getServerInfo()],
-            ['/server-php', fn () => $this->serverWatcher->getPhpProcesses()],
-            ['/server-cronjobs', fn () => $this->serverWatcher->getServerCronjobs()],
+            ['/server/data', fn () => $this->serverWatcher->getServerData()],
+            ['/server/info', fn () => $this->serverWatcher->getServerInfo()],
+            ['/server/php', fn () => $this->serverWatcher->getPhpProcesses()],
+            ['/server/cronjobs', fn () => $this->serverWatcher->getServerCronjobs()],
         ];
 
         $appRoutes = [
@@ -190,7 +190,7 @@ class RouterSetup
         ];
 
         $databaseRoutes = [
-            ['/server-databases', fn () => $this->databaseWatcher->getDatabasesStatus()],
+            ['/server/databases', fn () => $this->databaseWatcher->getDatabasesStatus()],
             ['/{dbname}/database-status', fn (string $dbname) => $this->databaseWatcher->retrieveCompleteStatus($dbname)],
             ['/{dbname}/database-connections', fn (string $dbname) => $this->databaseWatcher->retrieveActiveMaxConnections($dbname)],
             ['/{dbname}/database-processes', fn (string $dbname) => $this->databaseWatcher->retrieveProcessList($dbname)],

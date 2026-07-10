@@ -79,7 +79,7 @@ final class HttpAuthMiddlewareTest extends TestCase
 
     public function testProtectedRouteAcceptsValidHmacHeaderThroughRouter(): void
     {
-        $response = $this->client->get('/server-info', [
+        $response = $this->client->get('/server/info', [
             'headers' => [
                 'X-Mata-Auth' => $this->generateAuthHeader(),
             ],
@@ -92,7 +92,7 @@ final class HttpAuthMiddlewareTest extends TestCase
 
     public function testProtectedRouteRejectsMissingAuthHeaderThroughRouter(): void
     {
-        $response = $this->client->get('/server-info');
+        $response = $this->client->get('/server/info');
 
         $this->assertSame(401, $response->getStatusCode(), (string) $response->getBody());
         $body = $this->decodeJson($response);
@@ -104,13 +104,13 @@ final class HttpAuthMiddlewareTest extends TestCase
     {
         $authHeader = $this->generateAuthHeader(nonce: 'replay-nonce-1234567890');
 
-        $first = $this->client->get('/server-info', [
+        $first = $this->client->get('/server/info', [
             'headers' => ['X-Mata-Auth' => $authHeader],
         ]);
         $this->assertSame(200, $first->getStatusCode(), (string) $first->getBody());
         $this->assertCount(1, glob($this->tmpDir . '/cache/auth_nonces/*.json') ?: []);
 
-        $replay = $this->client->get('/server-info', [
+        $replay = $this->client->get('/server/info', [
             'headers' => ['X-Mata-Auth' => $authHeader],
         ]);
 
