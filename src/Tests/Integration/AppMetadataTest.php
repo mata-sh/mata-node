@@ -39,7 +39,7 @@ class AppMetadataTest extends TestCase
         $this->removeDirectory($this->rootPath);
     }
 
-    public function testAppInfoIncludesDescriptionNestedSessionAndCronjobSummary(): void
+    public function testAppInfoIncludesDescriptionAndNestedSessionMetadata(): void
     {
         file_put_contents($this->rootPath . '/app/temp/sessions/sess_recent', 'recent-session');
         file_put_contents($this->rootPath . '/app/temp/sessions/sess_old', 'old-session');
@@ -47,17 +47,8 @@ class AppMetadataTest extends TestCase
         touch($this->rootPath . '/app/temp/sessions/sess_recent', time() - 60);
         touch($this->rootPath . '/app/temp/sessions/sess_old', time() - 7200);
 
-        file_put_contents($this->rootPath . '/app/includes/heartbeat.log', "first\nsecond\n");
-        touch($this->rootPath . '/app/includes/heartbeat.log', time() - 10);
-
         $appWatcher = $this->createAppWatcher([
-            'testapp' => $this->appConfig([
-                'cronjob-heartbeat' => [
-                    'app/includes/heartbeat.log',
-                    'app/includes/missing-heartbeat.log',
-                ],
-                'cronjob-heartbeat-stale-seconds' => 60,
-            ]),
+            'testapp' => $this->appConfig(),
         ]);
 
         $info = $appWatcher->getAppInfo('testapp');
@@ -77,13 +68,6 @@ class AppMetadataTest extends TestCase
             'path' => 'app/temp/sessions',
             'size_kb' => round((strlen('recent-session') + strlen('old-session')) / 1024, 2),
         ], $info['session']);
-
-        $this->assertSame([
-            'total' => 2,
-            'working' => 1,
-            'stale' => 0,
-            'missing' => 1,
-        ], $info['cronjobs']);
     }
 
     public function testAppSpecificSessionsEndpointPayload(): void
@@ -129,86 +113,6 @@ class AppMetadataTest extends TestCase
 
         $this->assertSame($expected, $appWatcher->getAppSessions('testapp'));
         $this->assertSame($expected, $appWatcher->getAppInfo('testapp')['session']);
-    }
-
-    public function testAppSpecificCronjobsEndpointReturnsExistingAndMissingHeartbeatFiles(): void
-    {
-        file_put_contents($this->rootPath . '/app/includes/heartbeat.log', "line 1\nline 2\n");
-        touch($this->rootPath . '/app/includes/heartbeat.log', time() - 20);
-
-        $appWatcher = $this->createAppWatcher([
-            'testapp' => $this->appConfig([
-                'cronjob-heartbeat' => [
-                    'app/includes/heartbeat.log',
-                    'app/includes/missing-heartbeat.log',
-                ],
-                'cronjob-heartbeat-stale-seconds' => 60,
-            ]),
-        ]);
-
-        $cronjobs = $appWatcher->getAppCronjobs('testapp');
-
-        $this->assertCount(2, $cronjobs);
-        $this->assertSame(0, $cronjobs[0]['index']);
-        $this->assertSame('app/includes/heartbeat.log', $cronjobs[0]['path']);
-        $this->assertTrue($cronjobs[0]['exists']);
-        $this->assertIsString($cronjobs[0]['mtime']);
-        $this->assertIsInt($cronjobs[0]['age_seconds']);
-        $this->assertGreaterThanOrEqual(0, $cronjobs[0]['age_seconds']);
-        $this->assertSame(strlen("line 1\nline 2\n"), $cronjobs[0]['size']);
-        $this->assertFalse($cronjobs[0]['stale']);
-        $this->assertSame(['line 1', 'line 2'], $cronjobs[0]['content_tail']);
-
-        $this->assertSame(1, $cronjobs[1]['index']);
-        $this->assertSame('app/includes/missing-heartbeat.log', $cronjobs[1]['path']);
-        $this->assertFalse($cronjobs[1]['exists']);
-        $this->assertNull($cronjobs[1]['mtime']);
-        $this->assertNull($cronjobs[1]['age_seconds']);
-        $this->assertSame(0, $cronjobs[1]['size']);
-        $this->assertFalse($cronjobs[1]['stale']);
-        $this->assertSame([], $cronjobs[1]['content_tail']);
-    }
-
-    public function testCronjobContentTailLineLimitIsConfigurable(): void
-    {
-        file_put_contents($this->rootPath . '/app/includes/heartbeat.log', "line 1\nline 2\nline 3\n");
-
-        $appWatcher = $this->createAppWatcher([
-            'testapp' => $this->appConfig([
-                'cronjob-heartbeat' => [
-                    'app/includes/heartbeat.log',
-                ],
-                'cronjob-heartbeat-tail-line-limit' => 1,
-            ]),
-        ]);
-
-        $cronjobs = $appWatcher->getAppCronjobs('testapp');
-
-        $this->assertSame(['line 3'], $cronjobs[0]['content_tail']);
-    }
-
-    public function testCronjobSummaryCountsStaleHeartbeatFiles(): void
-    {
-        file_put_contents($this->rootPath . '/app/includes/heartbeat.log', 'old');
-        touch($this->rootPath . '/app/includes/heartbeat.log', time() - 120);
-
-        $appWatcher = $this->createAppWatcher([
-            'testapp' => $this->appConfig([
-                'cronjob-heartbeat' => [
-                    'app/includes/heartbeat.log',
-                ],
-                'cronjob-heartbeat-stale-seconds' => 60,
-            ]),
-        ]);
-
-        $info = $appWatcher->getAppInfo('testapp');
-
-        $this->assertSame([
-            'total' => 1,
-            'working' => 0,
-            'stale' => 1,
-            'missing' => 0,
-        ], $info['cronjobs']);
     }
 
     private function createAppWatcher(array $watcherConfig): AppWatcher

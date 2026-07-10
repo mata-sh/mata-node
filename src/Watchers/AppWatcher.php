@@ -12,7 +12,6 @@ use Mata\Services\FileCache;
 use Mata\Utils\Tools;
 use Mata\Watchers\App\AppConfigReader;
 use Mata\Watchers\App\ComposerInspector;
-use Mata\Watchers\App\CronjobHeartbeatInspector;
 use Mata\Watchers\App\LogInspector;
 use Mata\Watchers\App\ReadmeReader;
 use Mata\Watchers\Exceptions\AppWatcherException;
@@ -31,7 +30,6 @@ class AppWatcher
     private SessionBackendFactory $sessionBackendFactory;
     private AppConfigReader $appConfigReader;
     private LogInspector $logInspector;
-    private CronjobHeartbeatInspector $cronjobHeartbeatInspector;
     private ComposerInspector $composerInspector;
     private ReadmeReader $readmeReader;
 
@@ -56,7 +54,6 @@ class AppWatcher
         $this->sessionBackendFactory = $sessionBackendFactory ?? new SessionBackendFactory(null, $fileCache);
         $this->appConfigReader = new AppConfigReader($tools, $rootPath, $watcherConfig, $transmitConfig);
         $this->logInspector = new LogInspector($logger, $rootPath, $watcherConfig, $transmitConfig, $commandRunner);
-        $this->cronjobHeartbeatInspector = new CronjobHeartbeatInspector($rootPath, $watcherConfig, $commandRunner);
         $this->composerInspector = new ComposerInspector($tools, $rootPath, $processRunner);
         $this->readmeReader = new ReadmeReader($rootPath);
     }
@@ -158,7 +155,6 @@ class AppWatcher
             'maintenance' => $config['MAINTENANCE_ENABLED'],
             'status' => $this->logInspector->stats($app),
             'session' => $this->getSessionMetadata($app),
-            'cronjobs' => $this->cronjobHeartbeatInspector->summary($app),
             'logs' => $this->logInspector->files($app),
             'configs' => $appConfig['configs'],
             'display_errors' => $config['DISPLAY_ERRORS'],
@@ -188,13 +184,6 @@ class AppWatcher
         $app = $this->requireAppKey($app);
 
         return $this->getSessionMetadata($app);
-    }
-
-    public function getAppCronjobs(string $app): array
-    {
-        $app = $this->requireAppKey($app);
-
-        return $this->cronjobHeartbeatInspector->entries($app, includeContent: true);
     }
 
     public function loadAppConfig(string $app): array

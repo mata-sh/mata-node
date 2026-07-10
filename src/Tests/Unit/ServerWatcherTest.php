@@ -95,6 +95,93 @@ class ServerWatcherTest extends TestCase
         }
     }
 
+    public function testGetServerDataIncludesCronjobSummary(): void
+    {
+        $rootPath = sys_get_temp_dir() . '/mata-node-server-root-' . bin2hex(random_bytes(6));
+        $cachePath = sys_get_temp_dir() . '/mata-node-server-cache-' . bin2hex(random_bytes(6));
+        mkdir($rootPath . '/logs/cron', 0777, true);
+        mkdir($cachePath, 0777, true);
+        file_put_contents($rootPath . '/logs/cron/heartbeat-daily.log', 'old');
+        touch($rootPath . '/logs/cron/heartbeat-daily.log', time() - 120);
+        $cache = new FileCache($cachePath);
+        $cache->set('server/filecount', 5);
+
+        $runner = new FakeCommandRunner([
+            "grep MemTotal /proc/meminfo | awk '{print $2}'" => "1000\n",
+            "grep MemAvailable /proc/meminfo | awk '{print $2}'" => "400\n",
+            "top -bn1 | grep 'Cpu(s)' | awk '{print 100 - $8}'" => "12.5\n",
+            'ps -e --no-headers | wc -l' => "42\n",
+        ]);
+
+        try {
+            $watcher = new ServerWatcher($rootPath, $cache, [
+                'check_disk_space_enabled' => 'off',
+                'cronjob_heartbeats' => [
+                    'logs/cron/heartbeat-daily.log',
+                    'logs/cron/missing-heartbeat.log',
+                ],
+                'cronjob_heartbeat_stale_seconds' => 60,
+            ], $runner);
+            $data = $watcher->getServerData();
+
+            $this->assertSame([
+                'total' => 2,
+                'working' => 0,
+                'stale' => 1,
+                'missing' => 1,
+            ], $data['cronjobs']);
+        } finally {
+            $this->removeDirectory($rootPath);
+            $this->removeDirectory($cachePath);
+        }
+    }
+
+    public function testGetServerCronjobsReturnsExistingAndMissingHeartbeatFiles(): void
+    {
+        $rootPath = sys_get_temp_dir() . '/mata-node-server-root-' . bin2hex(random_bytes(6));
+        $cachePath = sys_get_temp_dir() . '/mata-node-server-cache-' . bin2hex(random_bytes(6));
+        mkdir($rootPath . '/logs/cron', 0777, true);
+        mkdir($cachePath, 0777, true);
+        file_put_contents($rootPath . '/logs/cron/heartbeat-daily.log', "line 1\nline 2\nline 3\n");
+        touch($rootPath . '/logs/cron/heartbeat-daily.log', time() - 20);
+
+        try {
+            $watcher = new ServerWatcher($rootPath, new FileCache($cachePath), [
+                'cronjob_heartbeats' => [
+                    'logs/cron/heartbeat-daily.log',
+                    'logs/cron/missing-heartbeat.log',
+                ],
+                'cronjob_heartbeat_stale_seconds' => 60,
+                'cronjob_heartbeat_tail_line_limit' => 1,
+            ]);
+
+            $cronjobs = $watcher->getServerCronjobs();
+
+            $this->assertCount(2, $cronjobs);
+            $this->assertSame(0, $cronjobs[0]['index']);
+            $this->assertSame('logs/cron/heartbeat-daily.log', $cronjobs[0]['path']);
+            $this->assertTrue($cronjobs[0]['exists']);
+            $this->assertIsString($cronjobs[0]['mtime']);
+            $this->assertIsInt($cronjobs[0]['age_seconds']);
+            $this->assertGreaterThanOrEqual(0, $cronjobs[0]['age_seconds']);
+            $this->assertSame(strlen("line 1\nline 2\nline 3\n"), $cronjobs[0]['size']);
+            $this->assertFalse($cronjobs[0]['stale']);
+            $this->assertSame(['line 3'], $cronjobs[0]['content_tail']);
+
+            $this->assertSame(1, $cronjobs[1]['index']);
+            $this->assertSame('logs/cron/missing-heartbeat.log', $cronjobs[1]['path']);
+            $this->assertFalse($cronjobs[1]['exists']);
+            $this->assertNull($cronjobs[1]['mtime']);
+            $this->assertNull($cronjobs[1]['age_seconds']);
+            $this->assertSame(0, $cronjobs[1]['size']);
+            $this->assertFalse($cronjobs[1]['stale']);
+            $this->assertSame([], $cronjobs[1]['content_tail']);
+        } finally {
+            $this->removeDirectory($rootPath);
+            $this->removeDirectory($cachePath);
+        }
+    }
+
     public function testGetServerInfoReturnsDashboardContractKeys(): void
     {
         $watcher = new ServerWatcher(__DIR__, new FileCache(sys_get_temp_dir()), []);

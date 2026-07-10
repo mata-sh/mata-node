@@ -79,7 +79,7 @@ MATA Node runs on each monitored environment and answers authenticated requests 
 - `GET /apps/composer-audit`
 - `GET /{app}/readme`
 - `GET /{app}/sessions`
-- `GET /{app}/cronjobs`
+- `GET /server-cronjobs`
 - `GET /{app}/logs`
 - `GET /{app}/logs-status`
 - `GET /{app}/app-config`

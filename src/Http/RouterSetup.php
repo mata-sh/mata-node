@@ -169,6 +169,7 @@ class RouterSetup
             ['/server-data', fn () => $this->serverWatcher->getServerData()],
             ['/server-info', fn () => $this->serverWatcher->getServerInfo()],
             ['/server-php', fn () => $this->serverWatcher->getPhpProcesses()],
+            ['/server-cronjobs', fn () => $this->serverWatcher->getServerCronjobs()],
         ];
 
         $appRoutes = [
@@ -178,7 +179,6 @@ class RouterSetup
 
             ['/{app}/readme', fn (string $app) => $this->appWatcher->getAppReadme($app)],
             ['/{app}/sessions', fn (string $app) => $this->appWatcher->getAppSessions($app)],
-            ['/{app}/cronjobs', fn (string $app) => $this->appWatcher->getAppCronjobs($app)],
             ['/{app}/logs', fn (string $app) => $this->appWatcher->getLogEntries(
                 app: $app,
                 filter: is_string($_GET['filter'] ?? null) ? $_GET['filter'] : '',

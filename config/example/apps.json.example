@@ -31,7 +31,6 @@
             "example-app/config/security.config.env",
             "example-app/config/mail.config.env"
         ],
-        "cronjob-heartbeat": "example-app/includes/heartbeat.log",
         "description": "Full-featured example with file sessions and parser-specific log groups",
         "composer": {
             "json": "example-app/composer.json",

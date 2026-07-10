@@ -2,26 +2,31 @@
 
 declare(strict_types=1);
 
-namespace Mata\Watchers\App;
+namespace Mata\Watchers\Server;
 
 use Mata\Services\Command\CommandRunnerInterface;
+use Mata\Services\Command\NativeCommandRunner;
 use Mata\Services\Command\ShellCommands;
 
-final class CronjobHeartbeatInspector
+final class CronjobInspector
 {
-    private const DEFAULT_CRONJOB_HEARTBEAT_STALE_SECONDS = 86400;
-    private const DEFAULT_CRONJOB_HEARTBEAT_TAIL_LINE_LIMIT = 50;
+    private const DEFAULT_STALE_SECONDS = 86400;
+    private const DEFAULT_TAIL_LINE_LIMIT = 50;
+
+    private CommandRunnerInterface $commandRunner;
 
     public function __construct(
         private readonly string $rootPath,
-        private readonly array $watcherConfig,
-        private readonly CommandRunnerInterface $commandRunner,
-    ) {}
+        private readonly array $transmitConfig,
+        ?CommandRunnerInterface $commandRunner = null,
+    ) {
+        $this->commandRunner = $commandRunner ?? new NativeCommandRunner();
+    }
 
     /**
      * @return array{total: int, working: int, stale: int, missing: int}
      */
-    public function summary(string $app): array
+    public function summary(): array
     {
         $summary = [
             'total' => 0,
@@ -30,7 +35,7 @@ final class CronjobHeartbeatInspector
             'missing' => 0,
         ];
 
-        foreach ($this->entries($app, includeContent: false) as $entry) {
+        foreach ($this->entries(includeContent: false) as $entry) {
             ++$summary['total'];
             if ($entry['exists'] !== true) {
                 ++$summary['missing'];
@@ -53,13 +58,13 @@ final class CronjobHeartbeatInspector
     /**
      * @return array<int, array<string, mixed>>
      */
-    public function entries(string $app, bool $includeContent): array
+    public function entries(bool $includeContent = false): array
     {
         $entries = [];
-        $maxAgeSeconds = $this->resolveStaleSeconds($app);
-        $tailLineLimit = $this->resolveTailLineLimit($app);
+        $maxAgeSeconds = $this->resolveStaleSeconds();
+        $tailLineLimit = $this->resolveTailLineLimit();
 
-        foreach ($this->heartbeatPaths($app) as $index => $heartbeatPath) {
+        foreach ($this->heartbeatPaths() as $index => $heartbeatPath) {
             $file = $this->rootPath . DIRECTORY_SEPARATOR . $heartbeatPath;
             $exists = is_readable($file) && is_file($file);
             $mtime = $exists ? filemtime($file) : false;
@@ -88,9 +93,9 @@ final class CronjobHeartbeatInspector
     /**
      * @return array<int, string>
      */
-    private function heartbeatPaths(string $app): array
+    private function heartbeatPaths(): array
     {
-        $configured = $this->watcherConfig[$app]['cronjob-heartbeat'] ?? [];
+        $configured = $this->transmitConfig['cronjob_heartbeats'] ?? [];
         if (is_string($configured)) {
             return $configured === '' ? [] : [$configured];
         }
@@ -109,21 +114,21 @@ final class CronjobHeartbeatInspector
         return $paths;
     }
 
-    private function resolveStaleSeconds(string $app): int
+    private function resolveStaleSeconds(): int
     {
-        $configured = $this->watcherConfig[$app]['cronjob-heartbeat-stale-seconds'] ?? self::DEFAULT_CRONJOB_HEARTBEAT_STALE_SECONDS;
+        $configured = $this->transmitConfig['cronjob_heartbeat_stale_seconds'] ?? self::DEFAULT_STALE_SECONDS;
         if (!is_numeric($configured)) {
-            return self::DEFAULT_CRONJOB_HEARTBEAT_STALE_SECONDS;
+            return self::DEFAULT_STALE_SECONDS;
         }
 
         return max(1, (int) $configured);
     }
 
-    private function resolveTailLineLimit(string $app): int
+    private function resolveTailLineLimit(): int
     {
-        $configured = $this->watcherConfig[$app]['cronjob-heartbeat-tail-line-limit'] ?? self::DEFAULT_CRONJOB_HEARTBEAT_TAIL_LINE_LIMIT;
+        $configured = $this->transmitConfig['cronjob_heartbeat_tail_line_limit'] ?? self::DEFAULT_TAIL_LINE_LIMIT;
         if (!is_numeric($configured)) {
-            return self::DEFAULT_CRONJOB_HEARTBEAT_TAIL_LINE_LIMIT;
+            return self::DEFAULT_TAIL_LINE_LIMIT;
         }
 
         return max(1, (int) $configured);

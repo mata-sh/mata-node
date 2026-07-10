@@ -8,6 +8,7 @@ use Mata\Services\Command\CommandRunnerInterface;
 use Mata\Services\Command\NativeCommandRunner;
 use Mata\Services\Command\ShellCommands;
 use Mata\Services\FileCache;
+use Mata\Watchers\Server\CronjobInspector;
 
 class ServerWatcher
 {
@@ -17,12 +18,14 @@ class ServerWatcher
     private string $diskSpaceCheckPath;
     private int $filecountCacheMaxAge;
     private CommandRunnerInterface $commandRunner;
+    private CronjobInspector $cronjobInspector;
 
     public function __construct(string $rootPath, FileCache $cache, array $transmitConfig, ?CommandRunnerInterface $commandRunner = null)
     {
         $this->rootPath = $rootPath;
         $this->cache = $cache;
         $this->commandRunner = $commandRunner ?? new NativeCommandRunner();
+        $this->cronjobInspector = new CronjobInspector($rootPath, $transmitConfig, $this->commandRunner);
 
         $this->diskSpaceCheckPath = $transmitConfig['check_disk_space_path'] ?? '/';
         $this->isDiskSpaceCheckEnabled = ($transmitConfig['check_disk_space_enabled'] ?? true) !== 'off';
@@ -49,6 +52,7 @@ class ServerWatcher
             'disk_space_capacity' => $diskSpaceCapacity, // in bytes
             'disk_space_used' => $diskSpaceUsed,
             'cpu_usage' => trim($this->commandRunner->run(ShellCommands::cpuUsagePercent()) ?? ''), // % used
+            'cronjobs' => $this->cronjobInspector->summary(),
             'processes' => [
                 'total' => (int) $this->commandRunner->run(ShellCommands::totalProcessCount()),
                 'php' => $this->commandRunner->countProcesses('php', exact: false),
@@ -59,6 +63,11 @@ class ServerWatcher
         $data['ram_used'] = $data['ram_capacity'] - $data['ram_used'];
 
         return $data;
+    }
+
+    public function getServerCronjobs(): array
+    {
+        return $this->cronjobInspector->entries(includeContent: true);
     }
 
     public function getServerInfo(): array
