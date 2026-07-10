@@ -64,7 +64,7 @@ class LogConfigFormatTest extends TestCase
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
 
-        $result = $appWatcher->getLogEntries('oldapp', '', 10);
+        $result = $appWatcher->getAppLogEntries('oldapp', '', 10);
 
         $this->assertIsArray($result);
         $parsed = $result;
@@ -91,7 +91,7 @@ class LogConfigFormatTest extends TestCase
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
 
-        $result = $appWatcher->getLogEntries('newapp', 'errors', 10);
+        $result = $appWatcher->getAppLogEntries('newapp', 'errors', 10);
 
         $this->assertIsArray($result);
         $parsed = $result;
@@ -121,7 +121,7 @@ class LogConfigFormatTest extends TestCase
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
 
-        $result = $appWatcher->getLogEntries('autoapp', '', 10);
+        $result = $appWatcher->getAppLogEntries('autoapp', '', 10);
 
         $this->assertIsArray($result);
         $parsed = $result;
@@ -161,7 +161,7 @@ class LogConfigFormatTest extends TestCase
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
 
-        $result = $appWatcher->getLogEntries('mixedapp', 'errors', 10);
+        $result = $appWatcher->getAppLogEntries('mixedapp', 'errors', 10);
         $parsed = $result;
 
         $this->assertIsArray($parsed);
@@ -203,7 +203,7 @@ class LogConfigFormatTest extends TestCase
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
 
-        $result = $appWatcher->getLogEntries('multipath', '', 10);
+        $result = $appWatcher->getAppLogEntries('multipath', '', 10);
 
         $this->assertIsArray($result);
         $parsed = $result;
@@ -238,7 +238,7 @@ class LogConfigFormatTest extends TestCase
         $appWatcher = $this->createAppWatcher($watcherConfig);
 
         // Should use first log (monolog.log)
-        $result = $appWatcher->getLogEntries('firstlogtest', '', 10);
+        $result = $appWatcher->getAppLogEntries('firstlogtest', '', 10);
         $this->assertIsArray($result);
     }
 
@@ -256,7 +256,7 @@ class LogConfigFormatTest extends TestCase
         $appWatcher = $this->createAppWatcher($watcherConfig);
 
         // Should use first log (php_error.log)
-        $result = $appWatcher->getLogEntries('oldformat', '', 10);
+        $result = $appWatcher->getAppLogEntries('oldformat', '', 10);
         $this->assertIsArray($result);
     }
 
@@ -272,7 +272,7 @@ class LogConfigFormatTest extends TestCase
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
 
-        $result = $appWatcher->getLogEntries('oldstyle', '', 10);
+        $result = $appWatcher->getAppLogEntries('oldstyle', '', 10);
 
         $this->assertIsArray($result);
         $parsed = $result;
@@ -298,7 +298,7 @@ class LogConfigFormatTest extends TestCase
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
 
-        $result = $appWatcher->getLogEntries('group-type', 'warnings', 10);
+        $result = $appWatcher->getAppLogEntries('group-type', 'warnings', 10);
         $parsed = $result;
 
         $this->assertIsArray($parsed);
@@ -328,7 +328,7 @@ class LogConfigFormatTest extends TestCase
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
 
-        $result = $appWatcher->getLogEntries('mixed', 'errors', 10);
+        $result = $appWatcher->getAppLogEntries('mixed', 'errors', 10);
         $this->assertIsArray($result);
 
         $parsed = $result;
@@ -357,7 +357,7 @@ class LogConfigFormatTest extends TestCase
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
 
-        $result = $appWatcher->getLogEntries('nologs', '', 10);
+        $result = $appWatcher->getAppLogEntries('nologs', '', 10);
         $this->assertSame([], $result);
     }
 
@@ -371,7 +371,7 @@ class LogConfigFormatTest extends TestCase
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
 
-        $result = $appWatcher->getLogEntries('nologskey', '', 10);
+        $result = $appWatcher->getAppLogEntries('nologskey', '', 10);
         $this->assertSame([], $result);
     }
 
@@ -393,7 +393,7 @@ class LogConfigFormatTest extends TestCase
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
 
-        $result = $appWatcher->getLogEntries('invalidtype', '', 10);
+        $result = $appWatcher->getAppLogEntries('invalidtype', '', 10);
 
         $this->assertIsArray($result);
         $parsed = $result;
@@ -427,10 +427,10 @@ class LogConfigFormatTest extends TestCase
         $appWatcher = $this->createAppWatcher($watcherConfig);
 
         // Call multiple times - should use cached parsers
-        $result1 = $appWatcher->getLogEntries('cachetest', 'errors', 10);
-        $result2 = $appWatcher->getLogEntries('cachetest', 'errors', 10);
-        $result3 = $appWatcher->getLogEntries('cachetest', 'errors', 10);
-        $result4 = $appWatcher->getLogEntries('cachetest', 'errors', 10);
+        $result1 = $appWatcher->getAppLogEntries('cachetest', 'errors', 10);
+        $result2 = $appWatcher->getAppLogEntries('cachetest', 'errors', 10);
+        $result3 = $appWatcher->getAppLogEntries('cachetest', 'errors', 10);
+        $result4 = $appWatcher->getAppLogEntries('cachetest', 'errors', 10);
 
         // Results should be identical (from cache)
         $this->assertEquals($result1, $result2);

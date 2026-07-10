@@ -186,14 +186,14 @@ class AppWatcher
         return $this->getSessionMetadata($app);
     }
 
-    public function loadAppConfig(string $app): array
+    public function getAppConfig(string $app): array
     {
         $app = $this->requireAppKey($app);
 
         return $this->appConfigReader->load($app);
     }
 
-    public function getLogEntries(string $app, string $filter = '', ?int $limit = null): array
+    public function getAppLogEntries(string $app, string $filter = '', ?int $limit = null): array
     {
         $app = $this->requireAppKey($app);
         $this->appConfigReader->load($app);

@@ -65,7 +65,7 @@ class LogParserIntegrationTest extends TestCase
         ];
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
-        $result = $appWatcher->getLogEntries('testapp', '', 10);
+        $result = $appWatcher->getAppLogEntries('testapp', '', 10);
 
         $this->assertIsArray($result);
         $parsed = $result;
@@ -87,7 +87,7 @@ class LogParserIntegrationTest extends TestCase
         ];
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
-        $result = $appWatcher->getLogEntries('testapp', '', 10);
+        $result = $appWatcher->getAppLogEntries('testapp', '', 10);
 
         $this->assertIsArray($result);
         $parsed = $result;
@@ -109,7 +109,7 @@ class LogParserIntegrationTest extends TestCase
         ];
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
-        $result = $appWatcher->getLogEntries('testapp', '', 10);
+        $result = $appWatcher->getAppLogEntries('testapp', '', 10);
 
         $this->assertIsArray($result);
         $parsed = $result;
@@ -136,7 +136,7 @@ class LogParserIntegrationTest extends TestCase
         ];
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
-        $result = $appWatcher->getLogEntries('testapp', 'errors', 50);
+        $result = $appWatcher->getAppLogEntries('testapp', 'errors', 50);
 
         $this->assertIsArray($result);
         $parsed = $result;
@@ -154,7 +154,7 @@ class LogParserIntegrationTest extends TestCase
         ];
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
-        $result = $appWatcher->getLogEntries('testapp', 'errors', 50);
+        $result = $appWatcher->getAppLogEntries('testapp', 'errors', 50);
 
         $this->assertIsArray($result);
         $parsed = $result;
@@ -171,7 +171,7 @@ class LogParserIntegrationTest extends TestCase
         ];
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
-        $result = $appWatcher->getLogEntries('testapp', 'errors', 50);
+        $result = $appWatcher->getAppLogEntries('testapp', 'errors', 50);
 
         $this->assertIsArray($result);
         $parsed = $result;
@@ -193,7 +193,7 @@ class LogParserIntegrationTest extends TestCase
         ];
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
-        $result = $appWatcher->getLogEntries('testapp', 'warnings', 50);
+        $result = $appWatcher->getAppLogEntries('testapp', 'warnings', 50);
 
         $this->assertIsArray($result);
         $parsed = $result;
@@ -273,9 +273,9 @@ class LogParserIntegrationTest extends TestCase
         $appWatcher = $this->createAppWatcher($watcherConfig);
 
         // Multiple calls should use cached parser
-        $result1 = $appWatcher->getLogEntries('testapp', 'errors', 50);
-        $result2 = $appWatcher->getLogEntries('testapp', 'errors', 50);
-        $result3 = $appWatcher->getLogEntries('testapp', 'errors', 50);
+        $result1 = $appWatcher->getAppLogEntries('testapp', 'errors', 50);
+        $result2 = $appWatcher->getAppLogEntries('testapp', 'errors', 50);
+        $result3 = $appWatcher->getAppLogEntries('testapp', 'errors', 50);
 
         // Results should be consistent
         $this->assertEquals($result1, $result2);
@@ -298,9 +298,9 @@ class LogParserIntegrationTest extends TestCase
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
 
-        $phpResult = $appWatcher->getLogEntries('phpapp', 'errors', 10);
-        $monologResult = $appWatcher->getLogEntries('monologapp', 'errors', 10);
-        $jsonResult = $appWatcher->getLogEntries('jsonapp', 'errors', 10);
+        $phpResult = $appWatcher->getAppLogEntries('phpapp', 'errors', 10);
+        $monologResult = $appWatcher->getAppLogEntries('monologapp', 'errors', 10);
+        $jsonResult = $appWatcher->getAppLogEntries('jsonapp', 'errors', 10);
 
         $this->assertIsArray($phpResult);
         $this->assertIsArray($monologResult);
@@ -347,7 +347,7 @@ class LogParserIntegrationTest extends TestCase
         $appWatcher = $this->createAppWatcher($watcherConfig);
 
         // Should fall back to default parser
-        $result = $appWatcher->getLogEntries('testapp', 'errors', 50);
+        $result = $appWatcher->getAppLogEntries('testapp', 'errors', 50);
 
         $this->assertIsArray($result);
         $parsed = $result;
@@ -365,7 +365,7 @@ class LogParserIntegrationTest extends TestCase
         ];
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
-        $result = $appWatcher->getLogEntries('testapp', '', 50);
+        $result = $appWatcher->getAppLogEntries('testapp', '', 50);
 
         $this->assertIsArray($result);
         $parsed = $result;
@@ -383,7 +383,7 @@ class LogParserIntegrationTest extends TestCase
         ];
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
-        $result = $appWatcher->getLogEntries('testapp', '', 3);
+        $result = $appWatcher->getAppLogEntries('testapp', '', 3);
 
         $this->assertIsArray($result);
         $parsed = $result;
@@ -401,7 +401,7 @@ class LogParserIntegrationTest extends TestCase
         ];
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
-        $result = $appWatcher->getLogEntries('testapp', '', 0);
+        $result = $appWatcher->getAppLogEntries('testapp', '', 0);
 
         $this->assertCount(1, $result['logs/php_error.log']);
     }
@@ -432,7 +432,7 @@ class LogParserIntegrationTest extends TestCase
         };
 
         $appWatcher = $this->createAppWatcher($watcherConfig, $logger);
-        $result = $appWatcher->getLogEntries('testapp', 'not-supported', 10);
+        $result = $appWatcher->getAppLogEntries('testapp', 'not-supported', 10);
 
         $this->assertSame([], $result);
         $this->assertSame('Invalid log filter requested', $logger->records[0]['message'] ?? null);
@@ -448,7 +448,7 @@ class LogParserIntegrationTest extends TestCase
         ];
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
-        $result = $appWatcher->getLogEntries('testapp', '', 50);
+        $result = $appWatcher->getAppLogEntries('testapp', '', 50);
         $parsed = $result;
 
         $stackTraceFound = false;
@@ -481,7 +481,7 @@ class LogParserIntegrationTest extends TestCase
         ];
 
         $appWatcher = $this->createAppWatcher($watcherConfig);
-        $result = $appWatcher->getLogEntries('testapp', 'errors', 50);
+        $result = $appWatcher->getAppLogEntries('testapp', 'errors', 50);
 
         $this->assertIsArray($result);
         $parsed = $result;
