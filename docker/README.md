@@ -99,6 +99,8 @@ Files:
 - `config/config.env` - General app settings
 - `config/mail.config.env` - Email configuration
 
+In Docker, changes to `config/config.env` or `config/mail.config.env` do not affect running containers because env files are only read at container creation. Run `make dev-recreate` to apply changes; `make dev-restart` is not enough. Non-Docker setups pick up changes immediately.
+
 #### 3. JSON Configuration (`config/*.json`)
 - `config/apps.json`, `config/transmit.json`, `config/databases.json`
 - Runtime configuration data

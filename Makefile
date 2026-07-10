@@ -124,6 +124,9 @@ setup:
 		mv $$tmpfile config/config.env; \
 		chmod 600 config/config.env; \
 		echo "$(COLOR_GREEN)✅ Updated DASHBOARD_API_KEY in config/config.env$(COLOR_RESET)"; \
+		if docker-compose ps mata-web 2>/dev/null | grep -q "Up"; then \
+			echo "$(COLOR_YELLOW)⚠️  Containers are already running. Env files are only read at container creation — run '$(COLOR_CYAN)make dev-recreate$(COLOR_RESET)$(COLOR_YELLOW)' to apply the new key.$(COLOR_RESET)"; \
+		fi; \
 	else \
 		echo "$(COLOR_YELLOW)⚠️  Skipped. Set DASHBOARD_API_KEY manually in config/config.env$(COLOR_RESET)"; \
 	fi
@@ -285,6 +288,9 @@ docker-setup:
 		mv $$tmpfile config/config.env; \
 		chmod 600 config/config.env; \
 		echo "$(COLOR_GREEN)✅ Updated DASHBOARD_API_KEY in config/config.env$(COLOR_RESET)"; \
+		if docker-compose ps mata-web 2>/dev/null | grep -q "Up"; then \
+			echo "$(COLOR_YELLOW)⚠️  Containers are already running. Env files are only read at container creation — run '$(COLOR_CYAN)make dev-recreate$(COLOR_RESET)$(COLOR_YELLOW)' to apply the new key.$(COLOR_RESET)"; \
+		fi; \
 	else \
 		echo "$(COLOR_YELLOW)⚠️  Skipped. Set DASHBOARD_API_KEY manually in config/config.env$(COLOR_RESET)"; \
 	fi
