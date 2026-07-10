@@ -37,13 +37,13 @@ final class CronjobInspector
 
         foreach ($this->entries(includeContent: false) as $entry) {
             ++$summary['total'];
-            if ($entry['exists'] !== true) {
+            if (!$entry['exists']) {
                 ++$summary['missing'];
 
                 continue;
             }
 
-            if ($entry['stale'] === true) {
+            if ($entry['stale']) {
                 ++$summary['stale'];
 
                 continue;
@@ -56,13 +56,12 @@ final class CronjobInspector
     }
 
     /**
-     * @return array<int, array<string, mixed>>
+     * @return array<int, array{index: int, path: string, exists: bool, mtime: ?string, age_seconds: ?int, size: int, stale: bool, content_tail?: array<int, string>}>
      */
     public function entries(bool $includeContent = false): array
     {
         $entries = [];
-        $maxAgeSeconds = $this->resolveStaleSeconds();
-        $tailLineLimit = $this->resolveTailLineLimit();
+        $maxAgeSeconds = $this->intConfig('cronjob_heartbeat_stale_seconds', self::DEFAULT_STALE_SECONDS);
 
         foreach ($this->heartbeatPaths() as $index => $heartbeatPath) {
             $file = $this->rootPath . DIRECTORY_SEPARATOR . $heartbeatPath;
@@ -81,7 +80,7 @@ final class CronjobInspector
             ];
 
             if ($includeContent) {
-                $entry['content_tail'] = $exists ? $this->tailLines($file, $tailLineLimit) : [];
+                $entry['content_tail'] = $exists ? $this->tailLines($file) : [];
             }
 
             $entries[] = $entry;
@@ -114,32 +113,21 @@ final class CronjobInspector
         return $paths;
     }
 
-    private function resolveStaleSeconds(): int
+    private function intConfig(string $key, int $default): int
     {
-        $configured = $this->transmitConfig['cronjob_heartbeat_stale_seconds'] ?? self::DEFAULT_STALE_SECONDS;
-        if (!is_numeric($configured)) {
-            return self::DEFAULT_STALE_SECONDS;
-        }
+        $configured = $this->transmitConfig[$key] ?? $default;
 
-        return max(1, (int) $configured);
-    }
-
-    private function resolveTailLineLimit(): int
-    {
-        $configured = $this->transmitConfig['cronjob_heartbeat_tail_line_limit'] ?? self::DEFAULT_TAIL_LINE_LIMIT;
-        if (!is_numeric($configured)) {
-            return self::DEFAULT_TAIL_LINE_LIMIT;
-        }
-
-        return max(1, (int) $configured);
+        return is_numeric($configured) ? max(1, (int) $configured) : $default;
     }
 
     /**
      * @return array<int,string>
      */
-    private function tailLines(string $file, int $maxLines): array
+    private function tailLines(string $file): array
     {
-        $output = $this->commandRunner->run(ShellCommands::tail($file, $maxLines));
+        $output = $this->commandRunner->run(
+            ShellCommands::tail($file, $this->intConfig('cronjob_heartbeat_tail_line_limit', self::DEFAULT_TAIL_LINE_LIMIT))
+        );
 
         return $output !== null && trim($output) !== '' ? explode("\n", trim($output)) : [];
     }

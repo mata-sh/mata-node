@@ -32,7 +32,7 @@ class ServerWatcher
         $this->filecountCacheMaxAge = $transmitConfig['system_filecount_cache_max_age'] ?? 1800;
     }
 
-    public function getServerData(): array
+    public function getData(): array
     {
 
         $diskSpaceCapacity = 0;
@@ -65,12 +65,12 @@ class ServerWatcher
         return $data;
     }
 
-    public function getServerCronjobs(): array
+    public function getCronjobs(): array
     {
         return $this->cronjobInspector->entries(includeContent: true);
     }
 
-    public function getServerInfo(): array
+    public function getInfo(): array
     {
         $osRelease = $this->readOsRelease();
         $phpExtensions = get_loaded_extensions();

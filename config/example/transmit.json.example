@@ -3,8 +3,8 @@
         "APP_ENV",
         "DOMAIN",
         "DIR"
-    ], 
-    "check_disk_space_enabled": "on", 
+    ],
+    "check_disk_space_enabled": "on",
     "check_disk_space_path": "/",
     "errorlog_readout_limit": 200,
     "system_filecount_cache_max_age": 1800,
@@ -15,4 +15,3 @@
     "cronjob_heartbeat_stale_seconds": 86400,
     "cronjob_heartbeat_tail_line_limit": 50
 }
-    

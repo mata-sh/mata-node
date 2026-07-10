@@ -166,10 +166,10 @@ class RouterSetup
     private function setupRoutes(): void
     {
         $serverRoutes = [
-            ['/server/data', fn () => $this->serverWatcher->getServerData()],
-            ['/server/info', fn () => $this->serverWatcher->getServerInfo()],
+            ['/server/data', fn () => $this->serverWatcher->getData()],
+            ['/server/info', fn () => $this->serverWatcher->getInfo()],
             ['/server/php', fn () => $this->serverWatcher->getPhpProcesses()],
-            ['/server/cronjobs', fn () => $this->serverWatcher->getServerCronjobs()],
+            ['/server/cronjobs', fn () => $this->serverWatcher->getCronjobs()],
         ];
 
         $appRoutes = [

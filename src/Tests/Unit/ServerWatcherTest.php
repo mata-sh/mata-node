@@ -59,7 +59,7 @@ class ServerWatcherTest extends TestCase
         }
     }
 
-    public function testGetServerDataUsesInjectedCommandRunner(): void
+    public function testGetDataUsesInjectedCommandRunner(): void
     {
         $cachePath = sys_get_temp_dir() . '/mata-node-server-cache-' . bin2hex(random_bytes(6));
         mkdir($cachePath, 0777, true);
@@ -81,7 +81,7 @@ class ServerWatcherTest extends TestCase
 
         try {
             $watcher = new ServerWatcher(__DIR__, $cache, ['check_disk_space_enabled' => 'off'], $runner);
-            $data = $watcher->getServerData();
+            $data = $watcher->getData();
 
             $this->assertSame(5, $data['total_system_filecount']);
             $this->assertSame(1000, $data['ram_capacity']);
@@ -95,7 +95,7 @@ class ServerWatcherTest extends TestCase
         }
     }
 
-    public function testGetServerDataIncludesCronjobSummary(): void
+    public function testGetDataIncludesCronjobSummary(): void
     {
         $rootPath = sys_get_temp_dir() . '/mata-node-server-root-' . bin2hex(random_bytes(6));
         $cachePath = sys_get_temp_dir() . '/mata-node-server-cache-' . bin2hex(random_bytes(6));
@@ -122,7 +122,7 @@ class ServerWatcherTest extends TestCase
                 ],
                 'cronjob_heartbeat_stale_seconds' => 60,
             ], $runner);
-            $data = $watcher->getServerData();
+            $data = $watcher->getData();
 
             $this->assertSame([
                 'total' => 2,
@@ -136,7 +136,7 @@ class ServerWatcherTest extends TestCase
         }
     }
 
-    public function testGetServerCronjobsReturnsExistingAndMissingHeartbeatFiles(): void
+    public function testGetCronjobsReturnsExistingAndMissingHeartbeatFiles(): void
     {
         $rootPath = sys_get_temp_dir() . '/mata-node-server-root-' . bin2hex(random_bytes(6));
         $cachePath = sys_get_temp_dir() . '/mata-node-server-cache-' . bin2hex(random_bytes(6));
@@ -155,7 +155,7 @@ class ServerWatcherTest extends TestCase
                 'cronjob_heartbeat_tail_line_limit' => 1,
             ]);
 
-            $cronjobs = $watcher->getServerCronjobs();
+            $cronjobs = $watcher->getCronjobs();
 
             $this->assertCount(2, $cronjobs);
             $this->assertSame(0, $cronjobs[0]['index']);
@@ -182,11 +182,11 @@ class ServerWatcherTest extends TestCase
         }
     }
 
-    public function testGetServerInfoReturnsDashboardContractKeys(): void
+    public function testGetInfoReturnsDashboardContractKeys(): void
     {
         $watcher = new ServerWatcher(__DIR__, new FileCache(sys_get_temp_dir()), []);
 
-        $info = $watcher->getServerInfo();
+        $info = $watcher->getInfo();
 
         foreach ([
             'os_name',
