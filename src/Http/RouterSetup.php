@@ -187,6 +187,7 @@ class RouterSetup
             ['/{app}/logs-status', fn (string $app) => $this->appWatcher->getAppLogStatus($app)],
             ['/{app}/app-config', fn (string $app) => $this->appWatcher->getAppConfig($app)],
             ['/{app}/libraries', fn (string $app) => $this->appWatcher->getAppLibraries($app)],
+            ['/{app}/composer-audit', fn (string $app) => $this->appWatcher->getAppComposerAudit($app)],
         ];
 
         $databaseRoutes = [

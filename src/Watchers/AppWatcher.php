@@ -88,6 +88,26 @@ class AppWatcher
         return $result;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function getAppComposerAudit(string $app): array
+    {
+        $app = $this->requireAppKey($app);
+
+        $paths = $this->composerInspector->resolvePaths($this->watcherConfig[$app]);
+        if ($paths === null) {
+            throw new AppWatcherException(
+                message: 'Composer configuration not found',
+                error: 'Composer configuration not found',
+                httpStatus: 404,
+                context: ['app' => $app]
+            );
+        }
+
+        return $this->composerInspector->audit($paths);
+    }
+
     public function getAppsLibraries(): array
     {
         $result = [];
