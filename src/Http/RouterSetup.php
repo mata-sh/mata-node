@@ -185,7 +185,6 @@ class RouterSetup
                 limit: isset($_GET['limit']) && is_scalar($_GET['limit']) ? (int) $_GET['limit'] : null,
             )],
             ['/{app}/logs-status', fn (string $app) => $this->appWatcher->getAppLogStatus($app)],
-            ['/{app}/app-config', fn (string $app) => $this->appWatcher->getAppConfig($app)],
             ['/{app}/libraries', fn (string $app) => $this->appWatcher->getAppLibraries($app)],
             ['/{app}/composer-audit', fn (string $app) => $this->appWatcher->getAppComposerAudit($app)],
         ];

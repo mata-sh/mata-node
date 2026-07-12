@@ -10,7 +10,6 @@ use Mata\Services\Command\ProcessCommandRunner;
 use Mata\Services\Command\ProcessCommandRunnerInterface;
 use Mata\Services\FileCache;
 use Mata\Utils\Tools;
-use Mata\Watchers\App\AppConfigReader;
 use Mata\Watchers\App\ComposerInspector;
 use Mata\Watchers\App\LogInspector;
 use Mata\Watchers\App\ReadmeReader;
@@ -28,7 +27,6 @@ class AppWatcher
     private string $rootPath;
     private array $watcherConfig;
     private SessionBackendFactory $sessionBackendFactory;
-    private AppConfigReader $appConfigReader;
     private LogInspector $logInspector;
     private ComposerInspector $composerInspector;
     private ReadmeReader $readmeReader;
@@ -52,7 +50,6 @@ class AppWatcher
         $commandRunner = $commandRunner ?? new NativeCommandRunner($processRunner);
 
         $this->sessionBackendFactory = $sessionBackendFactory ?? new SessionBackendFactory(null, $fileCache);
-        $this->appConfigReader = new AppConfigReader($tools, $rootPath, $watcherConfig, $transmitConfig);
         $this->logInspector = new LogInspector($logger, $rootPath, $watcherConfig, $transmitConfig, $commandRunner);
         $this->composerInspector = new ComposerInspector($tools, $rootPath, $processRunner);
         $this->readmeReader = new ReadmeReader($rootPath);
@@ -163,23 +160,23 @@ class AppWatcher
     {
         $app = $this->requireAppKey($app);
         $appConfig = $this->watcherConfig[$app];
-        $config = $this->appConfigReader->load($app);
+        if (!is_array($appConfig)) {
+            $this->invalidAppConfiguration($app, 'config');
+        }
+
+        $metadata = $this->normalizeAppMetadata($app, $appConfig);
 
         return [
-            'path' => $appConfig['path'],
-            'title' => $appConfig['title'],
-            'url' => $appConfig['url'],
+            'path' => $metadata['path'],
+            'title' => $metadata['title'],
+            'url' => $metadata['url'],
+            'env' => $metadata['env'],
+            'status_url' => $metadata['status_url'],
             'ping' => $appConfig['ping'] ?? 'on',
             'description' => $appConfig['description'] ?? '',
-            'environment' => $config['APP_ENV'],
-            'maintenance' => $config['MAINTENANCE_ENABLED'],
             'status' => $this->logInspector->stats($app),
             'session' => $this->getSessionMetadata($app),
             'logs' => $this->logInspector->files($app),
-            'configs' => $appConfig['configs'],
-            'display_errors' => $config['DISPLAY_ERRORS'],
-            'log_level' => $config['LOG_HELPER_IMPORTANT'],
-            'log_helper' => $config['LOG_HELPER'],
             'alarms_enabled' => $appConfig['alarms_enabled'] ?? '',
         ];
     }
@@ -187,7 +184,6 @@ class AppWatcher
     public function getAppLogStatus(string $app): array
     {
         $app = $this->requireAppKey($app);
-        $this->appConfigReader->load($app);
 
         return $this->logInspector->status($app);
     }
@@ -206,17 +202,9 @@ class AppWatcher
         return $this->getSessionMetadata($app);
     }
 
-    public function getAppConfig(string $app): array
-    {
-        $app = $this->requireAppKey($app);
-
-        return $this->appConfigReader->load($app);
-    }
-
     public function getAppLogEntries(string $app, string $filter = '', ?int $limit = null): array
     {
         $app = $this->requireAppKey($app);
-        $this->appConfigReader->load($app);
 
         return $this->logInspector->entries($app, $filter, $limit);
     }
@@ -224,7 +212,6 @@ class AppWatcher
     public function getAppLogStats(string $app): array
     {
         $app = $this->requireAppKey($app);
-        $this->appConfigReader->load($app);
 
         return $this->logInspector->stats($app);
     }
@@ -258,6 +245,78 @@ class AppWatcher
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $appConfig
+     *
+     * @return array{title: string, url: string, path: string, env: string, status_url: ?string}
+     */
+    private function normalizeAppMetadata(string $app, array $appConfig): array
+    {
+        foreach (['title', 'url', 'path', 'env'] as $field) {
+            if (!isset($appConfig[$field]) || !is_string($appConfig[$field]) || trim($appConfig[$field]) === '') {
+                $this->invalidAppConfiguration($app, $field);
+            }
+        }
+
+        if (!in_array($appConfig['env'], ['dev', 'test', 'stg', 'live'], true)) {
+            $this->invalidAppConfiguration($app, 'env');
+        }
+
+        $statusEndpoint = array_key_exists('status_endpoint', $appConfig)
+            ? self::normalizeStatusEndpoint($appConfig['status_endpoint'])
+            : ['valid' => true, 'url' => null];
+        if (!$statusEndpoint['valid']) {
+            $this->invalidAppConfiguration($app, 'status_endpoint');
+        }
+
+        return [
+            'title' => $appConfig['title'],
+            'url' => $appConfig['url'],
+            'path' => $appConfig['path'],
+            'env' => $appConfig['env'],
+            'status_url' => $statusEndpoint['url'],
+        ];
+    }
+
+    /**
+     * @return array{valid: bool, url: ?string}
+     */
+    private static function normalizeStatusEndpoint(mixed $endpoint): array
+    {
+        if ($endpoint === '') {
+            return ['valid' => true, 'url' => null];
+        }
+
+        if (!is_string($endpoint) || trim($endpoint) !== $endpoint || filter_var($endpoint, FILTER_VALIDATE_URL) === false) {
+            return ['valid' => false, 'url' => null];
+        }
+
+        $parts = parse_url($endpoint);
+        if ($parts === false
+            || !isset($parts['scheme'], $parts['host'])
+            || !in_array(strtolower($parts['scheme']), ['http', 'https'], true)
+            || isset($parts['fragment'])
+        ) {
+            return ['valid' => false, 'url' => null];
+        }
+
+        return ['valid' => true, 'url' => $endpoint];
+    }
+
+    private function invalidAppConfiguration(string $app, string $field): never
+    {
+        $this->logger->error('Invalid application configuration', [
+            'app' => $app,
+            'field' => $field,
+        ]);
+
+        throw new AppWatcherException(
+            message: 'Invalid application configuration',
+            error: 'Invalid application configuration',
+            httpStatus: 500,
+        );
     }
 
     private function getSessionMetadata(string $app): array

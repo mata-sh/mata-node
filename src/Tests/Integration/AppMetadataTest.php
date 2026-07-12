@@ -6,7 +6,12 @@ namespace Mata\Tests\Integration;
 
 use Mata\Utils\Tools;
 use Mata\Watchers\AppWatcher;
+use Mata\Watchers\Exceptions\AppWatcherException;
+use Monolog\Handler\TestHandler;
+use Monolog\Logger;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 /**
@@ -21,17 +26,8 @@ class AppMetadataTest extends TestCase
     protected function setUp(): void
     {
         $this->rootPath = sys_get_temp_dir() . '/mata-node-app-metadata-' . bin2hex(random_bytes(6));
-        mkdir($this->rootPath . '/app/config', 0777, true);
         mkdir($this->rootPath . '/app/temp/sessions', 0777, true);
         mkdir($this->rootPath . '/app/includes', 0777, true);
-
-        file_put_contents($this->rootPath . '/app/config/config.env', implode("\n", [
-            'APP_ENV=testing',
-            'MAINTENANCE_ENABLED=off',
-            'DISPLAY_ERRORS=on',
-            'LOG_HELPER_IMPORTANT=warning',
-            'LOG_HELPER=on',
-        ]));
     }
 
     protected function tearDown(): void
@@ -39,7 +35,7 @@ class AppMetadataTest extends TestCase
         $this->removeDirectory($this->rootPath);
     }
 
-    public function testAppInfoIncludesDescriptionAndNestedSessionMetadata(): void
+    public function testAppInfoIncludesStaticMetadataAndNestedSessionMetadata(): void
     {
         file_put_contents($this->rootPath . '/app/temp/sessions/sess_recent', 'recent-session');
         file_put_contents($this->rootPath . '/app/temp/sessions/sess_old', 'old-session');
@@ -48,16 +44,26 @@ class AppMetadataTest extends TestCase
         touch($this->rootPath . '/app/temp/sessions/sess_old', time() - 7200);
 
         $appWatcher = $this->createAppWatcher([
-            'testapp' => $this->appConfig(),
+            'testapp' => $this->appConfig([
+                'status_endpoint' => 'https://example.com/test/health/',
+            ]),
         ]);
 
         $info = $appWatcher->getAppInfo('testapp');
 
         $this->assertSame('App description', $info['description']);
+        $this->assertSame('test', $info['env']);
+        $this->assertSame('https://example.com/test/health/', $info['status_url']);
+        $this->assertSame(['fatal' => 0, 'warnings' => 0, 'total' => 0], $info['status']);
+        $this->assertSame([], $info['logs']);
         $this->assertArrayNotHasKey('session_count_last_hour', $info);
         $this->assertArrayNotHasKey('session_count_last_day', $info);
         $this->assertArrayNotHasKey('session_count_total', $info);
         $this->assertArrayNotHasKey('session_path', $info);
+
+        foreach (['environment', 'maintenance', 'configs', 'display_errors', 'log_level', 'log_helper', 'status_endpoint'] as $field) {
+            $this->assertArrayNotHasKey($field, $info);
+        }
 
         $this->assertSame([
             'type' => 'file',
@@ -68,6 +74,100 @@ class AppMetadataTest extends TestCase
             'path' => 'app/temp/sessions',
             'size_kb' => round((strlen('recent-session') + strlen('old-session')) / 1024, 2),
         ], $info['session']);
+    }
+
+    #[DataProvider('validStatusEndpointProvider')]
+    public function testAppInfoReturnsValidAbsoluteStatusUrl(string $statusEndpoint): void
+    {
+        $appWatcher = $this->createAppWatcher([
+            'testapp' => $this->appConfig(['status_endpoint' => $statusEndpoint]),
+        ]);
+
+        $this->assertSame($statusEndpoint, $appWatcher->getAppInfo('testapp')['status_url']);
+    }
+
+    public static function validStatusEndpointProvider(): array
+    {
+        return [
+            'http' => ['http://example.com/health'],
+            'https' => ['https://example.com/health/'],
+        ];
+    }
+
+    #[DataProvider('emptyStatusEndpointProvider')]
+    public function testAppInfoReturnsNullWithoutStatusEndpoint(array $overrides): void
+    {
+        $appWatcher = $this->createAppWatcher([
+            'testapp' => $this->appConfig($overrides),
+        ]);
+
+        $this->assertNull($appWatcher->getAppInfo('testapp')['status_url']);
+    }
+
+    public static function emptyStatusEndpointProvider(): array
+    {
+        return [
+            'absent' => [[]],
+            'empty' => [['status_endpoint' => '']],
+        ];
+    }
+
+    #[DataProvider('invalidStatusEndpointProvider')]
+    public function testInvalidStatusEndpointIsLoggedAndRejected(mixed $statusEndpoint): void
+    {
+        $handler = new TestHandler();
+        $logger = new Logger('test');
+        $logger->pushHandler($handler);
+        $appWatcher = $this->createAppWatcher([
+            'testapp' => $this->appConfig(['status_endpoint' => $statusEndpoint]),
+        ], $logger);
+
+        $this->assertInvalidConfiguration($appWatcher, $handler, 'status_endpoint');
+    }
+
+    public static function invalidStatusEndpointProvider(): array
+    {
+        return [
+            'relative' => ['health'],
+            'leading slash' => ['/health'],
+            'non-http scheme' => ['ftp://example.com/health'],
+            'fragment' => ['https://example.com/health#section'],
+            'whitespace only' => ['   '],
+            'null' => [null],
+            'non-string' => [true],
+            'malformed' => ['https://'],
+        ];
+    }
+
+    #[DataProvider('invalidRequiredMetadataProvider')]
+    public function testInvalidRequiredMetadataIsLoggedAndRejected(string $field, mixed $value, bool $unset = false): void
+    {
+        $config = $this->appConfig();
+        if ($unset) {
+            unset($config[$field]);
+        } else {
+            $config[$field] = $value;
+        }
+
+        $handler = new TestHandler();
+        $logger = new Logger('test');
+        $logger->pushHandler($handler);
+        $appWatcher = $this->createAppWatcher(['testapp' => $config], $logger);
+
+        $this->assertInvalidConfiguration($appWatcher, $handler, $field);
+    }
+
+    public static function invalidRequiredMetadataProvider(): array
+    {
+        $cases = [];
+        foreach (['title', 'url', 'path', 'env'] as $field) {
+            $cases[$field . ' missing'] = [$field, null, true];
+            $cases[$field . ' empty'] = [$field, ''];
+            $cases[$field . ' non-string'] = [$field, 42];
+        }
+        $cases['unsupported env'] = ['env', 'prod'];
+
+        return $cases;
     }
 
     public function testAppSpecificSessionsEndpointPayload(): void
@@ -92,8 +192,6 @@ class AppMetadataTest extends TestCase
 
     public function testMissingSessionConfigReportsUnconfiguredSessionBackend(): void
     {
-        file_put_contents($this->rootPath . '/app/temp/sessions/sess_recent', 'session');
-
         $config = $this->appConfig();
         unset($config['sessions']);
 
@@ -115,17 +213,33 @@ class AppMetadataTest extends TestCase
         $this->assertSame($expected, $appWatcher->getAppInfo('testapp')['session']);
     }
 
-    private function createAppWatcher(array $watcherConfig): AppWatcher
+    private function assertInvalidConfiguration(AppWatcher $appWatcher, TestHandler $handler, string $field): void
     {
-        return new AppWatcher(new Tools(), new NullLogger(), $this->rootPath, $watcherConfig, [
-            'transmit_config' => [
-                'APP_ENV',
-                'MAINTENANCE_ENABLED',
-                'DISPLAY_ERRORS',
-                'LOG_HELPER_IMPORTANT',
-                'LOG_HELPER',
-            ],
-        ]);
+        try {
+            $appWatcher->getAppInfo('testapp');
+            $this->fail('Expected invalid application configuration exception.');
+        } catch (AppWatcherException $exception) {
+            $this->assertSame(500, $exception->getHttpStatus());
+            $this->assertSame('Invalid application configuration', $exception->getError());
+            $this->assertSame('Invalid application configuration', $exception->getMessage());
+        }
+
+        $records = $handler->getRecords();
+        $this->assertCount(1, $records);
+        $this->assertSame('Invalid application configuration', $records[0]['message']);
+        $this->assertSame('testapp', $records[0]['context']['app']);
+        $this->assertSame($field, $records[0]['context']['field']);
+    }
+
+    private function createAppWatcher(array $watcherConfig, ?LoggerInterface $logger = null): AppWatcher
+    {
+        return new AppWatcher(
+            new Tools(),
+            $logger ?? new NullLogger(),
+            $this->rootPath,
+            $watcherConfig,
+            ['errorlog_readout_limit' => 50],
+        );
     }
 
     /**
@@ -139,6 +253,7 @@ class AppMetadataTest extends TestCase
             'title' => 'Test App',
             'url' => 'https://example.com/test',
             'path' => 'app',
+            'env' => 'test',
             'description' => 'App description',
             'sessions' => [
                 'type' => 'file',
@@ -146,9 +261,6 @@ class AppMetadataTest extends TestCase
                 'filename_regex' => '/^sess_/',
             ],
             'logs' => [],
-            'configs' => [
-                'app/config/config.env',
-            ],
         ], $overrides);
     }
 

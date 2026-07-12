@@ -26,17 +26,14 @@
                 ]
             }
         ],
-        "configs": [
-            "example-app/config/config.env",
-            "example-app/config/security.config.env",
-            "example-app/config/mail.config.env"
-        ],
         "description": "Full-featured example with file sessions and parser-specific log groups",
         "composer": {
             "json": "example-app/composer.json",
             "lock": "example-app/composer.lock",
             "bin": "example-app/composer.phar"
-        }
+        },
+        "env": "live",
+        "status_endpoint": "https://example.com/app/health/"
     },
     "redis-sessions-app": {
         "title": "Redis Session Application",
@@ -55,10 +52,8 @@
         "logs": [
             "redis-sessions-app/logs/error.log"
         ],
-        "configs": [
-            "redis-sessions-app/config/config.env"
-        ],
-        "description": "Redis sessions using low-stress count_key counting. The app must maintain the count_key value."
+        "description": "Redis sessions using low-stress count_key counting. The app must maintain the count_key value.",
+        "env": "live"
     },
     "minimal-app": {
         "title": "Minimal Application",
@@ -67,10 +62,8 @@
         "logs": [
             "minimal-app/logs/error.log"
         ],
-        "configs": [
-            "minimal-app/config/config.env"
-        ],
-        "description": "Old format (simple array) - uses auto-detection"
+        "description": "Old format (simple array) - uses auto-detection",
+        "env": "live"
     },
     "auto-detect-app": {
         "title": "Auto-detect Log Format",
@@ -84,10 +77,8 @@
                 ]
             }
         ],
-        "configs": [
-            "autodetect-app/config/config.env"
-        ],
-        "description": "New format without type specified - uses auto-detection"
+        "description": "New format without type specified - uses auto-detection",
+        "env": "live"
     },
     "mixed-logs-app": {
         "title": "Mixed Log Types",
@@ -112,10 +103,8 @@
                 ]
             }
         ],
-        "configs": [
-            "mixed-app/config/config.env"
-        ],
-        "description": "Multiple log groups with different parsers + auto-detect"
+        "description": "Multiple log groups with different parsers + auto-detect",
+        "env": "live"
     },
     "composer-enabled": {
         "title": "Composer Auto-detect",
@@ -124,10 +113,8 @@
         "logs": [
             "composer-app/logs/error.log"
         ],
-        "configs": [
-            "composer-app/config/config.env"
-        ],
         "composer": true,
-        "description": "Old format with composer auto-detect"
+        "description": "Old format with composer auto-detect",
+        "env": "live"
     }
 }

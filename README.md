@@ -45,7 +45,7 @@ MATA Node runs on each monitored environment and answers authenticated requests 
 - Recent log lines
 - Session counts
 - Composer package inventory
-- Whitelisted application metadata
+- Static application metadata and log/session status
 - Optional database status snapshots
 
 **Not exposed:**
@@ -82,7 +82,6 @@ MATA Node runs on each monitored environment and answers authenticated requests 
 - `GET /{app}/sessions`
 - `GET /{app}/logs`
 - `GET /{app}/logs-status`
-- `GET /{app}/app-config`
 - `GET /{app}/libraries`
 - `GET /server/databases`
 - `GET /{dbname}/database-status`
@@ -143,8 +142,8 @@ Then:
 Main runtime settings live in:
 - `.env` — Docker/infrastructure settings
 - `config/config.env` — node application settings
-- `config/apps.json` — watched applications, sessions, logs, and composer metadata; see [configuration reference](docs/configuration.md#configappsjson)
-- `config/transmit.json` — transmitted metadata and limits, see [configuration reference](docs/configuration.md#configtransmitjson)
+- `config/apps.json` — watched applications, static environment metadata, optional status endpoints, sessions, logs, and composer metadata; see [configuration reference](docs/configuration.md#configappsjson)
+- `config/transmit.json` — node operational limits, see [configuration reference](docs/configuration.md#configtransmitjson)
 
 Redis session stores should use `sessions.count_key` when available so the node reads one maintained counter instead of scanning session keys.
 

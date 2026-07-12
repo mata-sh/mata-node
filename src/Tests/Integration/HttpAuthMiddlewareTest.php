@@ -90,6 +90,18 @@ final class HttpAuthMiddlewareTest extends TestCase
         $this->assertArrayHasKey('php_version', $body);
     }
 
+    public function testInvalidAppMetadataReturnsConfigurationErrorThroughRouter(): void
+    {
+        $response = $this->client->get('/apps', [
+            'headers' => ['X-Mata-Auth' => $this->generateAuthHeader()],
+        ]);
+
+        $this->assertSame(500, $response->getStatusCode(), (string) $response->getBody());
+        $body = $this->decodeJson($response);
+        $this->assertSame('Invalid application configuration', $body['error']);
+        $this->assertSame('Invalid application configuration', $body['message']);
+    }
+
     public function testProtectedRouteRejectsMissingAuthHeaderThroughRouter(): void
     {
         $response = $this->client->get('/server/info');
@@ -98,6 +110,16 @@ final class HttpAuthMiddlewareTest extends TestCase
         $body = $this->decodeJson($response);
         $this->assertSame('Unauthorized', $body['error']);
         $this->assertSame('Missing X-Mata-Auth header', $body['message']);
+    }
+
+    public function testRemovedAppConfigRouteUsesNormalNotFoundResponse(): void
+    {
+        $response = $this->client->get('/testapp/app-config', [
+            'headers' => ['X-Mata-Auth' => $this->generateAuthHeader()],
+        ]);
+
+        $this->assertSame(404, $response->getStatusCode(), (string) $response->getBody());
+        $this->assertSame('', (string) $response->getBody());
     }
 
     public function testReplayIsRejectedAcrossRealHttpRequestsUsingFileNonceStore(): void
@@ -221,13 +243,28 @@ $rateLimiter = RateLimiterFactory::create(new RateLimitingConfig(
 $cache = new FileCache($paths->cachePath);
 $commandRunner = new FakeCommandRunner();
 $transmitConfig = ['check_disk_space_enabled' => 'off'];
+$watcherConfig = [
+    'testapp' => [
+        'title' => 'Test App',
+        'url' => 'https://example.test',
+        'path' => 'testapp',
+        'env' => 'test',
+        'logs' => [],
+    ],
+    'invalidapp' => [
+        'title' => 'Invalid App',
+        'url' => 'https://example.test/invalid',
+        'path' => 'invalidapp',
+        'logs' => [],
+    ],
+];
 
 $routerSetup = new RouterSetup(
     new Router(),
     $auth,
     $logger,
     $paths,
-    new AppWatcher(new Tools(), $logger, $paths->rootPath, [], $transmitConfig, null, $cache, $commandRunner),
+    new AppWatcher(new Tools(), $logger, $paths->rootPath, $watcherConfig, $transmitConfig, null, $cache, $commandRunner),
     new ServerWatcher($paths->rootPath, $cache, $transmitConfig, $commandRunner),
     new DatabaseWatcher([], $commandRunner),
     new GeneralConfig(false, false, [], []),

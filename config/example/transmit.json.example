@@ -1,9 +1,4 @@
 {
-    "transmit_config": [
-        "APP_ENV",
-        "DOMAIN",
-        "DIR"
-    ],
     "check_disk_space_enabled": "on",
     "check_disk_space_path": "/",
     "errorlog_readout_limit": 200,
