@@ -88,6 +88,13 @@ final class HttpAuthMiddlewareTest extends TestCase
         $this->assertSame(200, $response->getStatusCode(), (string) $response->getBody());
         $body = $this->decodeJson($response);
         $this->assertArrayHasKey('php_version', $body);
+
+        $log = file_get_contents($this->tmpDir . '/logs/app.log');
+        $this->assertIsString($log);
+        $this->assertStringContainsString('Authorized HTTP request', $log);
+        $this->assertStringContainsString('"server_id":"dashboard"', $log);
+        $this->assertStringContainsString('"method":"GET"', $log);
+        $this->assertStringContainsString('"request_uri":"/server/info"', $log);
     }
 
     public function testInvalidAppMetadataReturnsConfigurationErrorThroughRouter(): void
@@ -195,7 +202,8 @@ use Mata\Utils\Tools;
 use Mata\Watchers\AppWatcher;
 use Mata\Watchers\DatabaseWatcher;
 use Mata\Watchers\ServerWatcher;
-use Monolog\Handler\NullHandler;
+use Monolog\Handler\StreamHandler;
+use Monolog\Level;
 use Monolog\Logger;
 
 $projectRoot = getenv('MATA_HTTP_TEST_PROJECT_ROOT');
@@ -206,7 +214,7 @@ $apiKey = getenv('MATA_HTTP_TEST_API_KEY') ?: '';
 require $projectRoot . '/vendor/autoload.php';
 
 $logger = new Logger('http-auth-test');
-$logger->pushHandler(new NullHandler());
+$logger->pushHandler(new StreamHandler($basePath . '/logs/app.log', Level::Debug));
 
 $paths = new PathResolver($projectRoot . '/public/index.php');
 $paths->appPath = $basePath;

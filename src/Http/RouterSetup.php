@@ -160,6 +160,16 @@ class RouterSetup
             }
 
             $_SERVER['AUTHENTICATED_SERVER_ID'] = $authResult['serverId'];
+
+            $this->logger->debug('Authorized HTTP request', [
+                'server_id' => $authResult['serverId'],
+                'method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown',
+                'request_uri' => $_SERVER['REQUEST_URI'] ?? 'unknown',
+                'client_ip' => $ipResolution->clientIp,
+                'remote_addr' => $ipResolution->remoteAddr,
+                'trusted_proxy' => $ipResolution->usedTrustedProxy,
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
+            ]);
         });
     }
 
