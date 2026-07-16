@@ -20,6 +20,7 @@ final class ComposerInspector
         private readonly LoggerInterface $logger,
         private readonly string $rootPath,
         private readonly ProcessCommandRunnerInterface $processRunner,
+        private readonly ?string $composerHome = null,
     ) {}
 
     public function resolvePaths(array $config): ?array
@@ -82,7 +83,7 @@ final class ComposerInspector
         }
 
         $workingDir = dirname($jsonPath);
-        $cmd = ShellCommands::composerAudit($binPath, $workingDir);
+        $cmd = ShellCommands::composerAudit($binPath, $workingDir, $this->composerHome);
 
         $processResult = $this->processRunner->run($cmd, self::COMPOSER_AUDIT_TIMEOUT_SECONDS);
         $stdout = trim($processResult->stdout);
@@ -127,6 +128,7 @@ final class ComposerInspector
             'command' => $cmd,
             'composer_json' => $jsonPath,
             'composer_lock' => $lockPath,
+            'composer_home' => $this->composerHome,
             'exit_code' => $processResult->exitCode,
             'json_error' => json_last_error_msg(),
             'stdout_preview' => substr($stdout, 0, 1000),

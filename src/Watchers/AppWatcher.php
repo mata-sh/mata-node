@@ -40,7 +40,8 @@ class AppWatcher
         ?SessionBackendFactory $sessionBackendFactory = null,
         ?FileCache $fileCache = null,
         ?CommandRunnerInterface $commandRunner = null,
-        ?ProcessCommandRunnerInterface $processRunner = null
+        ?ProcessCommandRunnerInterface $processRunner = null,
+        ?string $composerHome = null,
     ) {
         $this->logger = $logger;
         $this->rootPath = $rootPath;
@@ -51,7 +52,7 @@ class AppWatcher
 
         $this->sessionBackendFactory = $sessionBackendFactory ?? new SessionBackendFactory(null, $fileCache);
         $this->logInspector = new LogInspector($logger, $rootPath, $watcherConfig, $transmitConfig, $commandRunner);
-        $this->composerInspector = new ComposerInspector($tools, $logger, $rootPath, $processRunner);
+        $this->composerInspector = new ComposerInspector($tools, $logger, $rootPath, $processRunner, $composerHome);
         $this->readmeReader = new ReadmeReader($rootPath);
     }
 

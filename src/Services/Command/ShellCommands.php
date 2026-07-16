@@ -34,9 +34,12 @@ final class ShellCommands
         return 'grep -c ' . escapeshellarg($pattern) . ' -- ' . self::argPath($file) . ' 2>/dev/null';
     }
 
-    public static function composerAudit(?string $binPath, string $workingDir): string
+    public static function composerAudit(?string $binPath, string $workingDir, ?string $composerHome = null): string
     {
-        return self::composerCommand($binPath)
+        $environment = $composerHome === null ? '' : 'COMPOSER_HOME=' . self::argPath($composerHome) . ' ';
+
+        return $environment
+            . self::composerCommand($binPath)
             . ' audit --format=json --no-ansi --no-interaction --working-dir='
             . self::argPath($workingDir);
     }

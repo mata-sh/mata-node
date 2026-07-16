@@ -117,7 +117,16 @@ $transmitConfig = json_decode(file_get_contents($paths->appPath . '/config/trans
 
 $fileCache = new FileCache($paths->cachePath);
 $commandRunner = new NativeCommandRunner();
-$appWatcher = new AppWatcher($tools, $log, $paths->rootPath, $watcherConfig, $transmitConfig, null, $fileCache, $commandRunner);
+$appWatcher = new AppWatcher(
+    $tools,
+    $log,
+    $paths->rootPath,
+    $watcherConfig,
+    $transmitConfig,
+    fileCache: $fileCache,
+    commandRunner: $commandRunner,
+    composerHome: $paths->cachePath . '/composer',
+);
 $serverWatcher = new ServerWatcher($paths->rootPath, $fileCache, $transmitConfig, $commandRunner);
 $databaseWatcher = new DatabaseWatcher($databasesConfig, $commandRunner);
 

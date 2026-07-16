@@ -58,6 +58,16 @@ final class ShellCommandsTest extends TestCase
         );
     }
 
+    public function testComposerAuditSetsComposerHome(): void
+    {
+        $composerHome = '/tmp/mata cache/composer';
+
+        $this->assertSame(
+            'COMPOSER_HOME=' . escapeshellarg($composerHome) . ' composer audit --format=json --no-ansi --no-interaction --working-dir=' . escapeshellarg('/tmp/project'),
+            ShellCommands::composerAudit(null, '/tmp/project', $composerHome)
+        );
+    }
+
     public function testComposerAuditUsesPhpForPhar(): void
     {
         $binPath = '/tmp/composer tool.phar';
