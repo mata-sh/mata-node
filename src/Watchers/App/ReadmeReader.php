@@ -12,9 +12,9 @@ final class ReadmeReader
 
     public function readFromConfig(array $config): string
     {
-        $readmeFile = $config['readme'] ?? $config['path'] . '/README.md';
+        $readmeFile = $config['readme'] ?? rtrim($config['path'], '/') . '/README.md';
 
-        return $this->read($this->rootPath . '/' . $readmeFile);
+        return $this->read($this->resolvePath($readmeFile));
     }
 
     public function read(string $readmeFile): string
@@ -29,5 +29,14 @@ final class ReadmeReader
         }
 
         return $content;
+    }
+
+    private function resolvePath(string $path): string
+    {
+        if ($path[0] === '/' || preg_match('/^[A-Za-z]:[\\\\\/]/', $path)) {
+            return $path;
+        }
+
+        return rtrim($this->rootPath, '/') . '/' . ltrim($path, '/');
     }
 }

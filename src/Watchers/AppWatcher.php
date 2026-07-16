@@ -141,10 +141,11 @@ class AppWatcher
     public function getAppReadme(string $app): array
     {
         $app = $this->requireAppKey($app);
-        $readmeFile = $this->watcherConfig[$app]['readme'] ?? $this->watcherConfig[$app]['path'] . '/README.md';
+        $appConfig = $this->watcherConfig[$app];
+        $readmeFile = $appConfig['readme'] ?? rtrim($appConfig['path'], '/') . '/README.md';
 
         try {
-            return ['content' => $this->readmeReader->read($this->rootPath . '/' . $readmeFile)];
+            return ['content' => $this->readmeReader->readFromConfig($appConfig)];
         } catch (RuntimeException $e) {
             throw new AppWatcherException(
                 message: $e->getMessage(),

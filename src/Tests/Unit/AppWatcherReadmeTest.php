@@ -16,28 +16,74 @@ use Psr\Log\NullLogger;
  */
 final class AppWatcherReadmeTest extends TestCase
 {
-    public function testGetAppReadmeReturnsContentObject(): void
+    public function testGetAppReadmeUsesDefaultPath(): void
     {
         $rootPath = sys_get_temp_dir() . '/mata-node-readme-' . bin2hex(random_bytes(6));
         mkdir($rootPath . '/app', 0777, true);
         file_put_contents($rootPath . '/app/README.md', "# Test\n\nREADME");
 
         try {
-            $watcher = new AppWatcher(
-                new Tools(),
-                new NullLogger(),
-                $rootPath,
-                ['app' => ['path' => 'app']],
-                [],
-            );
-
             $this->assertSame(
                 ['content' => "# Test\n\nREADME"],
-                $watcher->getAppReadme('app')
+                $this->createWatcher($rootPath, ['path' => 'app'])->getAppReadme('app')
             );
         } finally {
             $this->removeDirectory($rootPath);
         }
+    }
+
+    public function testGetAppReadmeUsesConfiguredRelativePath(): void
+    {
+        $rootPath = sys_get_temp_dir() . '/mata-node-readme-' . bin2hex(random_bytes(6));
+        mkdir($rootPath . '/documentation', 0777, true);
+        file_put_contents($rootPath . '/documentation/application.md', '# Custom README');
+
+        try {
+            $this->assertSame(
+                ['content' => '# Custom README'],
+                $this->createWatcher($rootPath, [
+                    'path' => 'app',
+                    'readme' => 'documentation/application.md',
+                ])->getAppReadme('app')
+            );
+        } finally {
+            $this->removeDirectory($rootPath);
+        }
+    }
+
+    public function testGetAppReadmeUsesConfiguredAbsolutePath(): void
+    {
+        $rootPath = sys_get_temp_dir() . '/mata-node-readme-' . bin2hex(random_bytes(6));
+        $readmePath = $rootPath . '-external.md';
+        mkdir($rootPath, 0777, true);
+        file_put_contents($readmePath, '# External README');
+
+        try {
+            $this->assertSame(
+                ['content' => '# External README'],
+                $this->createWatcher($rootPath, [
+                    'path' => 'app',
+                    'readme' => $readmePath,
+                ])->getAppReadme('app')
+            );
+        } finally {
+            $this->removeDirectory($rootPath);
+            unlink($readmePath);
+        }
+    }
+
+    /**
+     * @param array<string, string> $appConfig
+     */
+    private function createWatcher(string $rootPath, array $appConfig): AppWatcher
+    {
+        return new AppWatcher(
+            new Tools(),
+            new NullLogger(),
+            $rootPath,
+            ['app' => $appConfig],
+            [],
+        );
     }
 
     private function removeDirectory(string $path): void
