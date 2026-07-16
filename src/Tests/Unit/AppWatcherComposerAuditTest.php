@@ -51,6 +51,47 @@ final class AppWatcherComposerAuditTest extends TestCase
         }
     }
 
+    public function testComposerAuditLogsInvalidJsonOutput(): void
+    {
+        $rootPath = sys_get_temp_dir() . '/mata-node-composer-audit-' . bin2hex(random_bytes(6));
+        mkdir($rootPath . '/app', 0777, true);
+        file_put_contents($rootPath . '/app/composer.json', '{}');
+        file_put_contents($rootPath . '/app/composer.lock', '{}');
+
+        $logger = $this->createMock(\Psr\Log\LoggerInterface::class);
+        $logger->expects($this->once())
+            ->method('warning')
+            ->with('Composer audit returned invalid JSON', $this->callback(static function (array $context) use ($rootPath): bool {
+                return $context['composer_json'] === $rootPath . '/app/composer.json'
+                    && $context['composer_lock'] === $rootPath . '/app/composer.lock'
+                    && $context['exit_code'] === 1
+                    && $context['json_error'] === 'Syntax error'
+                    && $context['stdout_preview'] === 'Composer failed'
+                    && $context['stderr_preview'] === 'Missing extension';
+            }));
+
+        try {
+            $watcher = new AppWatcher(
+                new Tools(),
+                $logger,
+                $rootPath,
+                ['app' => ['path' => 'app', 'composer' => true]],
+                [],
+                null,
+                null,
+                null,
+                new FakeProcessCommandRunner(new CommandResult('Composer failed', 'Missing extension', 1, false, false, 10)),
+            );
+
+            $result = $watcher->getAppComposerAudit('app');
+
+            $this->assertSame('error', $result['status']);
+            $this->assertSame('composer audit did not return valid JSON', $result['message']);
+        } finally {
+            $this->removeDirectory($rootPath);
+        }
+    }
+
     public function testComposerAuditReturnsOutputLimitError(): void
     {
         $rootPath = sys_get_temp_dir() . '/mata-node-composer-audit-' . bin2hex(random_bytes(6));

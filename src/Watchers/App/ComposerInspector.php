@@ -8,6 +8,7 @@ use JsonException;
 use Mata\Services\Command\ProcessCommandRunnerInterface;
 use Mata\Services\Command\ShellCommands;
 use Mata\Utils\Tools;
+use Psr\Log\LoggerInterface;
 use RuntimeException;
 
 final class ComposerInspector
@@ -16,6 +17,7 @@ final class ComposerInspector
 
     public function __construct(
         private readonly Tools $tools,
+        private readonly LoggerInterface $logger,
         private readonly string $rootPath,
         private readonly ProcessCommandRunnerInterface $processRunner,
     ) {}
@@ -120,6 +122,16 @@ final class ComposerInspector
 
             return $result;
         }
+
+        $this->logger->warning('Composer audit returned invalid JSON', [
+            'command' => $cmd,
+            'composer_json' => $jsonPath,
+            'composer_lock' => $lockPath,
+            'exit_code' => $processResult->exitCode,
+            'json_error' => json_last_error_msg(),
+            'stdout_preview' => substr($stdout, 0, 1000),
+            'stderr_preview' => substr($stderr, 0, 1000),
+        ]);
 
         return [
             'status' => 'error',
