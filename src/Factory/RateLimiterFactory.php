@@ -33,8 +33,6 @@ final class RateLimiterFactory
         LoggerInterface $logger
     ): ?RateLimiter {
         if (!$config->enabled) {
-            $logger->info('Rate limiting disabled; storage initialization skipped');
-
             return null;
         }
 

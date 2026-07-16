@@ -47,6 +47,17 @@ class RouterSetup
     private function setupHealthCheck(): void
     {
         $this->router->get('/health', function () {
+            $ipResolution = $this->clientIpResolver->resolve($_SERVER, $this->generalConfig->trustedProxies);
+
+            $this->logger->debug('Health check HTTP request', [
+                'method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown',
+                'request_uri' => $_SERVER['REQUEST_URI'] ?? 'unknown',
+                'client_ip' => $ipResolution->clientIp,
+                'remote_addr' => $ipResolution->remoteAddr,
+                'trusted_proxy' => $ipResolution->usedTrustedProxy,
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
+            ]);
+
             $healthy = true;
             $checks = [];
 

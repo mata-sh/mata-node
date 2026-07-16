@@ -17,7 +17,7 @@ use PHPUnit\Framework\TestCase;
  */
 class RateLimiterFactoryTest extends TestCase
 {
-    public function testDisabledRateLimitingDoesNotInitializeStorage(): void
+    public function testDisabledRateLimitingDoesNotInitializeStorageOrLog(): void
     {
         $handler = new TestHandler();
         $logger = new Logger('test', [$handler]);
@@ -25,8 +25,7 @@ class RateLimiterFactoryTest extends TestCase
         $rateLimiter = RateLimiterFactory::create($this->createConfig(enabled: false), $logger);
 
         $this->assertNull($rateLimiter);
-        $this->assertTrue($handler->hasInfoThatContains('Rate limiting disabled; storage initialization skipped'));
-        $this->assertFalse($handler->hasInfoThatContains('RateLimiter initialized'));
+        $this->assertEmpty($handler->getRecords());
     }
 
     private function createConfig(bool $enabled): RateLimitingConfig

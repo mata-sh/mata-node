@@ -75,6 +75,11 @@ final class HttpAuthMiddlewareTest extends TestCase
         $this->assertSame(200, $response->getStatusCode(), (string) $response->getBody());
         $body = $this->decodeJson($response);
         $this->assertSame('healthy', $body['status']);
+
+        $log = file_get_contents($this->tmpDir . '/logs/app.log');
+        $this->assertIsString($log);
+        $this->assertStringContainsString('Health check HTTP request', $log);
+        $this->assertStringContainsString('"request_uri":"/health"', $log);
     }
 
     public function testProtectedRouteAcceptsValidHmacHeaderThroughRouter(): void
