@@ -26,12 +26,18 @@ final class RateLimiterFactory
      * @param RateLimitingConfig $config Configuration for rate limiting
      * @param LoggerInterface    $logger Logger for initialization messages
      *
-     * @return null|RateLimiter Rate limiter or null if initialization fails
+     * @return null|RateLimiter Rate limiter, or null when disabled or initialization fails
      */
     public static function create(
         RateLimitingConfig $config,
         LoggerInterface $logger
     ): ?RateLimiter {
+        if (!$config->enabled) {
+            $logger->info('Rate limiting disabled; storage initialization skipped');
+
+            return null;
+        }
+
         try {
             $redis = null;
 
