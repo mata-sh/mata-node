@@ -32,6 +32,27 @@ final class AppWatcherReadmeTest extends TestCase
         }
     }
 
+    public function testGetAppReadmeReturnsNotFoundPayloadWhenReadmeIsMissing(): void
+    {
+        $rootPath = sys_get_temp_dir() . '/mata-node-readme-' . bin2hex(random_bytes(6));
+        mkdir($rootPath . '/app', 0777, true);
+
+        try {
+            $this->assertSame(
+                [
+                    'content' => '',
+                    'notice' => [
+                        'code' => 'README_NOT_FOUND',
+                        'message' => 'README not found',
+                    ],
+                ],
+                $this->createWatcher($rootPath, ['path' => 'app'])->getAppReadme('app')
+            );
+        } finally {
+            $this->removeDirectory($rootPath);
+        }
+    }
+
     public function testGetAppReadmeUsesConfiguredRelativePath(): void
     {
         $rootPath = sys_get_temp_dir() . '/mata-node-readme-' . bin2hex(random_bytes(6));

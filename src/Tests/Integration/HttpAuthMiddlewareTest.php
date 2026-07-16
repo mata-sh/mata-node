@@ -102,6 +102,22 @@ final class HttpAuthMiddlewareTest extends TestCase
         $this->assertStringContainsString('"request_uri":"/server/info"', $log);
     }
 
+    public function testMissingReadmeReturnsPayloadWithOkStatusThroughRouter(): void
+    {
+        $response = $this->client->get('/testapp/readme', [
+            'headers' => ['X-Mata-Auth' => $this->generateAuthHeader()],
+        ]);
+
+        $this->assertSame(200, $response->getStatusCode(), (string) $response->getBody());
+        $this->assertSame([
+            'content' => '',
+            'notice' => [
+                'code' => 'README_NOT_FOUND',
+                'message' => 'README not found',
+            ],
+        ], $this->decodeJson($response));
+    }
+
     public function testInvalidAppMetadataReturnsConfigurationErrorThroughRouter(): void
     {
         $response = $this->client->get('/apps', [

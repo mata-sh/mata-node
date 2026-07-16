@@ -136,24 +136,23 @@ class AppWatcher
     }
 
     /**
-     * @return array{content: string}
+     * @return array{content: string, notice?: array{code: string, message: string}}
      */
     public function getAppReadme(string $app): array
     {
         $app = $this->requireAppKey($app);
         $appConfig = $this->watcherConfig[$app];
-        $readmeFile = $appConfig['readme'] ?? rtrim($appConfig['path'], '/') . '/README.md';
 
         try {
             return ['content' => $this->readmeReader->readFromConfig($appConfig)];
-        } catch (RuntimeException $e) {
-            throw new AppWatcherException(
-                message: $e->getMessage(),
-                error: 'Readme not found',
-                httpStatus: 404,
-                context: ['app' => $app, 'readme' => $readmeFile],
-                previous: $e
-            );
+        } catch (RuntimeException) {
+            return [
+                'content' => '',
+                'notice' => [
+                    'code' => 'README_NOT_FOUND',
+                    'message' => 'README not found',
+                ],
+            ];
         }
     }
 
