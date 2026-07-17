@@ -138,7 +138,7 @@ final class ProcessCommandRunner implements ProcessCommandRunnerInterface
     private function setsidPath(): ?string
     {
         foreach (['/usr/bin/setsid', '/bin/setsid'] as $path) {
-            if (is_executable($path)) {
+            if (@is_executable($path)) {
                 return $path;
             }
         }
