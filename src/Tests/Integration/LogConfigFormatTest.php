@@ -74,6 +74,24 @@ class LogConfigFormatTest extends TestCase
         $this->assertNotEmpty($parsed['logs/php_error.log']);
     }
 
+    public function testAbsoluteLogPathsAreNotResolvedRelativeToRoot(): void
+    {
+        $absoluteLogPath = $this->fixturesPath . '/php_error.log';
+        $appWatcher = $this->createAppWatcher([
+            'absolute-log-path' => [
+                'logs' => [[
+                    'type' => 'php_error_log',
+                    'paths' => [$absoluteLogPath],
+                ]],
+            ],
+        ]);
+
+        $this->assertArrayHasKey($absoluteLogPath, $appWatcher->getAppLogs('absolute-log-path'));
+        $this->assertNotEmpty($appWatcher->getAppLogEntries('absolute-log-path')[$absoluteLogPath]);
+        $this->assertLogStatusEntry($appWatcher->getAppLogStatus('absolute-log-path')[$absoluteLogPath]);
+        $this->assertGreaterThan(0, $appWatcher->getAppLogStats('absolute-log-path')['total']);
+    }
+
     public function testNewFormatWithTypeSpecified(): void
     {
         $watcherConfig = [

@@ -29,11 +29,10 @@ final class LogInspector
     {
         $logs = [];
         foreach ($this->getConfiguredLogPaths($app) as $log) {
-            $filePath = $this->rootPath . DIRECTORY_SEPARATOR . $log;
+            $filePath = $this->resolvePath($log);
             if (is_dir($filePath)) {
                 foreach (glob($filePath . DIRECTORY_SEPARATOR . '*.log') ?: [] as $logFile) {
-                    $relativePath = str_replace($this->rootPath . DIRECTORY_SEPARATOR, '', $logFile);
-                    $logs[$relativePath] = filesize($logFile) / 1024;
+                    $logs[$log . DIRECTORY_SEPARATOR . basename($logFile)] = filesize($logFile) / 1024;
                 }
 
                 continue;
@@ -64,7 +63,7 @@ final class LogInspector
         foreach ($this->resolveLogPaths($app) as $logConfig) {
             $logPath = $logConfig['path'];
             $type = $logConfig['type'];
-            $logFile = $this->rootPath . '/' . $logPath;
+            $logFile = $this->resolvePath($logPath);
 
             if (!is_readable($logFile)) {
                 $this->logger->warning('Log file not found or unreadable', [
@@ -91,7 +90,7 @@ final class LogInspector
         $status = [];
         foreach ($this->resolveLogPaths($app) as $logConfig) {
             $logPath = $logConfig['path'];
-            $logFile = $this->rootPath . '/' . $logPath;
+            $logFile = $this->resolvePath($logPath);
             if (!is_readable($logFile)) {
                 $this->logger->warning('Log file not found or unreadable', [
                     'app' => $app,
@@ -128,7 +127,7 @@ final class LogInspector
         foreach ($this->resolveLogPaths($app) as $logConfig) {
             $logPath = $logConfig['path'];
             $type = $logConfig['type'];
-            $logFile = $this->rootPath . '/' . $logPath;
+            $logFile = $this->resolvePath($logPath);
             if (!is_readable($logFile)) {
                 $this->logger->warning('Log file not found or unreadable', [
                     'app' => $app,
@@ -221,6 +220,13 @@ final class LogInspector
         }
 
         return $paths;
+    }
+
+    private function resolvePath(string $path): string
+    {
+        return str_starts_with($path, DIRECTORY_SEPARATOR)
+            ? $path
+            : $this->rootPath . DIRECTORY_SEPARATOR . $path;
     }
 
     private function isValidLogFilter(string $filter): bool
