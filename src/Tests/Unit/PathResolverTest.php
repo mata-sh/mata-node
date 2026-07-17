@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Mata\Tests\Unit;
 
-use Mata\Config\Dto\ApplicationConfig;
 use Mata\Config\Dto\AuthConfig;
+use Mata\Config\Dto\EnvConfig;
 use Mata\Config\Dto\EnvironmentConfig;
 use Mata\Config\Dto\GeneralConfig;
 use Mata\Config\Dto\LoggingConfig;
@@ -42,7 +42,7 @@ class PathResolverTest extends TestCase
 
         try {
             $paths = new PathResolver($rootPath . '/public/index.php');
-            $paths->applyConfig($this->createConfig(tempDir: 'runtime-temp'));
+            $paths->applyConfiguredPaths($this->createConfig(tempDir: 'runtime-temp'));
 
             $this->assertSame($rootPath . '/runtime-temp', $paths->tempPath);
             $this->assertSame($rootPath . '/runtime-temp/cache', $paths->cachePath);
@@ -62,9 +62,9 @@ class PathResolverTest extends TestCase
         return $rootPath;
     }
 
-    private function createConfig(string $tempDir = ''): ApplicationConfig
+    private function createConfig(string $tempDir = ''): EnvConfig
     {
-        return new ApplicationConfig(
+        return new EnvConfig(
             environment: new EnvironmentConfig(
                 env: 'test',
                 domain: 'https://example.test',

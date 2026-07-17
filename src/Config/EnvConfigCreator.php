@@ -4,35 +4,28 @@ declare(strict_types=1);
 
 namespace Mata\Config;
 
-use InvalidArgumentException;
 use RuntimeException;
 
 /**
- * Handles creation and verification of environment configuration files
- * from example templates.
+ * Handles creation and verification of configuration files
+ * from example templates (named `<filename>.example`).
  */
 class EnvConfigCreator
 {
     /**
-     * Mapping of required config files to their template equivalents.
-     */
-    private const TEMPLATE_MAP = [
-        'config.env' => 'config.env.example',
-        'mail.config.env' => 'mail.config.env.example',
-    ];
-
-    /**
-     * Check which required config files are missing.
+     * Check which required config files need to be created.
+     *
+     * A missing config directory means all required files need creation.
      *
      * @param array<string> $requiredFiles List of required config file names
      * @param string        $configDir     Configuration directory path
      *
      * @return array<string> List of missing file names
      */
-    public function getMissingFiles(array $requiredFiles, string $configDir): array
+    public function findFilesToCreate(array $requiredFiles, string $configDir): array
     {
         if (!is_dir($configDir)) {
-            throw new InvalidArgumentException("Config directory does not exist: {$configDir}");
+            return $requiredFiles;
         }
 
         return array_filter(
@@ -93,14 +86,7 @@ class EnvConfigCreator
      */
     private function createConfigFile(string $filename, string $configDir, string $exampleDir): bool
     {
-        $templateName = self::TEMPLATE_MAP[$filename] ?? null;
-
-        if ($templateName === null) {
-            // No template mapping found, try adding .example
-            $templateName = $filename . '.example';
-        }
-
-        $templatePath = $exampleDir . '/' . $templateName;
+        $templatePath = $exampleDir . '/' . $filename . '.example';
         $targetPath = $configDir . '/' . $filename;
 
         if (file_exists($targetPath)) {
@@ -139,7 +125,7 @@ class EnvConfigCreator
      */
     public function allConfigsExist(array $requiredFiles, string $configDir): bool
     {
-        return empty($this->getMissingFiles($requiredFiles, $configDir));
+        return $this->findFilesToCreate($requiredFiles, $configDir) === [];
     }
 
     /**
@@ -155,7 +141,7 @@ class EnvConfigCreator
         $info = [];
 
         foreach ($missingFiles as $file) {
-            $templateName = self::TEMPLATE_MAP[$file] ?? $file . '.example';
+            $templateName = $file . '.example';
             $templatePath = $exampleDir . '/' . $templateName;
 
             $info[$file] = [

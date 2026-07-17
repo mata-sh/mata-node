@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Mata\Config;
 
 use Dotenv\Dotenv;
-use Mata\Config\Dto\ApplicationConfig;
 use Mata\Config\Dto\AuthConfig;
+use Mata\Config\Dto\EnvConfig;
 use Mata\Config\Dto\EnvironmentConfig;
 use Mata\Config\Dto\GeneralConfig;
 use Mata\Config\Dto\LoggingConfig;
@@ -35,9 +35,9 @@ final class EnvConfigLoader
      * @param array<int,string> $envFiles   List of .env file names to load
      * @param string            $configPath Directory path containing configuration files
      *
-     * @return ApplicationConfig Type-safe application configuration DTO
+     * @return EnvConfig Type-safe application configuration DTO
      */
-    public function load(array $envFiles, string $configPath): ApplicationConfig
+    public function load(array $envFiles, string $configPath): EnvConfig
     {
         foreach ($envFiles as $file) {
             $fullPath = $configPath . DIRECTORY_SEPARATOR . $file;
@@ -46,7 +46,7 @@ final class EnvConfigLoader
             }
         }
 
-        return new ApplicationConfig(
+        return new EnvConfig(
             environment: $this->loadEnvironmentConfig(),
             general: $this->loadGeneralConfig(),
             php: $this->loadPhpConfig(),
@@ -178,11 +178,11 @@ final class EnvConfigLoader
     /**
      * Validate loaded configuration and return validation results.
      *
-     * @param ApplicationConfig $config Loaded configuration DTO
+     * @param EnvConfig $config Loaded configuration DTO
      *
      * @return array<string,mixed> Validation results with critical_errors, warnings, and is_valid
      */
-    public function validateConfig(ApplicationConfig $config): array
+    public function validateConfig(EnvConfig $config): array
     {
         $criticalErrors = [];
         $warnings = [];

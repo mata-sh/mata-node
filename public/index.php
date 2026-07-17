@@ -3,13 +3,16 @@
 declare(strict_types=1);
 
 use Bramus\Router\Router;
-use Mata\Config\EnvConfigFatalException;
-use Mata\Config\EnvConfigManager;
 use Mata\Config\LogConfigurator;
+use Mata\Config\StartupConfigException;
+use Mata\Config\StartupConfigInventory;
+use Mata\Config\StartupConfigManager;
+use Mata\Config\StartupFailureReason;
 use Mata\Core\App;
 use Mata\Core\Auth;
 use Mata\Factory\NonceStoreFactory;
 use Mata\Factory\RateLimiterFactory;
+use Mata\Http\BootFailureResponder;
 use Mata\Http\RouterSetup;
 use Mata\Services\Command\NativeCommandRunner;
 use Mata\Services\FileCache;
@@ -21,126 +24,100 @@ use Mata\Watchers\ServerWatcher;
 use Symfony\Component\Mailer\Mailer;
 use Symfony\Component\Mailer\Transport;
 
-// ************************************************************************************************
-// Composer
-// ************************************************************************************************
-require_once '../vendor/autoload.php';
+require_once dirname(__DIR__) . '/vendor/autoload.php';
 
-// ************************************************************************************************
-// Path & Tools Initialization
-// ************************************************************************************************
-$paths = new PathResolver(__FILE__);
-$tools = new Tools($paths->appPath);
+$responder = new BootFailureResponder();
+$log = null;
 
-// ************************************************************************************************
-// Error Reporting & Logging
-// ************************************************************************************************
-ini_set('display_errors', 0);
-ini_set('display_startup_errors', 0);
-ini_set('log_errors', 1);
-ini_set('error_log', $paths->bootLogPath);
-
-// ************************************************************************************************
-// Monolog (boot logger: errors only)
-// ************************************************************************************************
-$logConfigurator = new LogConfigurator();
-$log = $logConfigurator->createBootLogger($paths);
-
-// ************************************************************************************************
-// Config Initialization
-// ************************************************************************************************
 try {
-    $initResult = (new EnvConfigManager(
-        configDir: $paths->appPath . '/config',
-        exampleDir: $paths->appPath . '/config/example',
-        requiredFiles: [
-            'config.env',
-            'mail.config.env',
-        ],
-        logger: $log
+    $paths = new PathResolver(__FILE__);
+
+    ini_set('display_errors', '0');
+    ini_set('display_startup_errors', '0');
+    ini_set('log_errors', '1');
+    ini_set('error_log', $paths->bootLogPath);
+
+    $logConfigurator = new LogConfigurator();
+    $log = $logConfigurator->createBootLogger($paths);
+
+    $configDir = $paths->appPath . '/config';
+    $startupConfig = (new StartupConfigManager(
+        configDir: $configDir,
+        exampleDir: $configDir . '/example',
+        envFiles: StartupConfigInventory::ENV_FILES,
+        jsonFiles: StartupConfigInventory::JSON_FILES,
+        logger: $log,
     ))->initialize();
 
-    $appConfig = $initResult->config;
-    $validationWarnings = $initResult->warnings;
+    $envConfig = $startupConfig->envConfig;
+    $paths->applyConfiguredPaths($envConfig);
 
-} catch (EnvConfigFatalException $e) {
-    $log->critical($e->getMessage(), ['context' => $e->getContext()]);
+    ini_set('error_log', $paths->logsPath . '/php-error.log');
+    $log = $logConfigurator->createConfiguredLogger($envConfig->logging, $paths, 'app');
 
-    exit(1);
+    $watcherConfig = $startupConfig->jsonConfig('apps.json');
+    $databasesConfig = $startupConfig->jsonConfig('databases.json');
+    $transmitConfig = $startupConfig->jsonConfig('transmit.json');
+
+    $tools = new Tools();
+    $auth = new Auth($envConfig->auth, NonceStoreFactory::create($paths->cachePath));
+    $rateLimiter = RateLimiterFactory::create($envConfig->rateLimiting, $log);
+    $app = new App($auth, $envConfig, $paths, $rateLimiter);
+    $app->setBaseUrl($envConfig->environment->domain);
+
+    // Currently unused: reserved for sending mail alerts on critical failures
+    // directly, without relying on the dashboard or a queue.
+    /*
+    $transport = Transport::fromDsn($envConfig->mail->dsn);
+    $mailer = new Mailer($transport);
+
+    $mailCfg = [
+        'from_email' => $envConfig->mail->fromEmail,
+        'from_name' => $envConfig->mail->fromName,
+        'recipients' => $envConfig->mail->alertRecipients,
+    ];
+    */
+
+    $fileCache = new FileCache($paths->cachePath);
+    $commandRunner = new NativeCommandRunner();
+    $appWatcher = new AppWatcher(
+        $tools,
+        $log,
+        $paths->rootPath,
+        $watcherConfig,
+        $transmitConfig,
+        fileCache: $fileCache,
+        commandRunner: $commandRunner,
+        composerHome: $paths->cachePath . '/composer',
+    );
+    $serverWatcher = new ServerWatcher($paths->rootPath, $fileCache, $transmitConfig, $commandRunner);
+    $databaseWatcher = new DatabaseWatcher($databasesConfig, $commandRunner);
+
+    $router = new Router();
+    $routerSetup = new RouterSetup(
+        $router,
+        $auth,
+        $log,
+        $paths,
+        $appWatcher,
+        $serverWatcher,
+        $databaseWatcher,
+        $envConfig->general,
+        $rateLimiter,
+    );
+    $routerSetup->setup();
+} catch (StartupConfigException $e) {
+    $log->critical($e->getMessage(), ['context' => $e->getContext(), 'exception' => $e]);
+
+    $responder->respond($e->getReason(), $e->getMissingFiles());
 } catch (Throwable $e) {
-    $log->critical('Application Initialization failed! ' . $e->getMessage(), ['exception' => $e]);
+    if ($log !== null) {
+        $log->critical('Application startup failed', ['exception' => $e]);
+    } else {
+        error_log('Application startup failed: ' . $e->getMessage());
+    }
 
-    exit('Application initialization failed!');
+    $responder->respond(StartupFailureReason::InitializationFailed);
 }
 
-// ************************************************************************************************
-// Setting Environment & configurable Paths
-// ************************************************************************************************
-$environment = $appConfig->environment->env;
-$paths->applyConfig($appConfig);
-
-// ************************************************************************************************
-// Apply Configured Monolog Settings
-// ************************************************************************************************
-ini_set('error_log', $paths->logsPath . '/php-error.log');
-$log = $logConfigurator->createConfiguredLogger($appConfig->logging, $paths, 'app');
-
-// ************************************************************************************************
-// Authentication Setup
-// ************************************************************************************************
-$auth = new Auth($appConfig->auth, NonceStoreFactory::create($paths->cachePath));
-
-// ************************************************************************************************
-// Rate Limiter Setup
-// ************************************************************************************************
-$rateLimiter = RateLimiterFactory::create($appConfig->rateLimiting, $log);
-$app = new App($auth, $appConfig, $paths, $rateLimiter);
-$app->setBaseUrl($appConfig->environment->domain);
-
-// ************************************************************************************************
-// Initialize Mailer
-// ************************************************************************************************
-$transport = Transport::fromDsn($appConfig->mail->dsn);
-$mailer = new Mailer($transport);
-
-$mailCfg = [
-    'from_email' => $appConfig->mail->fromEmail,
-    'from_name' => $appConfig->mail->fromName,
-    'recipients' => $appConfig->mail->alertRecipients,
-];
-
-$tools = new Tools();
-
-$watcherConfig = json_decode(file_get_contents($paths->appPath . '/config/apps.json'), true);
-$databasesConfig = json_decode(file_get_contents($paths->appPath . '/config/databases.json'), true);
-$transmitConfig = json_decode(file_get_contents($paths->appPath . '/config/transmit.json'), true);
-
-$fileCache = new FileCache($paths->cachePath);
-$commandRunner = new NativeCommandRunner();
-$appWatcher = new AppWatcher(
-    $tools,
-    $log,
-    $paths->rootPath,
-    $watcherConfig,
-    $transmitConfig,
-    fileCache: $fileCache,
-    commandRunner: $commandRunner,
-    composerHome: $paths->cachePath . '/composer',
-);
-$serverWatcher = new ServerWatcher($paths->rootPath, $fileCache, $transmitConfig, $commandRunner);
-$databaseWatcher = new DatabaseWatcher($databasesConfig, $commandRunner);
-
-$router = new Router();
-$routerSetup = new RouterSetup(
-    $router,
-    $auth,
-    $log,
-    $paths,
-    $appWatcher,
-    $serverWatcher,
-    $databaseWatcher,
-    $appConfig->general,
-    $rateLimiter
-);
-$routerSetup->setup();
 $routerSetup->run();

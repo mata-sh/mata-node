@@ -176,9 +176,9 @@ Maintenance mode leaves `/health` available and returns `503 Service Unavailable
 
 - Endpoint: `/health`
 - No authentication required
-- Returns `200` when healthy, `503` when unhealthy
+- Returns `200` when healthy and `503` when unhealthy or when startup has not completed
 
-Example response:
+Healthy response:
 
 ```json
 {
@@ -187,10 +187,23 @@ Example response:
   "checks": {
     "logs_writable": true,
     "cache_writable": true,
-    "config_exists": true
-  }
+    "config_files_present": true
+  },
+  "missing_config_files": []
 }
 ```
+
+During startup failure, every endpoint (including `/health`) returns `503 Service Unavailable` with `Retry-After: 300`, `Cache-Control: no-store`, and a JSON body:
+
+```json
+{
+  "status": "not_ready",
+  "reason": "configuration_missing",
+  "missing_config_files": ["apps.json"]
+}
+```
+
+`reason` is `configuration_missing`, `configuration_invalid`, or `initialization_failed`. File names are basenames only.
 
 ## License
 

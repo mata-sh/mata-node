@@ -10,7 +10,7 @@ namespace Mata\Config\Dto;
  * Aggregates all configuration sections into a single cohesive object
  * that represents the entire application configuration state.
  */
-final class ApplicationConfig
+final class EnvConfig
 {
     public function __construct(
         public readonly EnvironmentConfig $environment,

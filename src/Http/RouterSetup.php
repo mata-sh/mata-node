@@ -6,6 +6,7 @@ namespace Mata\Http;
 
 use Bramus\Router\Router;
 use Mata\Config\Dto\GeneralConfig;
+use Mata\Config\StartupConfigInventory;
 use Mata\Core\Auth;
 use Mata\Security\IpAllowlist;
 use Mata\Services\RateLimiter;
@@ -71,8 +72,9 @@ class RouterSetup
                 $healthy = false;
             }
 
-            $checks['config_exists'] = file_exists($this->paths->appPath . '/config/config.env');
-            if (!$checks['config_exists']) {
+            $missingConfigFiles = StartupConfigInventory::findMissingFiles($this->paths->appPath . '/config');
+            $checks['config_files_present'] = $missingConfigFiles === [];
+            if (!$checks['config_files_present']) {
                 $healthy = false;
             }
 
@@ -81,6 +83,7 @@ class RouterSetup
                 'timestamp' => date('Y-m-d H:i:s'),
                 'maintenance_mode' => $this->generalConfig->maintenanceModeEnabled,
                 'checks' => $checks,
+                'missing_config_files' => $missingConfigFiles,
             ];
 
             $this->sendJson($response, $healthy ? 200 : 503);

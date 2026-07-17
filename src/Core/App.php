@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Mata\Core;
 
-use Mata\Config\Dto\ApplicationConfig;
+use Mata\Config\Dto\EnvConfig;
 use Mata\Services\RateLimiter;
 use Mata\Utils\PathResolver;
 
@@ -14,7 +14,7 @@ use Mata\Utils\PathResolver;
 class App
 {
     public Auth $auth;
-    public ApplicationConfig $config;
+    public EnvConfig $config;
     public PathResolver $paths;
     public ?RateLimiter $rateLimiter = null;
     public string $baseUrl = '';
@@ -25,7 +25,7 @@ class App
      */
     public function __construct(
         Auth $auth,
-        ApplicationConfig $config,
+        EnvConfig $config,
         PathResolver $paths,
         ?RateLimiter $rateLimiter = null
     ) {

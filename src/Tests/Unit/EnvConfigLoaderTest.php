@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Mata\Tests\Unit;
 
-use Mata\Config\Dto\ApplicationConfig;
 use Mata\Config\Dto\AuthConfig;
+use Mata\Config\Dto\EnvConfig;
 use Mata\Config\Dto\EnvironmentConfig;
 use Mata\Config\Dto\GeneralConfig;
 use Mata\Config\Dto\LoggingConfig;
@@ -104,9 +104,9 @@ class EnvConfigLoaderTest extends TestCase
         bool $ipWhitelistEnabled = false,
         array $allowedIps = [],
         array $trustedProxies = [],
-    ): ApplicationConfig {
+    ): EnvConfig {
 
-        return new ApplicationConfig(
+        return new EnvConfig(
             environment: new EnvironmentConfig(
                 env: 'test',
                 domain: 'example.test',

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Mata\Utils;
 
 use InvalidArgumentException;
-use Mata\Config\Dto\ApplicationConfig;
+use Mata\Config\Dto\EnvConfig;
 use RuntimeException;
 
 class PathResolver
@@ -42,9 +42,10 @@ class PathResolver
     }
 
     /**
-     * Apply config overrides for log/temp paths.
+     * Apply config overrides for log/temp paths and ensure the resulting
+     * directories exist and are writable (created if absent).
      */
-    public function applyConfig(ApplicationConfig $config): void
+    public function applyConfiguredPaths(EnvConfig $config): void
     {
         $logPath = trim($config->logging->path);
         if ($logPath !== '') {
