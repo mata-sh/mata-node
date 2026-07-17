@@ -30,17 +30,11 @@ final class LogInspector
     public function files(string $app): array
     {
         $logs = [];
-        foreach ($this->getConfiguredLogPaths($app) as $log) {
-            $filePath = $this->tools->normalizePath($log, $this->rootPath);
-            if (is_dir($filePath)) {
-                foreach (glob($filePath . DIRECTORY_SEPARATOR . '*.log') ?: [] as $logFile) {
-                    $logs[$log . DIRECTORY_SEPARATOR . basename($logFile)] = filesize($logFile) / 1024;
-                }
-
-                continue;
-            }
+        foreach ($this->resolveLogPaths($app, expandDirectories: true) as $logConfig) {
+            $logPath = $logConfig['path'];
+            $filePath = $this->tools->normalizePath($logPath, $this->rootPath);
             if (file_exists($filePath)) {
-                $logs[$log] = filesize($filePath) / 1024;
+                $logs[$logPath] = filesize($filePath) / 1024;
             }
         }
 
@@ -90,7 +84,7 @@ final class LogInspector
     public function status(string $app): array
     {
         $status = [];
-        foreach ($this->resolveLogPaths($app) as $logConfig) {
+        foreach ($this->resolveLogPaths($app, expandDirectories: true) as $logConfig) {
             $logPath = $logConfig['path'];
             $logFile = $this->tools->normalizePath($logPath, $this->rootPath);
             if (!is_readable($logFile)) {
@@ -130,6 +124,7 @@ final class LogInspector
             $logPath = $logConfig['path'];
             $type = $logConfig['type'];
             $logFile = $this->tools->normalizePath($logPath, $this->rootPath);
+
             if (!is_readable($logFile)) {
                 $this->logger->warning('Log file not found or unreadable', [
                     'app' => $app,
@@ -151,9 +146,15 @@ final class LogInspector
     }
 
     /**
+     * Resolve configured log paths for an app.
+     *
+     * Directory configs are metadata-only: with $expandDirectories they are
+     * expanded into the *.log files they contain (files/status endpoints);
+     * otherwise they are skipped (parsing endpoints).
+     *
      * @return array<int, array{path: string, type: mixed}>
      */
-    private function resolveLogPaths(string $app): array
+    private function resolveLogPaths(string $app, bool $expandDirectories = false): array
     {
         $logs = $this->watcherConfig[$app]['logs'] ?? [];
         $resolved = [];
@@ -182,10 +183,21 @@ final class LogInspector
                     continue;
                 }
 
-                $resolved[] = [
-                    'path' => $logPath,
-                    'type' => $type,
-                ];
+                $candidatePaths = [$logPath];
+                if (is_dir($this->tools->normalizePath($logPath, $this->rootPath))) {
+                    if (!$expandDirectories) {
+                        continue;
+                    }
+
+                    $candidatePaths = $this->expandDirectoryPath($logPath);
+                }
+
+                foreach ($candidatePaths as $resolvedPath) {
+                    $resolved[] = [
+                        'path' => $resolvedPath,
+                        'type' => $type,
+                    ];
+                }
             }
         }
 
@@ -193,35 +205,20 @@ final class LogInspector
     }
 
     /**
+     * Expand a configured directory path into the *.log files it contains.
+     *
      * @return array<int, string>
      */
-    private function getConfiguredLogPaths(string $app): array
+    private function expandDirectoryPath(string $logPath): array
     {
-        $logs = $this->watcherConfig[$app]['logs'] ?? [];
-        if (!is_array($logs)) {
-            return [];
+        $filePath = $this->tools->normalizePath($logPath, $this->rootPath);
+
+        $expanded = [];
+        foreach (glob($filePath . DIRECTORY_SEPARATOR . '*.log') ?: [] as $logFile) {
+            $expanded[] = $logPath . DIRECTORY_SEPARATOR . basename($logFile);
         }
 
-        $paths = [];
-        foreach ($logs as $logGroup) {
-            if (is_string($logGroup) && $logGroup !== '') {
-                $paths[] = $logGroup;
-
-                continue;
-            }
-
-            if (!is_array($logGroup)) {
-                continue;
-            }
-
-            foreach ($logGroup['paths'] ?? [] as $path) {
-                if (is_string($path) && $path !== '') {
-                    $paths[] = $path;
-                }
-            }
-        }
-
-        return $paths;
+        return $expanded;
     }
 
     private function isValidLogFilter(string $filter): bool

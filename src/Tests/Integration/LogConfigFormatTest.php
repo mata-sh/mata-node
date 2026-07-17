@@ -481,6 +481,46 @@ class LogConfigFormatTest extends TestCase
         $this->assertLogStatusEntry($stats['logs/php_error.log']);
     }
 
+    public function testDirectoryPathExpandsToContainedLogFilesForMetadataOnly(): void
+    {
+        $watcherConfig = [
+            'folderapp' => [
+                'logs' => [
+                    'logs/php_error.log',
+                    'logs',
+                ],
+            ],
+        ];
+
+        $appWatcher = $this->createAppWatcher($watcherConfig);
+
+        $files = $appWatcher->getAppLogs('folderapp');
+        $status = $appWatcher->getAppLogStatus('folderapp');
+
+        $expandedPaths = array_map(
+            static fn (string $file): string => 'logs/' . basename($file),
+            glob($this->fixturesPath . '/*.log') ?: []
+        );
+        $this->assertNotEmpty($expandedPaths);
+        $expectedPaths = array_values(array_unique(['logs/php_error.log', ...$expandedPaths]));
+
+        // Status (log-files modal) must list the same expanded paths as files (tooltip)
+        $this->assertSame($expectedPaths, array_keys($files));
+        $this->assertSame($expectedPaths, array_keys($status));
+
+        foreach ($status as $entry) {
+            $this->assertLogStatusEntry($entry);
+        }
+
+        // Folder-discovered logs are metadata-only: parsing sticks to explicit paths
+        $entries = $appWatcher->getAppLogEntries('folderapp', '', 5);
+        $this->assertSame(['logs/php_error.log'], array_keys($entries));
+        $this->assertNotEmpty($entries['logs/php_error.log']);
+
+        $stats = $appWatcher->getAppLogStats('folderapp');
+        $this->assertGreaterThan(0, $stats['total']);
+    }
+
     private function assertParsedLogEntry(mixed $entry): void
     {
         $this->assertIsArray($entry);
