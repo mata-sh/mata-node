@@ -96,10 +96,7 @@ final class ProcessCommandRunner implements ProcessCommandRunnerInterface
         fclose($pipes[2]);
 
         if ($processStopped || !proc_get_status($process)['running']) {
-            $closeExitCode = proc_close($process);
-            if ($exitCode === null && $closeExitCode >= 0) {
-                $exitCode = $closeExitCode;
-            }
+            proc_close($process);
         }
 
         if ($outputTruncated && !$timedOut) {
@@ -109,7 +106,7 @@ final class ProcessCommandRunner implements ProcessCommandRunnerInterface
         return new CommandResult(
             $stdout,
             $stderr,
-            $exitCode ?? self::EXIT_START_FAILED,
+            $exitCode,
             $timedOut,
             $outputTruncated,
             (int) ((microtime(true) - $start) * 1000),
