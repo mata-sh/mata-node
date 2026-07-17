@@ -182,6 +182,33 @@ class ServerWatcherTest extends TestCase
         }
     }
 
+    public function testGetCronjobsSupportsAbsoluteHeartbeatPaths(): void
+    {
+        $rootPath = sys_get_temp_dir() . '/mata-node-server-root-' . bin2hex(random_bytes(6));
+        $cachePath = sys_get_temp_dir() . '/mata-node-server-cache-' . bin2hex(random_bytes(6));
+        $heartbeatPath = $rootPath . '/logs/cron/heartbeat-absolute.log';
+        mkdir(dirname($heartbeatPath), 0777, true);
+        mkdir($cachePath, 0777, true);
+        file_put_contents($heartbeatPath, "absolute heartbeat\n");
+
+        try {
+            $watcher = new ServerWatcher($rootPath, new FileCache($cachePath), [
+                'cronjob_heartbeats' => [$heartbeatPath],
+            ]);
+
+            $cronjobs = $watcher->getCronjobs();
+
+            $this->assertCount(1, $cronjobs);
+            $this->assertSame($heartbeatPath, $cronjobs[0]['path']);
+            $this->assertTrue($cronjobs[0]['exists']);
+            $this->assertSame(strlen("absolute heartbeat\n"), $cronjobs[0]['size']);
+            $this->assertSame(['absolute heartbeat'], $cronjobs[0]['content_tail']);
+        } finally {
+            $this->removeDirectory($rootPath);
+            $this->removeDirectory($cachePath);
+        }
+    }
+
     public function testGetInfoReturnsDashboardContractKeys(): void
     {
         $watcher = new ServerWatcher(__DIR__, new FileCache(sys_get_temp_dir()), []);

@@ -8,6 +8,7 @@ use Mata\Services\Command\CommandRunnerInterface;
 use Mata\Services\Command\NativeCommandRunner;
 use Mata\Services\Command\ShellCommands;
 use Mata\Services\FileCache;
+use Mata\Utils\Tools;
 use Mata\Watchers\Server\CronjobInspector;
 
 class ServerWatcher
@@ -18,14 +19,21 @@ class ServerWatcher
     private string $diskSpaceCheckPath;
     private int $filecountCacheMaxAge;
     private CommandRunnerInterface $commandRunner;
+    private Tools $tools;
     private CronjobInspector $cronjobInspector;
 
-    public function __construct(string $rootPath, FileCache $cache, array $transmitConfig, ?CommandRunnerInterface $commandRunner = null)
-    {
+    public function __construct(
+        string $rootPath,
+        FileCache $cache,
+        array $transmitConfig,
+        ?CommandRunnerInterface $commandRunner = null,
+        ?Tools $tools = null,
+    ) {
         $this->rootPath = $rootPath;
         $this->cache = $cache;
         $this->commandRunner = $commandRunner ?? new NativeCommandRunner();
-        $this->cronjobInspector = new CronjobInspector($rootPath, $transmitConfig, $this->commandRunner);
+        $this->tools = $tools ?? new Tools();
+        $this->cronjobInspector = new CronjobInspector($rootPath, $transmitConfig, $this->tools, $this->commandRunner);
 
         $this->diskSpaceCheckPath = $transmitConfig['check_disk_space_path'] ?? '/';
         $this->isDiskSpaceCheckEnabled = ($transmitConfig['check_disk_space_enabled'] ?? true) !== 'off';

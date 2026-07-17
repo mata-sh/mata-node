@@ -7,6 +7,7 @@ namespace Mata\Watchers\Server;
 use Mata\Services\Command\CommandRunnerInterface;
 use Mata\Services\Command\NativeCommandRunner;
 use Mata\Services\Command\ShellCommands;
+use Mata\Utils\Tools;
 
 final class CronjobInspector
 {
@@ -18,6 +19,7 @@ final class CronjobInspector
     public function __construct(
         private readonly string $rootPath,
         private readonly array $transmitConfig,
+        private readonly Tools $tools,
         ?CommandRunnerInterface $commandRunner = null,
     ) {
         $this->commandRunner = $commandRunner ?? new NativeCommandRunner();
@@ -64,7 +66,7 @@ final class CronjobInspector
         $maxAgeSeconds = $this->intConfig('cronjob_heartbeat_stale_seconds', self::DEFAULT_STALE_SECONDS);
 
         foreach ($this->heartbeatPaths() as $index => $heartbeatPath) {
-            $file = $this->rootPath . DIRECTORY_SEPARATOR . $heartbeatPath;
+            $file = $this->tools->normalizePath($heartbeatPath, $this->rootPath);
             $exists = is_readable($file) && is_file($file);
             $mtime = $exists ? filemtime($file) : false;
             $ageSeconds = $mtime === false ? null : max(0, time() - $mtime);

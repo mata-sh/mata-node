@@ -6,6 +6,7 @@ namespace Mata\Watchers\App;
 
 use Mata\Services\Command\CommandRunnerInterface;
 use Mata\Services\Command\ShellCommands;
+use Mata\Utils\Tools;
 use Mata\Watchers\LogParsers\LogParserFactory;
 use Mata\Watchers\LogParsers\LogParserInterface;
 use Psr\Log\LoggerInterface;
@@ -20,6 +21,7 @@ final class LogInspector
     public function __construct(
         private readonly LoggerInterface $logger,
         private readonly string $rootPath,
+        private readonly Tools $tools,
         private readonly array $watcherConfig,
         private readonly array $transmitConfig,
         private readonly CommandRunnerInterface $commandRunner,
@@ -29,7 +31,7 @@ final class LogInspector
     {
         $logs = [];
         foreach ($this->getConfiguredLogPaths($app) as $log) {
-            $filePath = $this->resolvePath($log);
+            $filePath = $this->tools->normalizePath($log, $this->rootPath);
             if (is_dir($filePath)) {
                 foreach (glob($filePath . DIRECTORY_SEPARATOR . '*.log') ?: [] as $logFile) {
                     $logs[$log . DIRECTORY_SEPARATOR . basename($logFile)] = filesize($logFile) / 1024;
@@ -63,7 +65,7 @@ final class LogInspector
         foreach ($this->resolveLogPaths($app) as $logConfig) {
             $logPath = $logConfig['path'];
             $type = $logConfig['type'];
-            $logFile = $this->resolvePath($logPath);
+            $logFile = $this->tools->normalizePath($logPath, $this->rootPath);
 
             if (!is_readable($logFile)) {
                 $this->logger->warning('Log file not found or unreadable', [
@@ -90,7 +92,7 @@ final class LogInspector
         $status = [];
         foreach ($this->resolveLogPaths($app) as $logConfig) {
             $logPath = $logConfig['path'];
-            $logFile = $this->resolvePath($logPath);
+            $logFile = $this->tools->normalizePath($logPath, $this->rootPath);
             if (!is_readable($logFile)) {
                 $this->logger->warning('Log file not found or unreadable', [
                     'app' => $app,
@@ -127,7 +129,7 @@ final class LogInspector
         foreach ($this->resolveLogPaths($app) as $logConfig) {
             $logPath = $logConfig['path'];
             $type = $logConfig['type'];
-            $logFile = $this->resolvePath($logPath);
+            $logFile = $this->tools->normalizePath($logPath, $this->rootPath);
             if (!is_readable($logFile)) {
                 $this->logger->warning('Log file not found or unreadable', [
                     'app' => $app,
@@ -220,13 +222,6 @@ final class LogInspector
         }
 
         return $paths;
-    }
-
-    private function resolvePath(string $path): string
-    {
-        return str_starts_with($path, DIRECTORY_SEPARATOR)
-            ? $path
-            : $this->rootPath . DIRECTORY_SEPARATOR . $path;
     }
 
     private function isValidLogFilter(string $filter): bool

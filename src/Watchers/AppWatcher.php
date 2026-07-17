@@ -51,7 +51,7 @@ class AppWatcher
         $commandRunner = $commandRunner ?? new NativeCommandRunner($processRunner);
 
         $this->sessionBackendFactory = $sessionBackendFactory ?? new SessionBackendFactory(null, $fileCache);
-        $this->logInspector = new LogInspector($logger, $rootPath, $this->watcherConfig, $transmitConfig, $commandRunner);
+        $this->logInspector = new LogInspector($logger, $rootPath, $tools, $this->watcherConfig, $transmitConfig, $commandRunner);
         $this->composerInspector = new ComposerInspector($tools, $logger, $rootPath, $processRunner, $composerHome);
         $this->readmeReader = new ReadmeReader($rootPath);
     }
