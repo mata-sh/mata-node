@@ -45,13 +45,13 @@ class AppWatcher
     ) {
         $this->logger = $logger;
         $this->rootPath = $rootPath;
-        $this->watcherConfig = $watcherConfig;
+        $this->watcherConfig = $this->excludeDisabledApps($watcherConfig);
 
         $processRunner = $processRunner ?? new ProcessCommandRunner();
         $commandRunner = $commandRunner ?? new NativeCommandRunner($processRunner);
 
         $this->sessionBackendFactory = $sessionBackendFactory ?? new SessionBackendFactory(null, $fileCache);
-        $this->logInspector = new LogInspector($logger, $rootPath, $watcherConfig, $transmitConfig, $commandRunner);
+        $this->logInspector = new LogInspector($logger, $rootPath, $this->watcherConfig, $transmitConfig, $commandRunner);
         $this->composerInspector = new ComposerInspector($tools, $logger, $rootPath, $processRunner, $composerHome);
         $this->readmeReader = new ReadmeReader($rootPath);
     }
@@ -234,6 +234,22 @@ class AppWatcher
     public function readmeToString(string $readmeFile): string
     {
         return $this->readmeReader->read($readmeFile);
+    }
+
+    /**
+     * @param array<string, mixed> $watcherConfig
+     *
+     * @return array<string, mixed>
+     */
+    private function excludeDisabledApps(array $watcherConfig): array
+    {
+        foreach ($watcherConfig as $app => $config) {
+            if (is_array($config) && ($config['disabled'] ?? 'false') === 'true') {
+                unset($watcherConfig[$app]);
+            }
+        }
+
+        return $watcherConfig;
     }
 
     private function requireAppKey(string $app): string

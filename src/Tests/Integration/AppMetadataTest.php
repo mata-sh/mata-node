@@ -170,6 +170,23 @@ class AppMetadataTest extends TestCase
         return $cases;
     }
 
+    public function testDisabledAppIsExcludedAndUnavailable(): void
+    {
+        $appWatcher = $this->createAppWatcher([
+            'enabled' => $this->appConfig(),
+            'disabled' => $this->appConfig(['disabled' => 'true']),
+        ]);
+
+        $this->assertSame(['enabled'], array_keys($appWatcher->getApps()));
+
+        try {
+            $appWatcher->getApp('disabled');
+            $this->fail('Expected disabled app to be unavailable.');
+        } catch (AppWatcherException $exception) {
+            $this->assertSame(404, $exception->getHttpStatus());
+        }
+    }
+
     public function testAppSpecificSessionsEndpointPayload(): void
     {
         file_put_contents($this->rootPath . '/app/temp/sessions/sess_recent', 'session');
@@ -255,6 +272,7 @@ class AppMetadataTest extends TestCase
             'path' => 'app',
             'env' => 'test',
             'description' => 'App description',
+            'disabled' => 'false',
             'sessions' => [
                 'type' => 'file',
                 'path' => 'app/temp/sessions',
