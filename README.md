@@ -94,10 +94,12 @@ MATA Node runs on each monitored environment and answers authenticated requests 
 Authenticated requests use a single header:
 
 ```text
-X-Mata-Auth: <dashboard_server_id>|<unix_timestamp>|<nonce>|<hex_hmac_sha256>
+X-Mata-Auth: <server_id>|<unix_timestamp>|<nonce>|<hex_hmac_sha256>
 ```
 
-The node validates the dashboard server ID, timestamp window, nonce, and HMAC signature.
+The node validates the server ID, timestamp window, nonce, and HMAC signature. The signature is
+`HMAC-SHA256(server_id|timestamp|nonce, api_key)`, so the API key itself never travels over the wire.
+`<server_id>` is this node's entry key in the dashboard's `servers.json` (see below).
 
 ## Quick Start
 
@@ -150,9 +152,14 @@ Redis session stores should use `sessions.count_key` when available so the node 
 At minimum, set the shared dashboard credentials in `config/config.env`:
 
 ```env
-DASHBOARD_SERVER_ID=dashboard
+DASHBOARD_SERVER_ID=prod-web-01
 DASHBOARD_API_KEY=your-shared-secret
 ```
+
+`DASHBOARD_SERVER_ID` must exactly match this node's entry key in the dashboard's
+`config/servers.json` — the JSON property name (e.g. `"prod-web-01": { ... }`), not a field
+inside the entry. `DASHBOARD_API_KEY` must match that entry's `api_key` value. Renaming the
+key in `servers.json` breaks authentication for this node until both sides agree again.
 
 Optional app-level IP allowlisting is available for shared hosting:
 
