@@ -118,6 +118,19 @@ final class HttpAuthMiddlewareTest extends TestCase
         ], $this->decodeJson($response));
     }
 
+    public function testLogsRouteReturnsWrappedContract(): void
+    {
+        $response = $this->client->get('/testapp/logs?limit=0', [
+            'headers' => ['X-Mata-Auth' => $this->generateAuthHeader()],
+        ]);
+
+        $this->assertSame(200, $response->getStatusCode(), (string) $response->getBody());
+        $this->assertSame([
+            'entries' => [],
+            'readout_limit' => 1,
+        ], $this->decodeJson($response));
+    }
+
     public function testInvalidAppMetadataReturnsConfigurationErrorThroughRouter(): void
     {
         $response = $this->client->get('/apps', [

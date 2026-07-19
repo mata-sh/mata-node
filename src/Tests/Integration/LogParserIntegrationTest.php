@@ -406,6 +406,44 @@ class LogParserIntegrationTest extends TestCase
         $this->assertCount(1, $result['logs/php_error.log']);
     }
 
+    public function testGetAppLogReadoutLimitClampsInvalidValues(): void
+    {
+        $watcherConfig = ['testapp' => ['logs' => []]];
+        $appWatcher = $this->createAppWatcher($watcherConfig, transmitConfig: ['errorlog_readout_limit' => 25]);
+
+        $this->assertSame(1, $appWatcher->getAppLogReadoutLimit(0));
+        $this->assertSame(1, $appWatcher->getAppLogReadoutLimit(-10));
+        $this->assertSame(25, $appWatcher->getAppLogReadoutLimit());
+        $this->assertSame(12, $appWatcher->getAppLogReadoutLimit(12));
+        $this->assertSame(1, $this->createAppWatcher($watcherConfig, transmitConfig: ['errorlog_readout_limit' => 0])->getAppLogReadoutLimit());
+        $this->assertSame(50, $this->createAppWatcher($watcherConfig)->getAppLogReadoutLimit());
+    }
+
+    public function testGetLogEntriesAlwaysReturnsArrayGroups(): void
+    {
+        $watcherConfig = [
+            'testapp' => [
+                'logs' => [
+                    'logs/php_error.log',
+                    'logs/missing.log',
+                    [
+                        'type' => [],
+                        'paths' => ['logs/json.log'],
+                    ],
+                ],
+            ],
+        ];
+
+        $entries = $this->createAppWatcher($watcherConfig)->getAppLogEntries('testapp');
+
+        $this->assertArrayHasKey('logs/php_error.log', $entries);
+        $this->assertArrayHasKey('logs/missing.log', $entries);
+        $this->assertArrayHasKey('logs/json.log', $entries);
+        foreach ($entries as $group) {
+            $this->assertIsArray($group);
+        }
+    }
+
     public function testGetLogEntriesReturnsEmptyForInvalidFilter(): void
     {
         $watcherConfig = [

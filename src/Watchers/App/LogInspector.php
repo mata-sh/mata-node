@@ -10,6 +10,7 @@ use Mata\Utils\Tools;
 use Mata\Watchers\LogParsers\LogParserFactory;
 use Mata\Watchers\LogParsers\LogParserInterface;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 final class LogInspector
 {
@@ -71,11 +72,20 @@ final class LogInspector
                 continue;
             }
 
-            $parser = $this->getLogParser($type, $logFile);
-            $lines = $this->tailLogLines($logFile, $scanLineLimit);
-            $parsedEntries = $parser->parseLines($lines);
-            $parsedEntries = $this->filterLogEntries($parsedEntries, $filter);
-            $entries[$logPath] = array_slice($parsedEntries, -$limit);
+            try {
+                $parser = $this->getLogParser($type, $logFile);
+                $lines = $this->tailLogLines($logFile, $scanLineLimit);
+                $parsedEntries = $parser->parseLines($lines);
+                $parsedEntries = $this->filterLogEntries($parsedEntries, $filter);
+                $entries[$logPath] = array_slice($parsedEntries, -$limit);
+            } catch (Throwable $e) {
+                $this->logger->warning('Failed to parse log file', [
+                    'app' => $app,
+                    'log' => $logFile,
+                    'exception' => $e,
+                ]);
+                $entries[$logPath] = [];
+            }
         }
 
         return $entries;
@@ -164,7 +174,7 @@ final class LogInspector
         $logs = $this->watcherConfig[$app]['logs'] ?? [];
         $resolved = [];
 
-        if (empty($logs)) {
+        if (!is_array($logs) || empty($logs)) {
             return $resolved;
         }
 
@@ -179,7 +189,7 @@ final class LogInspector
                 $paths = $logGroup['paths'] ?? [];
             }
 
-            if (empty($paths)) {
+            if (!is_array($paths) || empty($paths)) {
                 continue;
             }
 
