@@ -6,6 +6,7 @@ namespace Mata\Config;
 
 use Dotenv\Dotenv;
 use Mata\Config\Dto\AuthConfig;
+use Mata\Config\Dto\ComposerConfig;
 use Mata\Config\Dto\EnvConfig;
 use Mata\Config\Dto\EnvironmentConfig;
 use Mata\Config\Dto\GeneralConfig;
@@ -54,6 +55,7 @@ final class EnvConfigLoader
             mail: $this->loadMailConfig(),
             rateLimiting: $this->loadRateLimitingConfig(),
             auth: $this->loadAuthConfig(),
+            composer: $this->loadComposerConfig(),
         );
     }
 
@@ -145,6 +147,21 @@ final class EnvConfigLoader
             dashboardApiKey: $this->getEnv('DASHBOARD_API_KEY', ''),
             clockSkewWindow: (int) $this->getEnv('DASHBOARD_CLOCK_SKEW_WINDOW', '120'),
         );
+    }
+
+    private function loadComposerConfig(): ComposerConfig
+    {
+        return new ComposerConfig(
+            bin: $this->getNonEmptyEnv('COMPOSER_BIN'),
+            phpBin: $this->getNonEmptyEnv('COMPOSER_PHP_BIN'),
+        );
+    }
+
+    private function getNonEmptyEnv(string $key): ?string
+    {
+        $value = $this->getEnv($key);
+
+        return $value !== null && trim($value) !== '' ? $value : null;
     }
 
     /**

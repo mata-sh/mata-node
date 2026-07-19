@@ -89,6 +89,8 @@ try {
         fileCache: $fileCache,
         commandRunner: $commandRunner,
         composerHome: $paths->cachePath . '/composer',
+        composerBin: $envConfig->composer->bin,
+        composerPhpBin: $envConfig->composer->phpBin,
     );
     $serverWatcher = new ServerWatcher($paths->rootPath, $fileCache, $transmitConfig, $commandRunner);
     $databaseWatcher = new DatabaseWatcher($databasesConfig, $commandRunner);

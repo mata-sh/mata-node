@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Mata\Tests\Unit;
 
 use Mata\Config\Dto\AuthConfig;
+use Mata\Config\Dto\ComposerConfig;
 use Mata\Config\Dto\EnvConfig;
 use Mata\Config\Dto\EnvironmentConfig;
 use Mata\Config\Dto\GeneralConfig;
@@ -22,6 +23,65 @@ use PHPUnit\Framework\TestCase;
  */
 class EnvConfigLoaderTest extends TestCase
 {
+    public function testLoadsOptionalComposerCommandDefaults(): void
+    {
+        $configDir = sys_get_temp_dir() . '/mata-node-env-' . bin2hex(random_bytes(6));
+        mkdir($configDir, 0777, true);
+        file_put_contents(
+            $configDir . '/config.env',
+            <<<'ENV'
+COMPOSER_BIN=tools/composer.phar
+COMPOSER_PHP_BIN=/usr/bin/php8.3-cli
+ENV
+        );
+
+        $keys = ['COMPOSER_BIN', 'COMPOSER_PHP_BIN'];
+        $previousEnv = array_intersect_key($_ENV, array_flip($keys));
+        $previousServer = array_intersect_key($_SERVER, array_flip($keys));
+        $previousProcess = [];
+        foreach ($keys as $key) {
+            $previousProcess[$key] = getenv($key);
+            unset($_ENV[$key], $_SERVER[$key]);
+            putenv($key);
+        }
+
+        try {
+            $config = (new EnvConfigLoader())->load(['config.env'], $configDir);
+
+            $this->assertSame('tools/composer.phar', $config->composer->bin);
+            $this->assertSame('/usr/bin/php8.3-cli', $config->composer->phpBin);
+
+            foreach ($keys as $key) {
+                unset($_ENV[$key], $_SERVER[$key]);
+                putenv($key);
+            }
+            file_put_contents($configDir . '/config.env', "COMPOSER_BIN=\nCOMPOSER_PHP_BIN=\n");
+
+            $config = (new EnvConfigLoader())->load(['config.env'], $configDir);
+
+            $this->assertNull($config->composer->bin);
+            $this->assertNull($config->composer->phpBin);
+        } finally {
+            foreach ($keys as $key) {
+                unset($_ENV[$key], $_SERVER[$key]);
+                if (array_key_exists($key, $previousEnv)) {
+                    $_ENV[$key] = $previousEnv[$key];
+                }
+                if (array_key_exists($key, $previousServer)) {
+                    $_SERVER[$key] = $previousServer[$key];
+                }
+                if ($previousProcess[$key] === false) {
+                    putenv($key);
+                } else {
+                    putenv($key . '=' . $previousProcess[$key]);
+                }
+            }
+
+            unlink($configDir . '/config.env');
+            rmdir($configDir);
+        }
+    }
+
     public function testEmptyDashboardApiKeyIsCriticalConfigError(): void
     {
         $result = (new EnvConfigLoader())->validateConfig($this->createConfig(dashboardApiKey: ''));
@@ -160,6 +220,10 @@ class EnvConfigLoaderTest extends TestCase
                 dashboardServerId: 'dashboard',
                 dashboardApiKey: $dashboardApiKey,
                 clockSkewWindow: 120,
+            ),
+            composer: new ComposerConfig(
+                bin: null,
+                phpBin: null,
             ),
         );
     }

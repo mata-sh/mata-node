@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Mata\Tests\Unit;
 
 use Mata\Config\Dto\AuthConfig;
+use Mata\Config\Dto\ComposerConfig;
 use Mata\Config\Dto\EnvConfig;
 use Mata\Config\Dto\EnvironmentConfig;
 use Mata\Config\Dto\GeneralConfig;
@@ -117,6 +118,10 @@ class PathResolverTest extends TestCase
             auth: new AuthConfig(
                 dashboardServerId: 'dashboard',
                 dashboardApiKey: 'test-key',
+            ),
+            composer: new ComposerConfig(
+                bin: null,
+                phpBin: null,
             ),
         );
     }

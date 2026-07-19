@@ -18,6 +18,92 @@ use Psr\Log\NullLogger;
  */
 final class AppWatcherComposerAuditTest extends TestCase
 {
+    public function testComposerAuditUsesGlobalCommandDefaultsForAutoConfiguredApp(): void
+    {
+        $rootPath = sys_get_temp_dir() . '/mata-node-composer-audit-' . bin2hex(random_bytes(6));
+        mkdir($rootPath . '/app', 0777, true);
+        file_put_contents($rootPath . '/app/composer.json', '{}');
+        file_put_contents($rootPath . '/app/composer.lock', '{}');
+        $processRunner = new FakeProcessCommandRunner(new CommandResult('{}', '', 0, false, false, 10));
+
+        try {
+            $watcher = new AppWatcher(
+                new Tools(),
+                new NullLogger(),
+                $rootPath,
+                ['app' => ['path' => 'app', 'composer' => true]],
+                [],
+                processRunner: $processRunner,
+                composerBin: 'tools/composer.phar',
+                composerPhpBin: '/usr/bin/php8.3-cli',
+            );
+
+            $result = $watcher->getAppComposerAudit('app');
+
+            $this->assertSame('ok', $result['status']);
+            $this->assertStringStartsWith(
+                escapeshellarg('/usr/bin/php8.3-cli') . ' ' . escapeshellarg($rootPath . '/tools/composer.phar'),
+                $processRunner->calls[0]['command'],
+            );
+        } finally {
+            $this->removeDirectory($rootPath);
+        }
+    }
+
+    public function testComposerAuditOverridesGlobalDefaultsIndependently(): void
+    {
+        $rootPath = sys_get_temp_dir() . '/mata-node-composer-audit-' . bin2hex(random_bytes(6));
+        foreach (['bin-override', 'php-override'] as $app) {
+            mkdir($rootPath . '/' . $app, 0777, true);
+            file_put_contents($rootPath . '/' . $app . '/composer.json', '{}');
+            file_put_contents($rootPath . '/' . $app . '/composer.lock', '{}');
+        }
+        $processRunner = new FakeProcessCommandRunner(new CommandResult('{}', '', 0, false, false, 10));
+
+        try {
+            $watcher = new AppWatcher(
+                new Tools(),
+                new NullLogger(),
+                $rootPath,
+                [
+                    'bin-override' => [
+                        'composer' => [
+                            'json' => 'bin-override/composer.json',
+                            'lock' => 'bin-override/composer.lock',
+                            'bin' => 'overrides/composer.phar',
+                            'php_bin' => '',
+                        ],
+                    ],
+                    'php-override' => [
+                        'composer' => [
+                            'json' => 'php-override/composer.json',
+                            'lock' => 'php-override/composer.lock',
+                            'bin' => '',
+                            'php_bin' => 'overrides/php',
+                        ],
+                    ],
+                ],
+                [],
+                processRunner: $processRunner,
+                composerBin: 'defaults/composer.phar',
+                composerPhpBin: 'defaults/php',
+            );
+
+            $watcher->getAppsComposerAudit();
+
+            $this->assertStringStartsWith(
+                escapeshellarg($rootPath . '/defaults/php') . ' ' . escapeshellarg($rootPath . '/overrides/composer.phar'),
+                $processRunner->calls[0]['command'],
+            );
+            $this->assertStringStartsWith(
+                escapeshellarg($rootPath . '/overrides/php') . ' ' . escapeshellarg($rootPath . '/defaults/composer.phar'),
+                $processRunner->calls[1]['command'],
+            );
+        } finally {
+            $this->removeDirectory($rootPath);
+        }
+    }
+
     public function testComposerAuditReturnsTimeoutError(): void
     {
         $rootPath = sys_get_temp_dir() . '/mata-node-composer-audit-' . bin2hex(random_bytes(6));

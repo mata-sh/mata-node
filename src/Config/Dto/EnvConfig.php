@@ -20,5 +20,6 @@ final class EnvConfig
         public readonly MailConfig $mail,
         public readonly RateLimitingConfig $rateLimiting,
         public readonly AuthConfig $auth,
+        public readonly ComposerConfig $composer,
     ) {}
 }

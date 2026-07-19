@@ -21,12 +21,14 @@ final class ComposerInspector
         private readonly string $rootPath,
         private readonly ProcessCommandRunnerInterface $processRunner,
         private readonly ?string $composerHome = null,
+        private readonly ?string $defaultBinPath = null,
+        private readonly ?string $defaultPhpBinPath = null,
     ) {}
 
     public function resolvePaths(array $config): ?array
     {
-        $binPath = null;
-        $phpBinPath = null;
+        $binPath = $this->nonEmptyPath($this->defaultBinPath);
+        $phpBinPath = $this->nonEmptyPath($this->defaultPhpBinPath);
         $jsonPath = null;
         $lockPath = null;
 
@@ -34,8 +36,8 @@ final class ComposerInspector
         if (is_array($composerConfig)) {
             $jsonPath = $composerConfig['json'] ?? null;
             $lockPath = $composerConfig['lock'] ?? null;
-            $binPath = $composerConfig['bin'] ?? null;
-            $phpBinPath = $composerConfig['php_bin'] ?? null;
+            $binPath = $this->nonEmptyPath($composerConfig['bin'] ?? null) ?? $binPath;
+            $phpBinPath = $this->nonEmptyPath($composerConfig['php_bin'] ?? null) ?? $phpBinPath;
         }
 
         if ($jsonPath === null || $lockPath === null) {
@@ -207,6 +209,11 @@ final class ComposerInspector
             'type' => $p['type'] ?? '',
             'description' => $p['description'] ?? '',
         ], $packages);
+    }
+
+    private function nonEmptyPath(mixed $path): ?string
+    {
+        return is_string($path) && trim($path) !== '' ? $path : null;
     }
 
     private function isAutoEnabled(mixed $composerConfig): bool
