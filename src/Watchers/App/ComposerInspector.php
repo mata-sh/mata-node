@@ -27,12 +27,15 @@ final class ComposerInspector
 
     public function resolvePaths(array $config): ?array
     {
+        $composerConfig = $config['composer'] ?? null;
+        if (!$this->isEnabled($composerConfig)) {
+            return null;
+        }
+
         $binPath = $this->nonEmptyPath($this->defaultBinPath);
         $phpBinPath = $this->nonEmptyPath($this->defaultPhpBinPath);
         $jsonPath = null;
         $lockPath = null;
-
-        $composerConfig = $config['composer'] ?? null;
         if (is_array($composerConfig)) {
             $jsonPath = $composerConfig['json'] ?? null;
             $lockPath = $composerConfig['lock'] ?? null;
@@ -41,13 +44,8 @@ final class ComposerInspector
         }
 
         if ($jsonPath === null || $lockPath === null) {
-            $autoEnabled = $this->isAutoEnabled($composerConfig);
-            if (!$autoEnabled) {
-                return null;
-            }
-
             $basePath = $config['path'] ?? null;
-            if (!$basePath) {
+            if (!is_string($basePath) || trim($basePath) === '') {
                 return null;
             }
 
@@ -211,21 +209,31 @@ final class ComposerInspector
         ], $packages);
     }
 
-    private function nonEmptyPath(mixed $path): ?string
+    /**
+     * A Composer block is opt-in. Explicit enabled=false takes precedence over paths.
+     */
+    public function isEnabled(mixed $composerConfig): bool
     {
-        return is_string($path) && trim($path) !== '' ? $path : null;
-    }
-
-    private function isAutoEnabled(mixed $composerConfig): bool
-    {
-        if ($composerConfig === true) {
-            return true;
-        }
-
-        if (is_string($composerConfig)) {
+        if ($composerConfig === true || is_string($composerConfig)) {
             return $this->tools->isTruthy($composerConfig);
         }
 
-        return false;
+        if (!is_array($composerConfig)) {
+            return false;
+        }
+
+        if (array_key_exists('enabled', $composerConfig)) {
+            return $this->tools->isTruthy($composerConfig['enabled']);
+        }
+
+        return array_key_exists('json', $composerConfig)
+            || array_key_exists('lock', $composerConfig)
+            || array_key_exists('bin', $composerConfig)
+            || array_key_exists('php_bin', $composerConfig);
+    }
+
+    private function nonEmptyPath(mixed $path): ?string
+    {
+        return is_string($path) && trim($path) !== '' ? $path : null;
     }
 }

@@ -114,8 +114,10 @@
         "logs": [
             "composer-app/logs/error.log"
         ],
-        "composer": true,
-        "description": "Old format with composer auto-detect",
+        "composer": {
+            "enabled": true
+        },
+        "description": "Composer uses composer.json and composer.lock in the application path",
         "env": "live"
     }
 }

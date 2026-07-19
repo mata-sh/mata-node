@@ -76,6 +76,21 @@ class AppMetadataTest extends TestCase
         ], $info['session']);
     }
 
+    public function testAppInfoReportsComposerCapability(): void
+    {
+        $appWatcher = $this->createAppWatcher([
+            'disabled' => $this->appConfig(['composer' => ['enabled' => false]]),
+            'enabled' => $this->appConfig(['composer' => ['enabled' => true]]),
+            'configured' => $this->appConfig(['composer' => ['bin' => 'composer.phar']]),
+            'missing' => $this->appConfig(),
+        ]);
+
+        $this->assertFalse($appWatcher->getAppInfo('disabled')['composer']);
+        $this->assertTrue($appWatcher->getAppInfo('enabled')['composer']);
+        $this->assertTrue($appWatcher->getAppInfo('configured')['composer']);
+        $this->assertFalse($appWatcher->getAppInfo('missing')['composer']);
+    }
+
     #[DataProvider('validStatusEndpointProvider')]
     public function testAppInfoReturnsValidAbsoluteStatusUrl(string $statusEndpoint): void
     {

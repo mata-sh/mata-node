@@ -50,6 +50,39 @@ final class AppWatcherComposerAuditTest extends TestCase
         }
     }
 
+    public function testComposerConfigurationFieldsEnableAuditUnlessExplicitlyDisabled(): void
+    {
+        $rootPath = sys_get_temp_dir() . '/mata-node-composer-audit-' . bin2hex(random_bytes(6));
+        foreach (['configured', 'disabled', 'missing'] as $app) {
+            mkdir($rootPath . '/' . $app, 0777, true);
+            file_put_contents($rootPath . '/' . $app . '/composer.json', '{}');
+            file_put_contents($rootPath . '/' . $app . '/composer.lock', '{}');
+        }
+        $processRunner = new FakeProcessCommandRunner(new CommandResult('{}', '', 0, false, false, 10));
+
+        try {
+            $watcher = new AppWatcher(
+                new Tools(),
+                new NullLogger(),
+                $rootPath,
+                [
+                    'configured' => ['path' => 'configured', 'composer' => ['bin' => 'composer.phar']],
+                    'disabled' => ['path' => 'disabled', 'composer' => ['enabled' => false, 'bin' => 'composer.phar']],
+                    'missing' => ['path' => 'missing'],
+                ],
+                [],
+                processRunner: $processRunner,
+            );
+
+            $result = $watcher->getAppsComposerAudit();
+
+            $this->assertSame(['configured'], array_keys($result));
+            $this->assertCount(1, $processRunner->calls);
+        } finally {
+            $this->removeDirectory($rootPath);
+        }
+    }
+
     public function testComposerAuditOverridesGlobalDefaultsIndependently(): void
     {
         $rootPath = sys_get_temp_dir() . '/mata-node-composer-audit-' . bin2hex(random_bytes(6));

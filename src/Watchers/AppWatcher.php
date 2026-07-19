@@ -189,6 +189,7 @@ class AppWatcher
             'session' => $this->getSessionMetadata($app),
             'logs' => $this->logInspector->files($app),
             'alarms_enabled' => $appConfig['alarms_enabled'] ?? '',
+            'composer' => $this->composerInspector->isEnabled($appConfig['composer'] ?? null),
         ];
     }
 
