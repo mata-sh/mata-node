@@ -34,12 +34,16 @@ final class ShellCommands
         return 'grep -c ' . escapeshellarg($pattern) . ' -- ' . self::argPath($file) . ' 2>/dev/null';
     }
 
-    public static function composerAudit(?string $binPath, string $workingDir, ?string $composerHome = null): string
-    {
+    public static function composerAudit(
+        ?string $binPath,
+        string $workingDir,
+        ?string $composerHome = null,
+        ?string $phpBinary = null,
+    ): string {
         $environment = $composerHome === null ? '' : 'COMPOSER_HOME=' . self::argPath($composerHome) . ' ';
 
         return $environment
-            . self::composerCommand($binPath)
+            . self::composerCommand($binPath, $phpBinary)
             . ' --no-plugins --no-scripts audit --format=json --no-ansi --no-interaction --working-dir='
             . self::argPath($workingDir);
     }
@@ -98,7 +102,7 @@ final class ShellCommands
         ];
     }
 
-    private static function composerCommand(?string $binPath): string
+    private static function composerCommand(?string $binPath, ?string $phpBinary): string
     {
         if (!$binPath) {
             return 'composer';
@@ -106,7 +110,9 @@ final class ShellCommands
 
         $binPath = ShellInput::path($binPath);
         if (str_ends_with(strtolower($binPath), '.phar')) {
-            return 'php ' . escapeshellarg($binPath);
+            $php = $phpBinary === null ? 'php' : escapeshellarg(ShellInput::path($phpBinary));
+
+            return $php . ' ' . escapeshellarg($binPath);
         }
 
         return escapeshellarg($binPath);

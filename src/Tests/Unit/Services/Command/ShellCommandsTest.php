@@ -79,6 +79,17 @@ final class ShellCommandsTest extends TestCase
         );
     }
 
+    public function testComposerAuditUsesConfiguredPhpBinaryForPhar(): void
+    {
+        $phpBinary = '/usr/bin/php8.3-cli';
+        $binPath = '/tmp/composer.phar';
+
+        $this->assertSame(
+            escapeshellarg($phpBinary) . ' ' . escapeshellarg($binPath) . ' --no-plugins --no-scripts audit --format=json --no-ansi --no-interaction --working-dir=' . escapeshellarg('/tmp/project'),
+            ShellCommands::composerAudit($binPath, '/tmp/project', phpBinary: $phpBinary)
+        );
+    }
+
     public function testProcessCountRejectsShellMetacharacters(): void
     {
         $this->expectException(InvalidArgumentException::class);

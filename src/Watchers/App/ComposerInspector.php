@@ -26,6 +26,7 @@ final class ComposerInspector
     public function resolvePaths(array $config): ?array
     {
         $binPath = null;
+        $phpBinPath = null;
         $jsonPath = null;
         $lockPath = null;
 
@@ -34,6 +35,7 @@ final class ComposerInspector
             $jsonPath = $composerConfig['json'] ?? null;
             $lockPath = $composerConfig['lock'] ?? null;
             $binPath = $composerConfig['bin'] ?? null;
+            $phpBinPath = $composerConfig['php_bin'] ?? null;
         }
 
         if ($jsonPath === null || $lockPath === null) {
@@ -59,6 +61,7 @@ final class ComposerInspector
             'json' => $jsonPath ? $this->tools->normalizePath($jsonPath, $this->rootPath) : null,
             'lock' => $lockPath ? $this->tools->normalizePath($lockPath, $this->rootPath) : null,
             'bin' => $binPath ? $this->tools->normalizePath($binPath, $this->rootPath) : null,
+            'php_bin' => $phpBinPath ? $this->tools->normalizePath($phpBinPath, $this->rootPath) : null,
         ];
     }
 
@@ -67,6 +70,7 @@ final class ComposerInspector
         $jsonPath = $paths['json'] ?? null;
         $lockPath = $paths['lock'] ?? null;
         $binPath = $paths['bin'] ?? null;
+        $phpBinPath = $paths['php_bin'] ?? null;
 
         if (!$jsonPath || !is_readable($jsonPath)) {
             return [
@@ -83,7 +87,7 @@ final class ComposerInspector
         }
 
         $workingDir = dirname($jsonPath);
-        $cmd = ShellCommands::composerAudit($binPath, $workingDir, $this->composerHome);
+        $cmd = ShellCommands::composerAudit($binPath, $workingDir, $this->composerHome, $phpBinPath);
 
         $processResult = $this->processRunner->run($cmd, self::COMPOSER_AUDIT_TIMEOUT_SECONDS);
         $stdout = trim($processResult->stdout);
