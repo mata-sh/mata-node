@@ -97,6 +97,52 @@ final class AppWatcherComposerAuditTest extends TestCase
         }
     }
 
+    public function testComposerAuditClassifiesHttpOutputAsACommandError(): void
+    {
+        $rootPath = sys_get_temp_dir() . '/mata-node-composer-audit-' . bin2hex(random_bytes(6));
+        mkdir($rootPath . '/app', 0777, true);
+        file_put_contents($rootPath . '/app/composer.json', '{}');
+        file_put_contents($rootPath . '/app/composer.lock', '{}');
+
+        $logger = $this->createMock(\Psr\Log\LoggerInterface::class);
+        $logger->expects($this->once())
+            ->method('warning')
+            ->with('Composer audit returned HTTP response', $this->callback(static function (array $context): bool {
+                return $context['exit_code'] === 0
+                    && $context['command_http_status'] === 401;
+            }));
+
+        try {
+            $watcher = new AppWatcher(
+                new Tools(),
+                $logger,
+                $rootPath,
+                ['app' => ['path' => 'app', 'composer' => true]],
+                [],
+                null,
+                null,
+                null,
+                new FakeProcessCommandRunner(new CommandResult(
+                    "Status: 401 Unauthorized\nContent-Type: application/json\n\n{\"error\":\"Unauthorized\"}",
+                    '',
+                    0,
+                    false,
+                    false,
+                    10,
+                )),
+            );
+
+            $result = $watcher->getAppComposerAudit('app');
+
+            $this->assertSame('error', $result['status']);
+            $this->assertSame(0, $result['exit_code']);
+            $this->assertSame('composer command returned HTTP 401 instead of audit JSON', $result['message']);
+            $this->assertArrayNotHasKey('stdout', $result);
+        } finally {
+            $this->removeDirectory($rootPath);
+        }
+    }
+
     public function testComposerAuditReturnsOutputLimitError(): void
     {
         $rootPath = sys_get_temp_dir() . '/mata-node-composer-audit-' . bin2hex(random_bytes(6));

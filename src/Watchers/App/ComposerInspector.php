@@ -112,6 +112,26 @@ final class ComposerInspector
             ];
         }
 
+        $httpStatus = $this->httpStatusFromOutput($stdout);
+        if ($httpStatus !== null) {
+            $this->logger->warning('Composer audit returned HTTP response', [
+                'command' => $cmd,
+                'composer_json' => $jsonPath,
+                'composer_lock' => $lockPath,
+                'composer_home' => $this->composerHome,
+                'exit_code' => $processResult->exitCode,
+                'command_http_status' => $httpStatus,
+                'stderr_preview' => substr($stderr, 0, 1000),
+            ]);
+
+            return [
+                'status' => 'error',
+                'exit_code' => $processResult->exitCode,
+                'message' => "composer command returned HTTP {$httpStatus} instead of audit JSON",
+                'stderr' => $stderr,
+            ];
+        }
+
         $data = $stdout !== '' ? json_decode($stdout, true) : null;
 
         if (is_array($data)) {
@@ -146,6 +166,15 @@ final class ComposerInspector
             'stdout' => $stdout,
             'stderr' => $stderr,
         ];
+    }
+
+    private function httpStatusFromOutput(string $stdout): ?int
+    {
+        if (preg_match('/\A(?:Status:\s*|HTTP\/\d\.\d\s+)([1-5]\d{2})\b/i', $stdout, $matches) !== 1) {
+            return null;
+        }
+
+        return (int) $matches[1];
     }
 
     /**
