@@ -43,7 +43,7 @@ final class LogInspector
 
     public function entries(string $app, string $filter = '', ?int $limit = null): array
     {
-        $limit = max(1, (int) ($limit ?? $this->transmitConfig['errorlog_readout_limit'] ?? 50));
+        $limit = $this->readoutLimit($limit);
         $scanLineLimit = max(1, (int) ($this->transmitConfig['errorlog_scan_line_limit'] ?? self::DEFAULT_LOG_SCAN_LINE_LIMIT));
 
         if (!$this->isValidLogFilter($filter)) {
@@ -79,6 +79,11 @@ final class LogInspector
         }
 
         return $entries;
+    }
+
+    public function readoutLimit(?int $limit = null): int
+    {
+        return max(1, (int) ($limit ?? $this->transmitConfig['errorlog_readout_limit'] ?? 50));
     }
 
     public function status(string $app): array

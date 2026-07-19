@@ -203,11 +203,18 @@ class RouterSetup
 
             ['/{app}/readme', fn (string $app) => $this->appWatcher->getAppReadme($app)],
             ['/{app}/sessions', fn (string $app) => $this->appWatcher->getAppSessions($app)],
-            ['/{app}/logs', fn (string $app) => $this->appWatcher->getAppLogEntries(
-                app: $app,
-                filter: is_string($_GET['filter'] ?? null) ? $_GET['filter'] : '',
-                limit: isset($_GET['limit']) && is_scalar($_GET['limit']) ? (int) $_GET['limit'] : null,
-            )],
+            ['/{app}/logs', function (string $app): array {
+                $limit = isset($_GET['limit']) && is_scalar($_GET['limit']) ? (int) $_GET['limit'] : null;
+
+                return [
+                    'entries' => $this->appWatcher->getAppLogEntries(
+                        app: $app,
+                        filter: is_string($_GET['filter'] ?? null) ? $_GET['filter'] : '',
+                        limit: $limit,
+                    ),
+                    'readout_limit' => $this->appWatcher->getAppLogReadoutLimit($limit),
+                ];
+            }],
             ['/{app}/logs-status', fn (string $app) => $this->appWatcher->getAppLogStatus($app)],
             ['/{app}/libraries', fn (string $app) => $this->appWatcher->getAppLibraries($app)],
             ['/{app}/composer-audit', fn (string $app) => $this->appWatcher->getAppComposerAudit($app)],

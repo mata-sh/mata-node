@@ -221,6 +221,11 @@ class AppWatcher
         return $this->logInspector->entries($app, $filter, $limit);
     }
 
+    public function getAppLogReadoutLimit(?int $limit = null): int
+    {
+        return $this->logInspector->readoutLimit($limit);
+    }
+
     public function getAppLogStats(string $app): array
     {
         $app = $this->requireAppKey($app);
