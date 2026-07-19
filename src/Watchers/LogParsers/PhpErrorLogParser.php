@@ -51,8 +51,8 @@ class PhpErrorLogParser extends AbstractLogParser
     private function getGrepPattern(string $filter): string
     {
         return match ($filter) {
-            'errors' => 'PHP Fatal error\|PHP Parse error\|PHP Error',
-            'warnings' => 'PHP Warning',
+            'errors' => '^\[[^]]*\] PHP [^:]*\(error\|Error\)[^:]*:',
+            'warnings' => '^\[[^]]*\] PHP [^:]*\(Warning\|warning\|Notice\|notice\)[^:]*:',
             default => '',
         };
     }
@@ -96,7 +96,8 @@ class PhpErrorLogParser extends AbstractLogParser
         $message = trim($matches[3]);
 
         $normalizedType = match (true) {
-            stripos($type, 'warning') !== false => 'Warning',
+            stripos($type, 'warning') !== false,
+            stripos($type, 'notice') !== false => 'Warning',
             stripos($type, 'error') !== false => 'Error',
             stripos($type, 'deprecated') !== false => 'Deprecated',
             default => 'Other'

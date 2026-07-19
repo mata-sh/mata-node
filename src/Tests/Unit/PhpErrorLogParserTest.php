@@ -233,16 +233,15 @@ class PhpErrorLogParserTest extends TestCase
         $this->assertEquals('Deprecated', $deprecatedEntry['type']);
     }
 
-    public function testParseToJsonHandlesOtherTypes(): void
+    public function testParseToJsonNormalizesNoticesAsWarnings(): void
     {
         $logFile = $this->fixturesPath . '/php_error.log';
         $result = $this->parser->parseToJson($logFile, 100);
         $parsed = json_decode($result, true);
 
-        // Find notice entry
         $noticeEntry = null;
         foreach ($parsed as $entry) {
-            if ($entry['type'] === 'Other') {
+            if (str_contains($entry['message'], 'Undefined variable: config')) {
                 $noticeEntry = $entry;
 
                 break;
@@ -250,6 +249,34 @@ class PhpErrorLogParserTest extends TestCase
         }
 
         $this->assertNotNull($noticeEntry);
-        $this->assertEquals('Other', $noticeEntry['type']);
+        $this->assertSame('Warning', $noticeEntry['type']);
+    }
+
+    public function testAnalyzeLogCountsNoticesAsWarnings(): void
+    {
+        $logFile = $this->fixturesPath . '/php_error.log';
+
+        $result = $this->parser->analyzeLog($logFile);
+
+        $this->assertSame(5, $result['warnings']);
+    }
+
+    public function testAnalyzeLogDoesNotTreatAnErrorInWarningMessageAsAnError(): void
+    {
+        $logFile = tempnam(sys_get_temp_dir(), 'mata_php_error_log_');
+        self::assertNotFalse($logFile);
+
+        file_put_contents(
+            $logFile,
+            "[19-Jul-2026 12:00:00 UTC] PHP Warning: PHP Error text in a warning message\n"
+        );
+
+        try {
+            $result = $this->parser->analyzeLog($logFile);
+
+            $this->assertSame(['fatal' => 0, 'warnings' => 1, 'total' => 1], $result);
+        } finally {
+            unlink($logFile);
+        }
     }
 }
