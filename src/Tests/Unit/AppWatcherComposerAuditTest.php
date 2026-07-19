@@ -66,7 +66,10 @@ final class AppWatcherComposerAuditTest extends TestCase
                 new NullLogger(),
                 $rootPath,
                 [
-                    'configured' => ['path' => 'configured', 'composer' => ['bin' => 'composer.phar']],
+                    'configured' => ['path' => 'configured', 'composer' => [
+                        'json' => 'configured/composer.json',
+                        'lock' => 'configured/composer.lock',
+                    ]],
                     'disabled' => ['path' => 'disabled', 'composer' => ['enabled' => false, 'bin' => 'composer.phar']],
                     'missing' => ['path' => 'missing'],
                 ],

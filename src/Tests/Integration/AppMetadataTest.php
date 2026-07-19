@@ -81,7 +81,10 @@ class AppMetadataTest extends TestCase
         $appWatcher = $this->createAppWatcher([
             'disabled' => $this->appConfig(['composer' => ['enabled' => false]]),
             'enabled' => $this->appConfig(['composer' => ['enabled' => true]]),
-            'configured' => $this->appConfig(['composer' => ['bin' => 'composer.phar']]),
+            'configured' => $this->appConfig(['composer' => [
+                'json' => 'app/composer.json',
+                'lock' => 'app/composer.lock',
+            ]]),
             'missing' => $this->appConfig(),
         ]);
 
