@@ -53,7 +53,7 @@ final class ShellCommandsTest extends TestCase
         $workingDir = '/tmp/project dir';
 
         $this->assertSame(
-            'composer audit --format=json --no-ansi --no-interaction --working-dir=' . escapeshellarg($workingDir),
+            'composer --no-plugins --no-scripts audit --format=json --no-ansi --no-interaction --working-dir=' . escapeshellarg($workingDir),
             ShellCommands::composerAudit(null, $workingDir)
         );
     }
@@ -63,7 +63,7 @@ final class ShellCommandsTest extends TestCase
         $composerHome = '/tmp/mata cache/composer';
 
         $this->assertSame(
-            'COMPOSER_HOME=' . escapeshellarg($composerHome) . ' composer audit --format=json --no-ansi --no-interaction --working-dir=' . escapeshellarg('/tmp/project'),
+            'COMPOSER_HOME=' . escapeshellarg($composerHome) . ' composer --no-plugins --no-scripts audit --format=json --no-ansi --no-interaction --working-dir=' . escapeshellarg('/tmp/project'),
             ShellCommands::composerAudit(null, '/tmp/project', $composerHome)
         );
     }
@@ -74,7 +74,7 @@ final class ShellCommandsTest extends TestCase
         $workingDir = '/tmp/project';
 
         $this->assertSame(
-            'php ' . escapeshellarg($binPath) . ' audit --format=json --no-ansi --no-interaction --working-dir=' . escapeshellarg($workingDir),
+            'php ' . escapeshellarg($binPath) . ' --no-plugins --no-scripts audit --format=json --no-ansi --no-interaction --working-dir=' . escapeshellarg($workingDir),
             ShellCommands::composerAudit($binPath, $workingDir)
         );
     }

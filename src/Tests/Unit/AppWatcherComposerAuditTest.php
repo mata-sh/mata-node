@@ -48,7 +48,7 @@ final class AppWatcherComposerAuditTest extends TestCase
             $this->assertSame('composer audit timed out', $result['app']['message']);
             $this->assertSame(60, $processRunner->calls[0]['timeoutSeconds']);
             $this->assertStringStartsWith(
-                'COMPOSER_HOME=' . escapeshellarg($rootPath . '/temp/cache/composer') . ' composer audit',
+                'COMPOSER_HOME=' . escapeshellarg($rootPath . '/temp/cache/composer') . ' composer --no-plugins --no-scripts audit',
                 $processRunner->calls[0]['command']
             );
         } finally {

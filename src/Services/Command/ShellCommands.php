@@ -40,7 +40,7 @@ final class ShellCommands
 
         return $environment
             . self::composerCommand($binPath)
-            . ' audit --format=json --no-ansi --no-interaction --working-dir='
+            . ' --no-plugins --no-scripts audit --format=json --no-ansi --no-interaction --working-dir='
             . self::argPath($workingDir);
     }
 
