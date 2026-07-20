@@ -47,7 +47,7 @@ Use lowercase `app-id` values. Route lookups lowercase the requested app name be
     "url": "https://example.com/app",
     "path": "example-app",
     "disabled": "false",
-    "env": "live",
+    "env": "prod",
     "status_endpoint": "https://example.com/app/health/",
     "sessions": {
       "type": "file",
@@ -108,7 +108,7 @@ Use lowercase `app-id` values. Route lookups lowercase the requested app name be
 | `title` | Yes for `/apps` | none | Returned as app title. |
 | `url` | Yes for `/apps` | none | Returned as app URL. |
 | `path` | Yes for `/apps`, `/readme`, composer auto-detect | none | App base path. Used for default README path and composer auto-detect. |
-| `env` | Yes for `/apps` | none | Static application environment. Must be exactly `dev`, `test`, `stg`, or `live`. |
+| `env` | Yes for `/apps` | none | Static application environment. Must be exactly `dev`, `test`, `stg`, or `prod`. |
 | `disabled` | No | `"false"` | Set to `"true"` to hide the app and make its app-specific endpoints unavailable. |
 | `status_endpoint` | No | none | Complete absolute `http` or `https` URL. The dashboard calls it directly; the node never calls it. |
 | `ping` | No | `"on"` | Returned by `/apps`. No other node behavior found. |

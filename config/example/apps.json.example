@@ -33,7 +33,7 @@
             "lock": "example-app/composer.lock",
             "bin": "example-app/composer.phar"
         },
-        "env": "live",
+        "env": "prod",
         "status_endpoint": "https://example.com/app/health/"
     },
     "redis-sessions-app": {
@@ -54,7 +54,7 @@
             "redis-sessions-app/logs/error.log"
         ],
         "description": "Redis sessions using low-stress count_key counting. The app must maintain the count_key value.",
-        "env": "live"
+        "env": "prod"
     },
     "minimal-app": {
         "title": "Minimal Application",
@@ -64,7 +64,7 @@
             "minimal-app/logs/error.log"
         ],
         "description": "Old format (simple array) - uses auto-detection",
-        "env": "live"
+        "env": "prod"
     },
     "auto-detect-app": {
         "title": "Auto-detect Log Format",
@@ -79,7 +79,7 @@
             }
         ],
         "description": "New format without type specified - uses auto-detection",
-        "env": "live"
+        "env": "prod"
     },
     "mixed-logs-app": {
         "title": "Mixed Log Types",
@@ -105,7 +105,7 @@
             }
         ],
         "description": "Multiple log groups with different parsers + auto-detect",
-        "env": "live"
+        "env": "prod"
     },
     "composer-enabled": {
         "title": "Composer Auto-detect",
@@ -118,6 +118,6 @@
             "enabled": true
         },
         "description": "Composer uses composer.json and composer.lock in the application path",
-        "env": "live"
+        "env": "prod"
     }
 }

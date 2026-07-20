@@ -157,6 +157,15 @@ class AppMetadataTest extends TestCase
         ];
     }
 
+    public function testAppInfoAcceptsProdEnvironment(): void
+    {
+        $appWatcher = $this->createAppWatcher([
+            'testapp' => $this->appConfig(['env' => 'prod']),
+        ]);
+
+        $this->assertSame('prod', $appWatcher->getAppInfo('testapp')['env']);
+    }
+
     #[DataProvider('invalidRequiredMetadataProvider')]
     public function testInvalidRequiredMetadataIsLoggedAndRejected(string $field, mixed $value, bool $unset = false): void
     {
@@ -183,7 +192,7 @@ class AppMetadataTest extends TestCase
             $cases[$field . ' empty'] = [$field, ''];
             $cases[$field . ' non-string'] = [$field, 42];
         }
-        $cases['unsupported env'] = ['env', 'prod'];
+        $cases['legacy live env'] = ['env', 'live'];
 
         return $cases;
     }

@@ -293,7 +293,7 @@ class AppWatcher
             }
         }
 
-        if (!in_array($appConfig['env'], ['dev', 'test', 'stg', 'live'], true)) {
+        if (!in_array($appConfig['env'], ['dev', 'test', 'stg', 'prod'], true)) {
             $this->invalidAppConfiguration($app, 'env');
         }
 
