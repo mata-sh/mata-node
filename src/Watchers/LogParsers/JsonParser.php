@@ -54,13 +54,57 @@ class JsonParser extends AbstractLogParser
         return $totalLines > 0 && ($matchCount / $totalLines) >= 0.5;
     }
 
-    private function getGrepPattern(string $filter): string
+    protected function fatalLinePattern(): string
     {
-        return match ($filter) {
-            'errors' => '"level":"error"\|"level":"critical"\|"level":"emergency"\|"level":"alert"',
-            'warnings' => '"level":"warning"',
-            default => '',
-        };
+        return '/"level":"error"|"level":"critical"|"level":"emergency"|"level":"alert"/';
+    }
+
+    protected function warningLinePattern(): string
+    {
+        return '/"level":"warning"/';
+    }
+
+    /**
+     * Canonicalize a JSON record so the digest does not depend on key order.
+     *
+     * Falls back to the raw line when the record is not decodable, which keeps
+     * malformed input contributing its own bytes instead of being dropped.
+     */
+    protected function canonicalizeEntryLine(string $line): string
+    {
+        $decoded = json_decode(trim($line), true);
+        if (!is_array($decoded)) {
+            return $line;
+        }
+
+        $canonical = json_encode(
+            self::sortRecursively($decoded),
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+        );
+
+        return $canonical === false ? $line : $canonical;
+    }
+
+    /**
+     * @param array<array-key, mixed> $value
+     *
+     * @return array<array-key, mixed>
+     */
+    private static function sortRecursively(array $value): array
+    {
+        $isList = array_is_list($value);
+
+        foreach ($value as $key => $item) {
+            if (is_array($item)) {
+                $value[$key] = self::sortRecursively($item);
+            }
+        }
+
+        if (!$isList) {
+            ksort($value, SORT_STRING);
+        }
+
+        return $value;
     }
 
     /**
@@ -145,34 +189,6 @@ class JsonParser extends AbstractLogParser
         $lines = trim($output) !== '' ? explode("\n", trim($output)) : [];
 
         return json_encode($this->parseLines($lines), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-    }
-
-    public function analyzeLog(string $logFile): array
-    {
-        if (!file_exists($logFile) || !is_readable($logFile)) {
-            return [
-                'fatal' => 0,
-                'warnings' => 0,
-                'total' => 0,
-            ];
-        }
-
-        // Count error-level entries
-        $errorPattern = $this->getGrepPattern('errors');
-        $errorCount = (int) $this->shell(ShellCommands::grepCount($errorPattern, $logFile));
-
-        // Count warning entries
-        $warningPattern = $this->getGrepPattern('warnings');
-        $warningCount = (int) $this->shell(ShellCommands::grepCount($warningPattern, $logFile));
-
-        // Total lines
-        $totalLines = (int) $this->shell(ShellCommands::lineCount($logFile));
-
-        return [
-            'fatal' => $errorCount,
-            'warnings' => $warningCount,
-            'total' => $totalLines,
-        ];
     }
 
     protected function normalizeTimestamp(string $timestamp): string

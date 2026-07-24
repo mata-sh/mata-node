@@ -185,6 +185,8 @@ class AppWatcher
             'status_url' => $metadata['status_url'],
             'ping' => $appConfig['ping'] ?? 'on',
             'description' => $appConfig['description'] ?? '',
+            'error_monitoring_enabled' => $metadata['error_monitoring_enabled'],
+            'logsize_monitoring_enabled' => $metadata['logsize_monitoring_enabled'],
             'status' => $this->logInspector->stats($app),
             'session' => $this->getSessionMetadata($app),
             'logs' => $this->logInspector->files($app),
@@ -283,7 +285,7 @@ class AppWatcher
     /**
      * @param array<string, mixed> $appConfig
      *
-     * @return array{title: string, url: string, path: string, env: string, status_url: ?string}
+     * @return array{title: string, url: string, path: string, env: string, status_url: ?string, error_monitoring_enabled: bool, logsize_monitoring_enabled: bool}
      */
     private function normalizeAppMetadata(string $app, array $appConfig): array
     {
@@ -310,7 +312,30 @@ class AppWatcher
             'path' => $appConfig['path'],
             'env' => $appConfig['env'],
             'status_url' => $statusEndpoint['url'],
+            'error_monitoring_enabled' => $this->normalizeMonitoringSetting($app, $appConfig, 'error_monitoring_enabled'),
+            'logsize_monitoring_enabled' => $this->normalizeMonitoringSetting($app, $appConfig, 'logsize_monitoring_enabled'),
         ];
+    }
+
+    /**
+     * Normalize an independent monitoring setting.
+     *
+     * Absent means enabled. Only literal JSON booleans are accepted; every
+     * other representation is an invalid application configuration.
+     *
+     * @param array<string, mixed> $appConfig
+     */
+    private function normalizeMonitoringSetting(string $app, array $appConfig, string $field): bool
+    {
+        if (!array_key_exists($field, $appConfig)) {
+            return true;
+        }
+
+        if (!is_bool($appConfig[$field])) {
+            $this->invalidAppConfiguration($app, $field);
+        }
+
+        return $appConfig[$field];
     }
 
     /**

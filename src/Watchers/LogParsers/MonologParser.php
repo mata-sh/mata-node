@@ -15,6 +15,8 @@ use RuntimeException;
  */
 class MonologParser extends AbstractLogParser
 {
+    private const ENTRY_START_PATTERN = '/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\]/';
+
     public function getName(): string
     {
         return 'monolog';
@@ -48,13 +50,19 @@ class MonologParser extends AbstractLogParser
         return $totalLines > 0 && ($matchCount / $totalLines) >= 0.5;
     }
 
-    private function getGrepPattern(string $filter): string
+    protected function fatalLinePattern(): string
     {
-        return match ($filter) {
-            'errors' => '.ERROR:\|.CRITICAL:\|.EMERGENCY:\|.ALERT:',
-            'warnings' => '.WARNING:',
-            default => '',
-        };
+        return '/.ERROR:|.CRITICAL:|.EMERGENCY:|.ALERT:/';
+    }
+
+    protected function warningLinePattern(): string
+    {
+        return '/.WARNING:/';
+    }
+
+    protected function entryStartPattern(): string
+    {
+        return self::ENTRY_START_PATTERN;
     }
 
     /**
@@ -67,8 +75,7 @@ class MonologParser extends AbstractLogParser
     public function parseLines(array $lines): array
     {
         // Monolog entry starts with: [YYYY-MM-DD HH:MM:SS]
-        $entryStartPattern = '/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\]/';
-        $logEntries = $this->groupMultilineEntries($lines, $entryStartPattern);
+        $logEntries = $this->groupMultilineEntries($lines, self::ENTRY_START_PATTERN);
 
         $parsedEntries = [];
         foreach ($logEntries as $entry) {
@@ -130,33 +137,5 @@ class MonologParser extends AbstractLogParser
         $lines = trim($output) !== '' ? explode("\n", trim($output)) : [];
 
         return json_encode($this->parseLines($lines), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-    }
-
-    public function analyzeLog(string $logFile): array
-    {
-        if (!file_exists($logFile) || !is_readable($logFile)) {
-            return [
-                'fatal' => 0,
-                'warnings' => 0,
-                'total' => 0,
-            ];
-        }
-
-        // Count error-level entries
-        $errorPattern = $this->getGrepPattern('errors');
-        $errorCount = (int) $this->shell(ShellCommands::grepCount($errorPattern, $logFile));
-
-        // Count warning entries
-        $warningPattern = $this->getGrepPattern('warnings');
-        $warningCount = (int) $this->shell(ShellCommands::grepCount($warningPattern, $logFile));
-
-        // Total lines
-        $totalLines = (int) $this->shell(ShellCommands::lineCount($logFile));
-
-        return [
-            'fatal' => $errorCount,
-            'warnings' => $warningCount,
-            'total' => $totalLines,
-        ];
     }
 }

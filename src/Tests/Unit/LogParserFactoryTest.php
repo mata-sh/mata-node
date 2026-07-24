@@ -148,18 +148,10 @@ class LogParserFactoryTest extends TestCase
         file_put_contents($logFile, $jsonLog);
 
         $headCommand = ShellCommands::head($logFile, 10);
-        $errorPattern = '"level":"error"\|"level":"critical"\|"level":"emergency"\|"level":"alert"';
-        $errorCommand = ShellCommands::grepCount($errorPattern, $logFile);
-        $warningPattern = '"level":"warning"';
-        $warningCommand = ShellCommands::grepCount($warningPattern, $logFile);
-        $totalCommand = ShellCommands::lineCount($logFile);
+        $tailCommand = ShellCommands::tail($logFile, 10);
 
         $runnerA = new FakeCommandRunner([$headCommand => $jsonLog]);
-        $runnerB = new FakeCommandRunner([
-            $errorCommand => '10',
-            $warningCommand => '0',
-            $totalCommand => '10',
-        ]);
+        $runnerB = new FakeCommandRunner([$tailCommand => $jsonLog]);
 
         try {
             $parserA = LogParserFactory::detectFormat($logFile, null, $runnerA);
@@ -170,14 +162,14 @@ class LogParserFactoryTest extends TestCase
             $this->assertInstanceOf(JsonParser::class, $parserB);
             $this->assertContains($headCommand, $runnerA->commands);
 
-            $this->assertSame([
-                'fatal' => 10,
-                'warnings' => 0,
-                'total' => 10,
-            ], $parserB->analyzeLog($logFile));
-            $this->assertContains($errorCommand, $runnerB->commands);
-            $this->assertContains($warningCommand, $runnerB->commands);
-            $this->assertContains($totalCommand, $runnerB->commands);
+            // The cached class is instantiated with the runner passed in last.
+            $parserB->parseToJson($logFile, 10);
+            $this->assertContains($tailCommand, $runnerB->commands);
+            $this->assertNotContains($tailCommand, $runnerA->commands);
+
+            // Analysis reads the file directly and stays runner independent.
+            $analysis = $parserB->analyzeLog($logFile);
+            $this->assertSame(['fatal' => 10, 'warnings' => 0, 'total' => 10], $analysis->counts());
         } finally {
             unlink($logFile);
         }

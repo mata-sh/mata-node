@@ -37,17 +37,6 @@ final class ShellCommandsTest extends TestCase
         $this->assertSame('wc -l < ' . escapeshellarg($path), ShellCommands::lineCount($path));
     }
 
-    public function testGrepCountEscapesPatternAndPath(): void
-    {
-        $pattern = 'PHP Fatal error\|PHP Parse error';
-        $path = '/tmp/error log.log';
-
-        $this->assertSame(
-            'grep -c ' . escapeshellarg($pattern) . ' -- ' . escapeshellarg($path) . ' 2>/dev/null',
-            ShellCommands::grepCount($pattern, $path)
-        );
-    }
-
     public function testComposerAuditUsesDefaultComposerCommand(): void
     {
         $workingDir = '/tmp/project dir';

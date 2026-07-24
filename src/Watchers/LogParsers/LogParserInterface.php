@@ -18,7 +18,7 @@ interface LogParserInterface
     public function parseLines(array $lines): array;
 
     /**
-     * @return array{fatal: int, warnings: int, total: int}
+     * Count severities and fingerprint the fatal observation of one log file.
      */
-    public function analyzeLog(string $logFile): array;
+    public function analyzeLog(string $logFile): LogAnalysisResult;
 }

@@ -89,6 +89,12 @@ MATA Node runs on each monitored environment and answers authenticated requests 
 - `GET /{dbname}/database-processes`
 - `GET /{dbname}/database-threads`
 
+Each `/apps` entry carries the independent booleans `error_monitoring_enabled` and
+`logsize_monitoring_enabled` (both default to `true`) plus `status.fatal_cursor`, an opaque
+equality-only fingerprint of the app's fatal-error observation that is `null` exactly when
+`status.fatal` is `0`. See the
+[configuration reference](docs/configuration.md#app-metadata-responses) for the full contract.
+
 ### Authentication format
 
 Authenticated requests use a single header:

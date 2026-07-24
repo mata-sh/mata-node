@@ -319,15 +319,9 @@ class JsonParserTest extends TestCase
         $logFile = $this->fixturesPath . '/json.log';
         $result = $this->parser->analyzeLog($logFile);
 
-        $this->assertIsArray($result);
-        $this->assertArrayHasKey('fatal', $result);
-        $this->assertArrayHasKey('warnings', $result);
-        $this->assertArrayHasKey('total', $result);
-
-        // Check that counts are reasonable
-        $this->assertGreaterThan(0, $result['fatal']);
-        $this->assertGreaterThan(0, $result['warnings']);
-        $this->assertGreaterThan(0, $result['total']);
+        $this->assertSame('json', $result->parserName);
+        $this->assertSame(['fatal' => 4, 'warnings' => 2, 'total' => 10], $result->counts());
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', (string) $result->fatalDigest);
     }
 
     public function testAnalyzeLogReturnsZerosForNonExistentFile(): void
@@ -335,7 +329,8 @@ class JsonParserTest extends TestCase
         $logFile = $this->fixturesPath . '/nonexistent.log';
         $result = $this->parser->analyzeLog($logFile);
 
-        $this->assertEquals(['fatal' => 0, 'warnings' => 0, 'total' => 0], $result);
+        $this->assertSame(['fatal' => 0, 'warnings' => 0, 'total' => 0], $result->counts());
+        $this->assertNull($result->fatalDigest);
     }
 
     public function testAnalyzeLogReturnsZerosForEmptyFile(): void
@@ -343,7 +338,8 @@ class JsonParserTest extends TestCase
         $logFile = $this->fixturesPath . '/empty.log';
         $result = $this->parser->analyzeLog($logFile);
 
-        $this->assertEquals(['fatal' => 0, 'warnings' => 0, 'total' => 0], $result);
+        $this->assertSame(['fatal' => 0, 'warnings' => 0, 'total' => 0], $result->counts());
+        $this->assertNull($result->fatalDigest);
     }
 
     public function testParseToJsonHandlesEmptyContext(): void

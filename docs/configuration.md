@@ -49,6 +49,8 @@ Use lowercase `app-id` values. Route lookups lowercase the requested app name be
     "disabled": "false",
     "env": "prod",
     "status_endpoint": "https://example.com/app/health/",
+    "error_monitoring_enabled": true,
+    "logsize_monitoring_enabled": true,
     "sessions": {
       "type": "file",
       "path": "example-app/temp/sessions",
@@ -126,8 +128,35 @@ Use lowercase `app-id` values. Route lookups lowercase the requested app name be
 | `logs` | Yes for clean `/apps`; optional for `/logs` and `/logs-status` | `[]` for `/logs` and `/logs-status` | Log paths/groups read for recent lines and status counts. See log formats below. |
 | `description` | No | empty string | Returned by `/apps`. |
 | `readme` | No | `<path>/README.md` | Path used by `/{app}/readme`. |
-| `alarms_enabled` | No | empty string | Returned by `/apps`. No other node behavior found. |
+| `alarms_enabled` | No | empty string | Returned by `/apps`. No other node behavior found. Unrelated to the monitoring settings below. |
+| `error_monitoring_enabled` | No | `true` | Literal JSON boolean. Returned by `/apps`. Controls dashboard fatal-error event production. |
+| `logsize_monitoring_enabled` | No | `true` | Literal JSON boolean. Returned by `/apps`. Controls dashboard `logfile_too_large` production. |
 | `composer` | No | disabled | Composer library/audit config. See composer fields below. |
+
+### Monitoring settings
+
+Both settings are optional literal JSON booleans. Omitting a setting means `true`. Only `true`
+and `false` are accepted; string, numeric, `null`, array, and object values are an invalid
+application configuration and make `/apps` fail with the generic configuration error. The
+rejected value is never returned or logged, only the field name.
+
+```json
+{
+  "shop": {
+    "error_monitoring_enabled": true,
+    "logsize_monitoring_enabled": false
+  }
+}
+```
+
+The two settings are independent: disabling fatal-error monitoring does not disable log-size
+monitoring, and vice versa. Neither setting changes what the node measures — fatal counts, the
+fatal cursor, log paths, and log sizes stay in the `/apps` response either way. The node only
+reports the settings; the dashboard decides what to do with them, and a dashboard-side setting
+may still suppress what the node reports as enabled.
+
+`alarms_enabled` is a separate legacy dashboard presentation value and is never reinterpreted as
+a monitoring setting.
 
 ### App metadata responses
 
@@ -145,6 +174,36 @@ Use lowercase `app-id` values. Route lookups lowercase the requested app name be
 ```
 
 `/{app}/sessions` returns the same object for one app.
+
+Every app also returns both monitoring booleans and a log `status` object:
+
+```json
+"error_monitoring_enabled": true,
+"logsize_monitoring_enabled": true,
+"status": {
+  "fatal": 7,
+  "warnings": 12,
+  "total": 4231,
+  "fatal_cursor": "v1:98cc8c0d5d4c3a2b1e0f9876543210abcdef0123456789abcdef0123456789ab"
+}
+```
+
+`fatal`, `warnings`, and `total` are non-negative integers aggregated over all configured logs of
+the app. `fatal_cursor` is `null` exactly when `fatal` is `0`; otherwise it is `v1:` followed by 64
+lowercase hexadecimal characters.
+
+The cursor is opaque and equality-only. It does not identify, describe, or expose an error: it
+carries no log content, no absolute path, no file identity, no offsets, and no per-entry hashes.
+Comparing two cursors for the same app answers exactly one question — whether the fatal
+observation changed. Detailed entries stay behind `/{app}/logs`; line counts, byte sizes, and
+modification times stay behind `/{app}/logs-status`. `/apps` never calls either endpoint.
+
+The cursor changes when a fatal entry is added (including a duplicate of an existing one), when a
+fatal entry's timestamp, message, stack trace, context, multiplicity, or order changes, and when
+log rotation replaces a fatal-bearing file with a new file generation. It does not change when
+warnings, notices, info entries, or unrelated lines are appended, and it is stable across node
+restarts. The node is stateless, so an in-place rewrite that reproduces exactly the same fatal
+entries at the same positions in the same file is indistinguishable from an unchanged file.
 
 `/apps` also returns static `env` and `status_url`. `status_url` is the validated `status_endpoint`, or `null` when no endpoint is configured. It never returns `status_endpoint`.
 
@@ -231,6 +290,26 @@ If `type` is set to an unknown value, the node logs an error and falls back to `
 App-level parser format settings are unsupported. Use structured log group `type` or omit `type` for auto-detection.
 
 `/apps` log-size output supports old string paths and structured log group `paths`.
+
+#### Analysis behavior
+
+For `/apps` counts and the fatal cursor, each configured log file is read once as a bounded-memory
+stream; the node never loads a whole log into memory and never shells out for counting. Severity
+counting stays line based: `fatal` and `warnings` count matching physical lines, `total` counts
+newline-terminated lines.
+
+The fatal cursor additionally fingerprints the complete ordered fatal entries of each file.
+`php_error_log` and `monolog` entries include their multiline stack traces and context blocks.
+JSON records are canonicalized before hashing, so re-serializing the same record with a different
+key order does not change the cursor. Per-file fingerprints are combined in canonical sorted order,
+so the cursor does not depend on the order logs appear in the configuration or on map iteration
+order.
+
+Severity counting is line-complete at any line length, matching what `grep -c` would report. Peak
+memory is one logical line, capped at 5 MB; a longer line is streamed past that point while
+matching continues across the boundary, so its counts stay correct. Only the JSON key-order
+canonicalization needs a whole record in memory, so it applies to records up to that 5 MB cap;
+beyond it the record's raw bytes are fingerprinted instead.
 
 ### Composer fields
 

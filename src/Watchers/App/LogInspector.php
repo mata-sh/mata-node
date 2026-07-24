@@ -127,13 +127,21 @@ final class LogInspector
         return $status;
     }
 
+    /**
+     * Aggregated log counts plus the app's fatal cursor.
+     *
+     * The cursor is null exactly when the fatal count is zero.
+     *
+     * @return array{fatal: int, warnings: int, total: int, fatal_cursor: null|string}
+     */
     public function stats(string $app): array
     {
-        $totals = [
-            'fatal' => 0,
-            'warnings' => 0,
-            'total' => 0,
-        ];
+        $fatal = 0;
+        $warnings = 0;
+        $total = 0;
+
+        /** @var array<int, array{path: string, parser: string, digest: string}> $observations */
+        $observations = [];
 
         foreach ($this->resolveLogPaths($app) as $logConfig) {
             $logPath = $logConfig['path'];
@@ -152,12 +160,25 @@ final class LogInspector
             $parser = $this->getLogParser($type, $logFile);
 
             $stats = $parser->analyzeLog($logFile);
-            $totals['fatal'] += (int) ($stats['fatal'] ?? 0);
-            $totals['warnings'] += (int) ($stats['warnings'] ?? 0);
-            $totals['total'] += (int) ($stats['total'] ?? 0);
+            $fatal += $stats->fatal;
+            $warnings += $stats->warnings;
+            $total += $stats->total;
+
+            if ($stats->fatalDigest !== null) {
+                $observations[] = [
+                    'path' => $logPath,
+                    'parser' => $stats->parserName,
+                    'digest' => $stats->fatalDigest,
+                ];
+            }
         }
 
-        return $totals;
+        return [
+            'fatal' => $fatal,
+            'warnings' => $warnings,
+            'total' => $total,
+            'fatal_cursor' => FatalCursor::fromObservations($observations),
+        ];
     }
 
     /**

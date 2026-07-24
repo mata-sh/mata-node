@@ -176,15 +176,9 @@ class PhpErrorLogParserTest extends TestCase
         $logFile = $this->fixturesPath . '/php_error.log';
         $result = $this->parser->analyzeLog($logFile);
 
-        $this->assertIsArray($result);
-        $this->assertArrayHasKey('fatal', $result);
-        $this->assertArrayHasKey('warnings', $result);
-        $this->assertArrayHasKey('total', $result);
-
-        // Check that counts are reasonable
-        $this->assertGreaterThan(0, $result['fatal']);
-        $this->assertGreaterThan(0, $result['warnings']);
-        $this->assertGreaterThan(0, $result['total']);
+        $this->assertSame('php_error_log', $result->parserName);
+        $this->assertSame(['fatal' => 4, 'warnings' => 5, 'total' => 16], $result->counts());
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', (string) $result->fatalDigest);
     }
 
     public function testAnalyzeLogReturnsZerosForNonExistentFile(): void
@@ -192,7 +186,8 @@ class PhpErrorLogParserTest extends TestCase
         $logFile = $this->fixturesPath . '/nonexistent.log';
         $result = $this->parser->analyzeLog($logFile);
 
-        $this->assertEquals(['fatal' => 0, 'warnings' => 0, 'total' => 0], $result);
+        $this->assertSame(['fatal' => 0, 'warnings' => 0, 'total' => 0], $result->counts());
+        $this->assertNull($result->fatalDigest);
     }
 
     public function testAnalyzeLogReturnsZerosForEmptyFile(): void
@@ -200,7 +195,8 @@ class PhpErrorLogParserTest extends TestCase
         $logFile = $this->fixturesPath . '/empty.log';
         $result = $this->parser->analyzeLog($logFile);
 
-        $this->assertEquals(['fatal' => 0, 'warnings' => 0, 'total' => 0], $result);
+        $this->assertSame(['fatal' => 0, 'warnings' => 0, 'total' => 0], $result->counts());
+        $this->assertNull($result->fatalDigest);
     }
 
     public function testParseToJsonExtractsTimestampCorrectly(): void
@@ -258,7 +254,7 @@ class PhpErrorLogParserTest extends TestCase
 
         $result = $this->parser->analyzeLog($logFile);
 
-        $this->assertSame(5, $result['warnings']);
+        $this->assertSame(5, $result->warnings);
     }
 
     public function testAnalyzeLogDoesNotTreatAnErrorInWarningMessageAsAnError(): void
@@ -274,7 +270,8 @@ class PhpErrorLogParserTest extends TestCase
         try {
             $result = $this->parser->analyzeLog($logFile);
 
-            $this->assertSame(['fatal' => 0, 'warnings' => 1, 'total' => 1], $result);
+            $this->assertSame(['fatal' => 0, 'warnings' => 1, 'total' => 1], $result->counts());
+            $this->assertNull($result->fatalDigest);
         } finally {
             unlink($logFile);
         }

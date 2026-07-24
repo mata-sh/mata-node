@@ -25,15 +25,6 @@ final class ShellCommands
         return 'wc -l < ' . self::argPath($file);
     }
 
-    public static function grepCount(string $pattern, string $file): string
-    {
-        if ($pattern === '') {
-            return 'printf 0';
-        }
-
-        return 'grep -c ' . escapeshellarg($pattern) . ' -- ' . self::argPath($file) . ' 2>/dev/null';
-    }
-
     public static function composerAudit(
         ?string $binPath,
         string $workingDir,

@@ -15,6 +15,8 @@ use RuntimeException;
  */
 class PhpErrorLogParser extends AbstractLogParser
 {
+    private const ENTRY_START_PATTERN = '/^\[\d{2}-[A-Za-z]{3}-\d{4} \d{2}:\d{2}:\d{2} [^\]]+\]/';
+
     public function getName(): string
     {
         return 'php_error_log';
@@ -48,13 +50,24 @@ class PhpErrorLogParser extends AbstractLogParser
         return $totalLines > 0 && ($matchCount / $totalLines) >= 0.5;
     }
 
-    private function getGrepPattern(string $filter): string
+    protected function fatalLinePattern(): string
     {
-        return match ($filter) {
-            'errors' => '^\[[^]]*\] PHP [^:]*\(error\|Error\)[^:]*:',
-            'warnings' => '^\[[^]]*\] PHP [^:]*\(Warning\|warning\|Notice\|notice\)[^:]*:',
-            default => '',
-        };
+        return '/^\[[^\]]*\] PHP [^:]*(error|Error)[^:]*:/';
+    }
+
+    protected function warningLinePattern(): string
+    {
+        return '/^\[[^\]]*\] PHP [^:]*(Warning|warning|Notice|notice)[^:]*:/';
+    }
+
+    protected function entryStartPattern(): string
+    {
+        return self::ENTRY_START_PATTERN;
+    }
+
+    protected function severityPatternsMatchLineStartOnly(): bool
+    {
+        return true;
     }
 
     /**
@@ -66,8 +79,7 @@ class PhpErrorLogParser extends AbstractLogParser
      */
     public function parseLines(array $lines): array
     {
-        $entryStartPattern = '/^\[\d{2}-[A-Za-z]{3}-\d{4} \d{2}:\d{2}:\d{2} [^\]]+\]/';
-        $logEntries = $this->groupMultilineEntries($lines, $entryStartPattern);
+        $logEntries = $this->groupMultilineEntries($lines, self::ENTRY_START_PATTERN);
 
         $parsedEntries = [];
         foreach ($logEntries as $entry) {
@@ -129,31 +141,5 @@ class PhpErrorLogParser extends AbstractLogParser
         $lines = trim($output) !== '' ? explode("\n", trim($output)) : [];
 
         return json_encode($this->parseLines($lines), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-    }
-
-    /**
-     * Analyze error log and return counts.
-     */
-    public function analyzeLog(string $logFile): array
-    {
-        if (!file_exists($logFile) || !is_readable($logFile)) {
-            return [
-                'fatal' => 0,
-                'warnings' => 0,
-                'total' => 0,
-            ];
-        }
-
-        $warningPattern = $this->getGrepPattern('warnings');
-        $warningCount = (int) $this->shell(ShellCommands::grepCount($warningPattern, $logFile));
-        $errorPattern = $this->getGrepPattern('errors');
-        $errorCount = (int) $this->shell(ShellCommands::grepCount($errorPattern, $logFile));
-        $totalLines = (int) $this->shell(ShellCommands::lineCount($logFile));
-
-        return [
-            'fatal' => $errorCount,
-            'warnings' => $warningCount,
-            'total' => $totalLines,
-        ];
     }
 }
