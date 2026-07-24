@@ -128,7 +128,6 @@ Use lowercase `app-id` values. Route lookups lowercase the requested app name be
 | `logs` | Yes for clean `/apps`; optional for `/logs` and `/logs-status` | `[]` for `/logs` and `/logs-status` | Log paths/groups read for recent lines and status counts. See log formats below. |
 | `description` | No | empty string | Returned by `/apps`. |
 | `readme` | No | `<path>/README.md` | Path used by `/{app}/readme`. |
-| `alarms_enabled` | No | empty string | Returned by `/apps`. No other node behavior found. Unrelated to the monitoring settings below. |
 | `error_monitoring_enabled` | No | `true` | Literal JSON boolean. Returned by `/apps`. Controls dashboard fatal-error event production. |
 | `logsize_monitoring_enabled` | No | `true` | Literal JSON boolean. Returned by `/apps`. Controls dashboard `logfile_too_large` production. |
 | `composer` | No | disabled | Composer library/audit config. See composer fields below. |
@@ -155,8 +154,10 @@ fatal cursor, log paths, and log sizes stay in the `/apps` response either way. 
 reports the settings; the dashboard decides what to do with them, and a dashboard-side setting
 may still suppress what the node reports as enabled.
 
-`alarms_enabled` is a separate legacy dashboard presentation value and is never reinterpreted as
-a monitoring setting.
+The legacy `alarms_enabled` setting was removed in 2026-07. It never affected node behavior and
+the dashboard only turned it into an unused CSS class, so it suppressed nothing. Use
+`error_monitoring_enabled` to stop fatal-error alarms for an application. Leftover
+`alarms_enabled` keys in an existing `apps.json` are ignored.
 
 ### App metadata responses
 

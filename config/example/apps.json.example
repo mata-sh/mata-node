@@ -6,7 +6,6 @@
         "disabled": "false",
         "ping": "on",
         "readme": "example-app/README.md",
-        "alarms_enabled": "off",
         "error_monitoring_enabled": true,
         "logsize_monitoring_enabled": true,
         "sessions": {
