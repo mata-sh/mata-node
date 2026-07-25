@@ -1,0 +1,72 @@
+# MATA Dashboard - Caddy Server Configuration
+#
+# For production deployments, place this in:
+# /etc/caddy/Caddyfile
+#
+# Then reload with:
+# sudo caddy validate --config /etc/caddy/Caddyfile
+# sudo systemctl reload caddy
+#
+# Note: Caddy automatically obtains and renews SSL/TLS certificates
+# from Let's Encrypt. No manual certificate configuration needed!
+
+mata.yourdomain.com {
+    root * /var/www/html/public
+    encode gzip
+
+    # URL Rewriting for Bramus Router
+    # Try files first, then directories, finally route to index.php
+    @notStatic {
+        not file
+        not path */
+    }
+    rewrite @notStatic /index.php
+
+    # PHP-FPM handler
+    # Adjust socket path if needed (e.g., unix//run/php/php8.3-fpm.sock)
+    php_fastcgi unix//var/run/php/php8.3-fpm.sock
+
+    # Deny access to sensitive directories
+    @sensitive {
+        path /config/* /vendor/* /src/* /temp/* /cron/* /logs/*
+    }
+    respond @sensitive 403
+
+    # Deny access to hidden files
+    @hidden {
+        path */.*
+    }
+    respond @hidden 403
+
+    # Security headers
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'"
+    }
+
+    # File server for static assets
+    file_server
+
+    # Logging (optional, Caddy logs to stdout/stderr by default)
+    log {
+        output file /var/log/caddy/mata-access.log
+    }
+}
+
+# Development/Local Configuration (HTTP only)
+# Uncomment for local testing without SSL
+# :8080 {
+#     root * /var/www/html/public
+#
+#     @notStatic {
+#         not file
+#         not path */
+#     }
+#     rewrite @notStatic /index.php
+#
+#     php_fastcgi unix//var/run/php/php8.3-fpm.sock
+#     file_server
+# }

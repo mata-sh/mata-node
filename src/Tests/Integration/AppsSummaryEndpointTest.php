@@ -7,6 +7,7 @@ namespace Mata\Tests\Integration;
 use GuzzleHttp\Client;
 use Mata\Tests\Support\HttpTestServer;
 use Mata\Watchers\LogParsers\PhpErrorLogParser;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Throwable;
@@ -57,8 +58,7 @@ final class AppsSummaryEndpointTest extends TestCase
 
         $this->startServer([
             'shop' => $this->appConfig('Shop', 'shop', [
-                'error_monitoring_enabled' => false,
-                'logsize_monitoring_enabled' => true,
+                'monitoring' => ['sessions' => false, 'alarms' => false],
             ]),
             'blog' => $this->appConfig('Blog', 'blog'),
         ]);
@@ -71,8 +71,8 @@ final class AppsSummaryEndpointTest extends TestCase
         $body = $this->decodeJson($response);
 
         $shop = $body['shop'];
-        $this->assertFalse($shop['error_monitoring_enabled']);
-        $this->assertTrue($shop['logsize_monitoring_enabled']);
+        $this->assertSame(['sessions' => false, 'alarms' => false], $shop['monitoring']);
+        $this->assertArrayNotHasKey('session', $shop);
         $this->assertSame(1, $shop['status']['fatal']);
         $this->assertSame(1, $shop['status']['warnings']);
         $this->assertSame(4, $shop['status']['total']);
@@ -80,11 +80,92 @@ final class AppsSummaryEndpointTest extends TestCase
         $this->assertSame(['shop/logs/error.log' => strlen($fatalLog) / 1024], $shop['logs']);
 
         $blog = $body['blog'];
-        $this->assertTrue($blog['error_monitoring_enabled']);
-        $this->assertTrue($blog['logsize_monitoring_enabled']);
+        $this->assertArrayNotHasKey('monitoring', $blog);
         $this->assertSame(0, $blog['status']['fatal']);
         $this->assertNull($blog['status']['fatal_cursor']);
         $this->assertSame(['fatal', 'warnings', 'total', 'fatal_cursor'], array_keys($blog['status']));
+        $this->assertSame(
+            ['path', 'title', 'url', 'env', 'status_url', 'description', 'composer', 'status', 'session', 'logs'],
+            array_keys($blog)
+        );
+    }
+
+    public function testAppsSummaryOmitsMeasuredKeysForDisabledMonitoring(): void
+    {
+        $this->writeAppLog('shop', 'error.log', "[19-Jul-2026 12:00:00 UTC] PHP Fatal error: boom\n");
+
+        $this->startServer([
+            'shop' => $this->appConfig('Shop', 'shop', [
+                'monitoring' => ['loganalysis' => false, 'logsize' => false, 'sessions' => false],
+            ]),
+        ]);
+
+        $response = $this->client()->get('/apps', [
+            'headers' => ['X-Mata-Auth' => $this->generateAuthHeader()],
+        ]);
+
+        $this->assertSame(200, $response->getStatusCode(), (string) $response->getBody());
+        $shop = $this->decodeJson($response)['shop'];
+
+        $this->assertSame(
+            ['path', 'title', 'url', 'env', 'status_url', 'description', 'composer', 'monitoring'],
+            array_keys($shop)
+        );
+        $this->assertSame(
+            ['loganalysis' => false, 'logsize' => false, 'sessions' => false],
+            $shop['monitoring']
+        );
+    }
+
+    public function testAppsSummaryNoLongerExposesPingOrTheRemovedFlatFlags(): void
+    {
+        $this->writeAppLog('shop', 'error.log', "[19-Jul-2026 12:00:00 UTC] PHP Warning: careful\n");
+
+        $this->startServer([
+            // Legacy keys left over in a deployed config must be ignored, not echoed.
+            'shop' => $this->appConfig('Shop', 'shop', [
+                'ping' => 'off',
+                'error_monitoring_enabled' => false,
+                'logsize_monitoring_enabled' => false,
+            ]),
+        ]);
+
+        $raw = (string) $this->client()->get('/apps', [
+            'headers' => ['X-Mata-Auth' => $this->generateAuthHeader()],
+        ])->getBody();
+
+        $this->assertStringNotContainsString('ping', $raw);
+        $this->assertStringNotContainsString('error_monitoring_enabled', $raw);
+        $this->assertStringNotContainsString('logsize_monitoring_enabled', $raw);
+    }
+
+    #[DataProvider('gatedDetailRouteProvider')]
+    public function testDisabledMonitoringRefusesDetailRouteWithConflict(string $setting, string $path): void
+    {
+        $this->writeAppLog('shop', 'error.log', "[19-Jul-2026 12:00:00 UTC] PHP Fatal error: boom\n");
+        $this->startServer([
+            'shop' => $this->appConfig('Shop', 'shop', ['monitoring' => [$setting => false]]),
+        ]);
+
+        $response = $this->client()->get($path, [
+            'headers' => ['X-Mata-Auth' => $this->generateAuthHeader()],
+        ]);
+
+        $this->assertSame(409, $response->getStatusCode(), (string) $response->getBody());
+        $this->assertSame([
+            'error' => 'Monitoring disabled',
+            'message' => 'Monitoring disabled',
+            'details' => ['app' => 'shop', 'setting' => $setting],
+        ], $this->decodeJson($response));
+    }
+
+    public static function gatedDetailRouteProvider(): array
+    {
+        return [
+            'logs need loganalysis' => ['loganalysis', '/shop/logs'],
+            'logs-status needs logsize' => ['logsize', '/shop/logs-status'],
+            'sessions need sessions' => ['sessions', '/shop/sessions'],
+        ];
     }
 
     public function testAppsSummaryDoesNotExposeCursorSourceMaterialOrLogEntries(): void
@@ -130,7 +211,7 @@ final class AppsSummaryEndpointTest extends TestCase
     {
         $this->writeAppLog('shop', 'error.log', "[19-Jul-2026 12:00:00 UTC] PHP Fatal error: boom\n");
         $this->startServer([
-            'shop' => $this->appConfig('Shop', 'shop', ['error_monitoring_enabled' => 'true']),
+            'shop' => $this->appConfig('Shop', 'shop', ['monitoring' => ['loganalysis' => 'true']]),
         ]);
 
         $response = $this->client()->get('/apps', [
@@ -144,7 +225,24 @@ final class AppsSummaryEndpointTest extends TestCase
             'message' => 'Invalid application configuration',
             'details' => null,
         ], $this->decodeJson($response));
-        $this->assertStringNotContainsString('error_monitoring_enabled', $raw);
+        $this->assertStringNotContainsString('monitoring', $raw);
+        $this->assertStringNotContainsString('loganalysis', $raw);
+    }
+
+    public function testUnknownMonitoringKeyReturnsSafeConfigurationError(): void
+    {
+        $this->writeAppLog('shop', 'error.log', "[19-Jul-2026 12:00:00 UTC] PHP Fatal error: boom\n");
+        $this->startServer([
+            // A typo must fail loudly instead of silently resolving to enabled.
+            'shop' => $this->appConfig('Shop', 'shop', ['monitoring' => ['logsizes' => false]]),
+        ]);
+
+        $response = $this->client()->get('/apps', [
+            'headers' => ['X-Mata-Auth' => $this->generateAuthHeader()],
+        ]);
+
+        $this->assertSame(500, $response->getStatusCode());
+        $this->assertStringNotContainsString('logsizes', (string) $response->getBody());
     }
 
     public function testAppsSummaryStillRequiresAuthentication(): void

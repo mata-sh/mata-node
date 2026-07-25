@@ -49,8 +49,14 @@ Use lowercase `app-id` values. Route lookups lowercase the requested app name be
     "disabled": "false",
     "env": "prod",
     "status_endpoint": "https://example.com/app/health/",
-    "error_monitoring_enabled": true,
-    "logsize_monitoring_enabled": true,
+    "monitoring": {
+      "loganalysis": true,
+      "logsize": true,
+      "sessions": true,
+      "reachability": true,
+      "alarms": true,
+      "events": true
+    },
     "sessions": {
       "type": "file",
       "path": "example-app/temp/sessions",
@@ -113,7 +119,7 @@ Use lowercase `app-id` values. Route lookups lowercase the requested app name be
 | `env` | Yes for `/apps` | none | Static application environment. Must be exactly `dev`, `test`, `stg`, or `prod`. |
 | `disabled` | No | `"false"` | Set to `"true"` to hide the app and make its app-specific endpoints unavailable. |
 | `status_endpoint` | No | none | Complete absolute `http` or `https` URL. The dashboard calls it directly; the node never calls it. |
-| `ping` | No | `"on"` | Returned by `/apps`. No other node behavior found. |
+| `monitoring` | No | all settings enabled | JSON object of per-app monitoring switches. See monitoring settings below. |
 | `sessions` | No | unconfigured | Session metadata config returned by `/apps` and `/{app}/sessions`. |
 | `sessions.type` | No | `file` when `sessions.path` exists | Session backend type: `file`, `redis`, or `none`. |
 | `sessions.path` | No | empty | Directory scanned for file sessions. Missing/empty/non-directory returns counts `0`. |
@@ -128,70 +134,174 @@ Use lowercase `app-id` values. Route lookups lowercase the requested app name be
 | `logs` | Yes for clean `/apps`; optional for `/logs` and `/logs-status` | `[]` for `/logs` and `/logs-status` | Log paths/groups read for recent lines and status counts. See log formats below. |
 | `description` | No | empty string | Returned by `/apps`. |
 | `readme` | No | `<path>/README.md` | Path used by `/{app}/readme`. |
-| `error_monitoring_enabled` | No | `true` | Literal JSON boolean. Returned by `/apps`. Controls dashboard fatal-error event production. |
-| `logsize_monitoring_enabled` | No | `true` | Literal JSON boolean. Returned by `/apps`. Controls dashboard `logfile_too_large` production. |
 | `composer` | No | disabled | Composer library/audit config. See composer fields below. |
 
 ### Monitoring settings
 
-Both settings are optional literal JSON booleans. Omitting a setting means `true`. Only `true`
-and `false` are accepted; string, numeric, `null`, array, and object values are an invalid
-application configuration and make `/apps` fail with the generic configuration error. The
-rejected value is never returned or logged, only the field name.
+`monitoring` is an optional per-app JSON object with six independent switches. Every switch
+defaults to `true`, so an app without a `monitoring` block behaves exactly as it did before the
+block existed.
 
 ```json
 {
   "shop": {
-    "error_monitoring_enabled": true,
-    "logsize_monitoring_enabled": false
+    "monitoring": {
+      "loganalysis": true,
+      "logsize": true,
+      "sessions": true,
+      "reachability": true,
+      "alarms": true,
+      "events": true
+    }
   }
 }
 ```
 
-The two settings are independent: disabling fatal-error monitoring does not disable log-size
-monitoring, and vice versa. Neither setting changes what the node measures — fatal counts, the
-fatal cursor, log paths, and log sizes stay in the `/apps` response either way. The node only
-reports the settings; the dashboard decides what to do with them, and a dashboard-side setting
-may still suppress what the node reports as enabled.
+The block may be sparse. Only list what you switch off:
 
-The legacy `alarms_enabled` setting was removed in 2026-07. It never affected node behavior and
-the dashboard only turned it into an unused CSS class, so it suppressed nothing. Use
-`error_monitoring_enabled` to stop fatal-error alarms for an application. Leftover
-`alarms_enabled` keys in an existing `apps.json` are ignored.
+```json
+{
+  "archived-shop": {
+    "monitoring": {
+      "loganalysis": false,
+      "sessions": false
+    }
+  }
+}
+```
+
+| Setting | Default | Effect when `false` |
+| --- | --- | --- |
+| `loganalysis` | `true` | The node performs no log parsing for the app. `/apps` omits `status`; `/{app}/logs` returns `409`. |
+| `logsize` | `true` | The node performs no log file globbing or sizing. `/apps` omits `logs`; `/{app}/logs-status` returns `409`. |
+| `sessions` | `true` | The node performs no session directory scan or Redis `SCAN`. `/apps` omits `session`; `/{app}/sessions` returns `409`. |
+| `reachability` | `true` | No node behavior. Reported to the dashboard, which stops probing the app. |
+| `alarms` | `true` | No node behavior. Reported to the dashboard, which records events but never elevates them into alarms. |
+| `events` | `true` | No node behavior. Reported to the dashboard, which produces no events for the app. |
+
+The first three actually skip work on the node — that is the point of the block. The last three
+are transport-only: the node reports them and the dashboard acts on them.
+
+#### Validation
+
+| Input | Result |
+| --- | --- |
+| `monitoring` absent | all six settings `true` |
+| `monitoring` an empty object | all six settings `true` |
+| a key absent | that setting `true` |
+| literal `true` / `false` | taken as-is |
+| `"true"`, `"false"`, `"on"`, `"off"`, `""`, `1`, `0`, `1.0`, `null`, array, object | invalid application configuration, field `monitoring.<key>` |
+| `monitoring` not a JSON object | invalid application configuration, field `monitoring` |
+| unknown key inside `monitoring` | invalid application configuration, field `monitoring.<key>` |
+
+Only literal JSON booleans are accepted. An invalid application configuration makes `/apps` and
+the app's gated detail routes fail with the generic configuration error and HTTP `500`. The
+rejected value is never returned or logged; only the field name is logged, alongside the app id.
+
+Unknown keys are rejected deliberately. A typo such as `"logsizes": false` would otherwise
+resolve silently to `true` and keep running the exact scan the operator meant to switch off.
+
+#### Removed settings
+
+The following per-app keys were removed. Leftover keys in an existing `apps.json` are ignored;
+they are neither validated nor returned by `/apps`.
+
+| Removed key | Removed | Replacement |
+| --- | --- | --- |
+| `alarms_enabled` | 2026-07 | `monitoring.alarms` |
+| `ping` | 2026-07-25 | `monitoring.reachability` |
+| `error_monitoring_enabled` | 2026-07-25 | `monitoring.loganalysis` |
+| `logsize_monitoring_enabled` | 2026-07-25 | `monitoring.logsize` |
+
+`alarms_enabled` never affected node behavior and the dashboard only turned it into an unused CSS
+class, so it suppressed nothing. `monitoring.alarms` does suppress alarm elevation.
+
+`ping` was returned by `/apps` as the string `"on"` or `"off"` and had no node behavior; the
+dashboard used it to skip availability probes. `error_monitoring_enabled` and
+`logsize_monitoring_enabled` were returned as booleans and gated only dashboard-side event
+production — the node still ran every scan. Their replacements skip the scan on the node.
+
+**Upgrading.** Remove `ping` entries from `config/apps.json`; the key is ignored. Apps that had
+`"ping": "off"` must be migrated by hand to `"monitoring": {"reachability": false}`, otherwise the
+dashboard starts probing them again. `"ping": "on"` needs no migration, because `reachability`
+defaults to `true`.
 
 ### App metadata responses
 
-`/apps` returns nested session metadata instead of flat session fields:
+A fully monitored app returns these keys, in this order:
 
 ```json
-"session": {
-  "type": "file",
-  "count_last_hour": 1,
-  "count_last_day": 2,
-  "count_total": 2,
-  "path": "example-app/temp/sessions",
-  "size_kb": 12.34
+"example-app": {
+  "path": "example-app",
+  "title": "Example Application",
+  "url": "https://example.com/app",
+  "env": "prod",
+  "status_url": "https://example.com/app/health/",
+  "description": "Example app",
+  "composer": true,
+  "status": { "fatal": 7, "warnings": 12, "total": 4231, "fatal_cursor": "v1:98cc…9ab" },
+  "session": { "type": "file", "status": "ok", "count_last_hour": 1, "count_last_day": 2, "count_total": 2, "path": "example-app/temp/sessions", "size_kb": 12.34 },
+  "logs": { "example-app/logs/error.log": 128.5 }
 }
 ```
 
-`/{app}/sessions` returns the same object for one app.
+The response is shaped by the app's `monitoring` block:
 
-Every app also returns both monitoring booleans and a log `status` object:
+- `status` is present iff `loganalysis` is enabled.
+- `logs` is present iff `logsize` is enabled.
+- `session` is present iff `sessions` is enabled.
+- `monitoring` is present iff at least one setting is disabled, and then it lists **only** the
+  disabled settings, always in the order `loganalysis`, `logsize`, `sessions`, `reachability`,
+  `alarms`, `events`. There is never a `true` value inside it.
+
+An app with `loganalysis` and `sessions` switched off therefore returns:
 
 ```json
-"error_monitoring_enabled": true,
-"logsize_monitoring_enabled": true,
-"status": {
-  "fatal": 7,
-  "warnings": 12,
-  "total": 4231,
-  "fatal_cursor": "v1:98cc8c0d5d4c3a2b1e0f9876543210abcdef0123456789abcdef0123456789ab"
+"archived-shop": {
+  "path": "archived-shop",
+  "title": "Archived Shop",
+  "url": "https://example.com/archived",
+  "env": "prod",
+  "status_url": null,
+  "description": "",
+  "composer": false,
+  "logs": { "archived-shop/logs/error.log": 128.5 },
+  "monitoring": { "loganalysis": false, "sessions": false }
 }
 ```
 
-`fatal`, `warnings`, and `total` are non-negative integers aggregated over all configured logs of
-the app. `fatal_cursor` is `null` exactly when `fatal` is `0`; otherwise it is `v1:` followed by 64
-lowercase hexadecimal characters.
+An omitted key means "not measured", not "measured as zero". A consumer must not read an absent
+`status` as a clean log or an absent `logs` as an empty log set.
+
+`/{app}/sessions` returns the same `session` object for one app.
+
+#### Gated detail routes
+
+A disabled setting also closes the matching detail route, so a scan the operator switched off
+cannot be triggered from the dashboard UI:
+
+| Route | Requires | Refused with |
+| --- | --- | --- |
+| `/{app}/logs` | `loganalysis` | `409` |
+| `/{app}/logs-status` | `logsize` | `409` |
+| `/{app}/sessions` | `sessions` | `409` |
+
+The refusal body names the setting:
+
+```json
+{
+  "error": "Monitoring disabled",
+  "message": "Monitoring disabled",
+  "details": {"app": "archived-shop", "setting": "logsize"}
+}
+```
+
+`/{app}/readme`, `/{app}/libraries`, and `/{app}/composer-audit` are not gated — they read no logs
+and no sessions.
+
+In `status`, `fatal`, `warnings`, and `total` are non-negative integers aggregated over all
+configured logs of the app. `fatal_cursor` is `null` exactly when `fatal` is `0`; otherwise it is
+`v1:` followed by 64 lowercase hexadecimal characters.
 
 The cursor is opaque and equality-only. It does not identify, describe, or expose an error: it
 carries no log content, no absolute path, no file identity, no offsets, and no per-entry hashes.

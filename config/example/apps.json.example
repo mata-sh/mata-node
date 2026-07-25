@@ -4,10 +4,15 @@
         "url": "https://example.com/app",
         "path": "example-app",
         "disabled": "false",
-        "ping": "on",
         "readme": "example-app/README.md",
-        "error_monitoring_enabled": true,
-        "logsize_monitoring_enabled": true,
+        "monitoring": {
+            "loganalysis": true,
+            "logsize": true,
+            "sessions": true,
+            "reachability": true,
+            "alarms": true,
+            "events": true
+        },
         "sessions": {
             "type": "file",
             "path": "example-app/temp/sessions",
@@ -41,7 +46,9 @@
         "title": "Redis Session Application",
         "url": "https://example.com/redis-sessions",
         "path": "redis-sessions-app",
-        "ping": "on",
+        "monitoring": {
+            "sessions": false
+        },
         "sessions": {
             "type": "redis",
             "dsn_env": "REDIS_SESSION_DSN",
@@ -54,9 +61,7 @@
         "logs": [
             "redis-sessions-app/logs/error.log"
         ],
-        "error_monitoring_enabled": false,
-        "logsize_monitoring_enabled": true,
-        "description": "Redis sessions using low-stress count_key counting. The app must maintain the count_key value. Fatal-error monitoring is off while log-size monitoring stays on.",
+        "description": "Redis sessions using low-stress count_key counting. Sparse monitoring block: session monitoring is off, so the node never scans Redis and /apps omits the session key. Everything else stays on.",
         "env": "prod"
     },
     "minimal-app": {

@@ -17,4 +17,14 @@ class AppWatcherException extends HttpException
             context: ['app' => $app]
         );
     }
+
+    public static function monitoringDisabled(string $app, string $setting): self
+    {
+        return new self(
+            message: 'Monitoring disabled',
+            error: 'Monitoring disabled',
+            httpStatus: 409,
+            context: ['app' => $app, 'setting' => $setting]
+        );
+    }
 }

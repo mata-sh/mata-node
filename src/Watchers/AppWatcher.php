@@ -10,6 +10,7 @@ use Mata\Services\Command\ProcessCommandRunner;
 use Mata\Services\Command\ProcessCommandRunnerInterface;
 use Mata\Services\FileCache;
 use Mata\Utils\Tools;
+use Mata\Watchers\App\AppMonitoringSettings;
 use Mata\Watchers\App\ComposerInspector;
 use Mata\Watchers\App\LogInspector;
 use Mata\Watchers\App\ReadmeReader;
@@ -30,6 +31,14 @@ class AppWatcher
     private LogInspector $logInspector;
     private ComposerInspector $composerInspector;
     private ReadmeReader $readmeReader;
+
+    /**
+     * Per-request memo, so each app's `monitoring` block is parsed once even
+     * though `getApps()` loops over `getAppInfo()` and the detail guards need it too.
+     *
+     * @var array<string, AppMonitoringSettings>
+     */
+    private array $monitoringSettings = [];
 
     public function __construct(
         Tools $tools,
@@ -176,27 +185,44 @@ class AppWatcher
         }
 
         $metadata = $this->normalizeAppMetadata($app, $appConfig);
+        $monitoring = $metadata['monitoring'];
 
-        return [
+        $info = [
             'path' => $metadata['path'],
             'title' => $metadata['title'],
             'url' => $metadata['url'],
             'env' => $metadata['env'],
             'status_url' => $metadata['status_url'],
-            'ping' => $appConfig['ping'] ?? 'on',
             'description' => $appConfig['description'] ?? '',
-            'error_monitoring_enabled' => $metadata['error_monitoring_enabled'],
-            'logsize_monitoring_enabled' => $metadata['logsize_monitoring_enabled'],
-            'status' => $this->logInspector->stats($app),
-            'session' => $this->getSessionMetadata($app),
-            'logs' => $this->logInspector->files($app),
             'composer' => $this->composerInspector->isEnabled($appConfig['composer'] ?? null),
         ];
+
+        // A disabled setting must skip the work, not just hide the result. These
+        // three calls are the expensive part of `/apps`.
+        if ($monitoring->loganalysis) {
+            $info['status'] = $this->logInspector->stats($app);
+        }
+
+        if ($monitoring->sessions) {
+            $info['session'] = $this->getSessionMetadata($app);
+        }
+
+        if ($monitoring->logsize) {
+            $info['logs'] = $this->logInspector->files($app);
+        }
+
+        $disabled = $monitoring->disabledMap();
+        if ($disabled !== []) {
+            $info['monitoring'] = $disabled;
+        }
+
+        return $info;
     }
 
     public function getAppLogStatus(string $app): array
     {
         $app = $this->requireAppKey($app);
+        $this->requireMonitoring($app, 'logsize');
 
         return $this->logInspector->status($app);
     }
@@ -204,6 +230,7 @@ class AppWatcher
     public function getAppLogs(string $app): array
     {
         $app = $this->requireAppKey($app);
+        $this->requireMonitoring($app, 'logsize');
 
         return $this->logInspector->files($app);
     }
@@ -211,6 +238,7 @@ class AppWatcher
     public function getAppSessions(string $app): array
     {
         $app = $this->requireAppKey($app);
+        $this->requireMonitoring($app, 'sessions');
 
         return $this->getSessionMetadata($app);
     }
@@ -218,6 +246,7 @@ class AppWatcher
     public function getAppLogEntries(string $app, string $filter = '', ?int $limit = null): array
     {
         $app = $this->requireAppKey($app);
+        $this->requireMonitoring($app, 'loganalysis');
 
         return $this->logInspector->entries($app, $filter, $limit);
     }
@@ -230,6 +259,7 @@ class AppWatcher
     public function getAppLogStats(string $app): array
     {
         $app = $this->requireAppKey($app);
+        $this->requireMonitoring($app, 'loganalysis');
 
         return $this->logInspector->stats($app);
     }
@@ -284,7 +314,7 @@ class AppWatcher
     /**
      * @param array<string, mixed> $appConfig
      *
-     * @return array{title: string, url: string, path: string, env: string, status_url: ?string, error_monitoring_enabled: bool, logsize_monitoring_enabled: bool}
+     * @return array{title: string, url: string, path: string, env: string, status_url: ?string, monitoring: AppMonitoringSettings}
      */
     private function normalizeAppMetadata(string $app, array $appConfig): array
     {
@@ -305,36 +335,61 @@ class AppWatcher
             $this->invalidAppConfiguration($app, 'status_endpoint');
         }
 
+        $monitoring = AppMonitoringSettings::parse($appConfig['monitoring'] ?? null);
+        if ($monitoring['invalid_field'] !== null) {
+            $this->invalidAppConfiguration($app, $monitoring['invalid_field']);
+        }
+
+        $this->monitoringSettings[$app] = $monitoring['settings'];
+
         return [
             'title' => $appConfig['title'],
             'url' => $appConfig['url'],
             'path' => $appConfig['path'],
             'env' => $appConfig['env'],
             'status_url' => $statusEndpoint['url'],
-            'error_monitoring_enabled' => $this->normalizeMonitoringSetting($app, $appConfig, 'error_monitoring_enabled'),
-            'logsize_monitoring_enabled' => $this->normalizeMonitoringSetting($app, $appConfig, 'logsize_monitoring_enabled'),
+            'monitoring' => $monitoring['settings'],
         ];
     }
 
     /**
-     * Normalize an independent monitoring setting.
-     *
-     * Absent means enabled. Only literal JSON booleans are accepted; every
-     * other representation is an invalid application configuration.
-     *
-     * @param array<string, mixed> $appConfig
+     * Refuse a detail route whose monitoring setting is switched off for this app.
      */
-    private function normalizeMonitoringSetting(string $app, array $appConfig, string $field): bool
+    private function requireMonitoring(string $app, string $setting): void
     {
-        if (!array_key_exists($field, $appConfig)) {
-            return true;
+        if (!$this->monitoringFor($app)->isEnabled($setting)) {
+            $this->logger->warning('Monitoring disabled for requested app', [
+                'app' => $app,
+                'setting' => $setting,
+            ]);
+
+            throw AppWatcherException::monitoringDisabled($app, $setting);
+        }
+    }
+
+    /**
+     * Memoized monitoring settings for one app.
+     *
+     * Only the `monitoring` block is validated here; the detail routes never
+     * required the rest of the app metadata to be complete.
+     */
+    private function monitoringFor(string $app): AppMonitoringSettings
+    {
+        if (isset($this->monitoringSettings[$app])) {
+            return $this->monitoringSettings[$app];
         }
 
-        if (!is_bool($appConfig[$field])) {
-            $this->invalidAppConfiguration($app, $field);
+        $appConfig = $this->watcherConfig[$app];
+        if (!is_array($appConfig)) {
+            $this->invalidAppConfiguration($app, 'config');
         }
 
-        return $appConfig[$field];
+        $parsed = AppMonitoringSettings::parse($appConfig['monitoring'] ?? null);
+        if ($parsed['invalid_field'] !== null) {
+            $this->invalidAppConfiguration($app, $parsed['invalid_field']);
+        }
+
+        return $this->monitoringSettings[$app] = $parsed['settings'];
     }
 
     /**

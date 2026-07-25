@@ -204,48 +204,143 @@ class AppMetadataTest extends TestCase
         ]);
 
         $info = $appWatcher->getAppInfo('testapp');
-        $this->assertTrue($info['error_monitoring_enabled']);
-        $this->assertTrue($info['logsize_monitoring_enabled']);
+        $this->assertArrayNotHasKey('monitoring', $info);
+        $this->assertArrayHasKey('status', $info);
+        $this->assertArrayHasKey('session', $info);
+        $this->assertArrayHasKey('logs', $info);
 
         $apps = $appWatcher->getApps();
-        $this->assertTrue($apps['testapp']['error_monitoring_enabled']);
-        $this->assertTrue($apps['testapp']['logsize_monitoring_enabled']);
+        $this->assertArrayNotHasKey('monitoring', $apps['testapp']);
+        $this->assertArrayHasKey('status', $apps['testapp']);
+        $this->assertArrayHasKey('session', $apps['testapp']);
+        $this->assertArrayHasKey('logs', $apps['testapp']);
     }
 
-    #[DataProvider('monitoringSettingCombinationProvider')]
-    public function testMonitoringSettingsVaryIndependently(bool $errorMonitoring, bool $logsizeMonitoring): void
+    public function testFullyEnabledMonitoringBlockOmitsTheMonitoringKey(): void
     {
         $appWatcher = $this->createAppWatcher([
+            'testapp' => $this->appConfig(['monitoring' => [
+                'loganalysis' => true,
+                'logsize' => true,
+                'sessions' => true,
+                'reachability' => true,
+                'alarms' => true,
+                'events' => true,
+            ]]),
+        ]);
+
+        $this->assertArrayNotHasKey('monitoring', $appWatcher->getAppInfo('testapp'));
+    }
+
+    #[DataProvider('monitoringPayloadKeyProvider')]
+    public function testDisabledSettingOmitsItsPayloadKey(string $setting, string $payloadKey): void
+    {
+        $appWatcher = $this->createAppWatcher([
+            'testapp' => $this->appConfig(['monitoring' => [$setting => false]]),
+        ]);
+
+        $info = $appWatcher->getAppInfo('testapp');
+
+        $this->assertArrayNotHasKey($payloadKey, $info);
+        $this->assertSame([$setting => false], $info['monitoring']);
+
+        foreach (['status' => 'loganalysis', 'session' => 'sessions', 'logs' => 'logsize'] as $otherKey => $otherSetting) {
+            if ($otherSetting === $setting) {
+                continue;
+            }
+
+            $this->assertArrayHasKey($otherKey, $info, $otherKey . ' must stay in the payload');
+        }
+    }
+
+    public static function monitoringPayloadKeyProvider(): array
+    {
+        return [
+            'loganalysis' => ['loganalysis', 'status'],
+            'logsize' => ['logsize', 'logs'],
+            'sessions' => ['sessions', 'session'],
+        ];
+    }
+
+    #[DataProvider('payloadNeutralSettingProvider')]
+    public function testDashboardOnlySettingsOnlyAffectTheSparseMap(string $setting): void
+    {
+        $appWatcher = $this->createAppWatcher([
+            'testapp' => $this->appConfig(['monitoring' => [$setting => false]]),
+        ]);
+
+        $info = $appWatcher->getAppInfo('testapp');
+
+        $this->assertSame([$setting => false], $info['monitoring']);
+        $this->assertArrayHasKey('status', $info);
+        $this->assertArrayHasKey('session', $info);
+        $this->assertArrayHasKey('logs', $info);
+    }
+
+    public static function payloadNeutralSettingProvider(): array
+    {
+        return [
+            'reachability' => ['reachability'],
+            'alarms' => ['alarms'],
+            'events' => ['events'],
+        ];
+    }
+
+    public function testAllSettingsDisabledOmitsEveryMeasuredKey(): void
+    {
+        mkdir($this->rootPath . '/app/logs', 0777, true);
+        file_put_contents($this->rootPath . '/app/logs/error.log', "[19-Jul-2026 12:00:00 UTC] PHP Fatal error: boom\n");
+
+        $appWatcher = $this->createAppWatcher([
             'testapp' => $this->appConfig([
-                'error_monitoring_enabled' => $errorMonitoring,
-                'logsize_monitoring_enabled' => $logsizeMonitoring,
+                'monitoring' => [
+                    'loganalysis' => false,
+                    'logsize' => false,
+                    'sessions' => false,
+                    'reachability' => false,
+                    'alarms' => false,
+                    'events' => false,
+                ],
+                'logs' => [['type' => 'php_error_log', 'paths' => ['app/logs/error.log']]],
             ]),
         ]);
 
         $info = $appWatcher->getAppInfo('testapp');
 
-        $this->assertSame($errorMonitoring, $info['error_monitoring_enabled']);
-        $this->assertSame($logsizeMonitoring, $info['logsize_monitoring_enabled']);
+        $this->assertSame([
+            'path', 'title', 'url', 'env', 'status_url', 'description', 'composer', 'monitoring',
+        ], array_keys($info));
+        $this->assertSame([
+            'loganalysis' => false,
+            'logsize' => false,
+            'sessions' => false,
+            'reachability' => false,
+            'alarms' => false,
+            'events' => false,
+        ], $info['monitoring']);
     }
 
-    public static function monitoringSettingCombinationProvider(): array
+    public function testRemovedFlatFlagsAndPingAreNoLongerReturned(): void
     {
-        return [
-            'both enabled' => [true, true],
-            'fatal only' => [true, false],
-            'logsize only' => [false, true],
-            'both disabled' => [false, false],
-        ];
+        $appWatcher = $this->createAppWatcher([
+            'testapp' => $this->appConfig(['ping' => 'off']),
+        ]);
+
+        $info = $appWatcher->getAppInfo('testapp');
+
+        foreach (['ping', 'error_monitoring_enabled', 'logsize_monitoring_enabled'] as $removed) {
+            $this->assertArrayNotHasKey($removed, $info);
+        }
     }
 
     #[DataProvider('invalidMonitoringSettingProvider')]
-    public function testInvalidMonitoringSettingIsLoggedAndRejected(string $field, mixed $value): void
+    public function testInvalidMonitoringSettingIsLoggedAndRejected(mixed $monitoring, string $field): void
     {
         $handler = new TestHandler();
         $logger = new Logger('test');
         $logger->pushHandler($handler);
         $appWatcher = $this->createAppWatcher([
-            'testapp' => $this->appConfig([$field => $value]),
+            'testapp' => $this->appConfig(['monitoring' => $monitoring]),
         ], $logger);
 
         $this->assertInvalidConfiguration($appWatcher, $handler, $field);
@@ -274,38 +369,105 @@ class AppMetadataTest extends TestCase
         ];
 
         $cases = [];
-        foreach (['error_monitoring_enabled', 'logsize_monitoring_enabled'] as $field) {
+        foreach (['loganalysis', 'logsize', 'sessions', 'reachability', 'alarms', 'events'] as $setting) {
             foreach ($values as $label => $value) {
-                $cases[$field . ' ' . $label] = [$field, $value];
+                $cases[$setting . ' ' . $label] = [[$setting => $value], 'monitoring.' . $setting];
             }
         }
+
+        $cases['non-object string'] = ['loganalysis', 'monitoring'];
+        $cases['non-object bool'] = [false, 'monitoring'];
+        $cases['non-object integer'] = [0, 'monitoring'];
+        $cases['non-object list'] = [['loganalysis', 'logsize'], 'monitoring'];
+        $cases['non-object stdclass'] = [(object) ['loganalysis' => false], 'monitoring'];
+        $cases['unknown key'] = [['logsizes' => false], 'monitoring.logsizes'];
+        $cases['legacy flat flag as key'] = [['error_monitoring_enabled' => false], 'monitoring.error_monitoring_enabled'];
+        $cases['out of scope key'] = [['diskspace' => false], 'monitoring.diskspace'];
 
         return $cases;
     }
 
-    public function testDisabledMonitoringStillReturnsStatusCursorAndLogSizes(): void
+    #[DataProvider('gatedDetailRouteProvider')]
+    public function testDisabledMonitoringRefusesDetailRouteWithConflict(string $setting, string $method): void
     {
         mkdir($this->rootPath . '/app/logs', 0777, true);
-        $log = "[19-Jul-2026 12:00:00 UTC] PHP Fatal error: boom\n[19-Jul-2026 12:00:01 UTC] PHP Warning: careful\n";
-        file_put_contents($this->rootPath . '/app/logs/error.log', $log);
+        file_put_contents($this->rootPath . '/app/logs/error.log', "[19-Jul-2026 12:00:00 UTC] PHP Fatal error: boom\n");
 
         $appWatcher = $this->createAppWatcher([
             'testapp' => $this->appConfig([
-                'error_monitoring_enabled' => false,
-                'logsize_monitoring_enabled' => false,
+                'monitoring' => [$setting => false],
                 'logs' => [['type' => 'php_error_log', 'paths' => ['app/logs/error.log']]],
             ]),
         ]);
 
-        $info = $appWatcher->getAppInfo('testapp');
+        try {
+            $appWatcher->{$method}('testapp');
+            $this->fail('Expected ' . $method . '() to be refused while ' . $setting . ' is disabled.');
+        } catch (AppWatcherException $exception) {
+            $this->assertSame(409, $exception->getHttpStatus());
+            $this->assertSame('Monitoring disabled', $exception->getError());
+            $this->assertSame('Monitoring disabled', $exception->getMessage());
+            $this->assertSame(['app' => 'testapp', 'setting' => $setting], $exception->getContext());
+        }
+    }
 
-        $this->assertFalse($info['error_monitoring_enabled']);
-        $this->assertFalse($info['logsize_monitoring_enabled']);
-        $this->assertSame(1, $info['status']['fatal']);
-        $this->assertSame(1, $info['status']['warnings']);
-        $this->assertSame(2, $info['status']['total']);
-        $this->assertMatchesRegularExpression('/^v1:[0-9a-f]{64}$/', (string) $info['status']['fatal_cursor']);
-        $this->assertSame(['app/logs/error.log' => strlen($log) / 1024], $info['logs']);
+    public static function gatedDetailRouteProvider(): array
+    {
+        return [
+            'log entries need loganalysis' => ['loganalysis', 'getAppLogEntries'],
+            'log stats need loganalysis' => ['loganalysis', 'getAppLogStats'],
+            'log status needs logsize' => ['logsize', 'getAppLogStatus'],
+            'log sizes need logsize' => ['logsize', 'getAppLogs'],
+            'sessions need sessions' => ['sessions', 'getAppSessions'],
+        ];
+    }
+
+    #[DataProvider('gatedDetailRouteProvider')]
+    public function testEnabledMonitoringStillServesDetailRoute(string $setting, string $method): void
+    {
+        mkdir($this->rootPath . '/app/logs', 0777, true);
+        file_put_contents($this->rootPath . '/app/logs/error.log', "[19-Jul-2026 12:00:00 UTC] PHP Fatal error: boom\n");
+
+        $appWatcher = $this->createAppWatcher([
+            'testapp' => $this->appConfig([
+                'monitoring' => [$setting => true],
+                'logs' => [['type' => 'php_error_log', 'paths' => ['app/logs/error.log']]],
+            ]),
+        ]);
+
+        $this->assertIsArray($appWatcher->{$method}('testapp'));
+    }
+
+    public function testUnrelatedDisabledSettingDoesNotGateADetailRoute(): void
+    {
+        $appWatcher = $this->createAppWatcher([
+            'testapp' => $this->appConfig(['monitoring' => ['sessions' => false]]),
+        ]);
+
+        $this->assertIsArray($appWatcher->getAppLogStatus('testapp'));
+        $this->assertIsArray($appWatcher->getAppLogStats('testapp'));
+    }
+
+    public function testDetailRouteRejectsAnInvalidMonitoringBlock(): void
+    {
+        $handler = new TestHandler();
+        $logger = new Logger('test');
+        $logger->pushHandler($handler);
+        $appWatcher = $this->createAppWatcher([
+            'testapp' => $this->appConfig(['monitoring' => ['logsize' => 'false']]),
+        ], $logger);
+
+        try {
+            $appWatcher->getAppLogStatus('testapp');
+            $this->fail('Expected invalid application configuration exception.');
+        } catch (AppWatcherException $exception) {
+            $this->assertSame(500, $exception->getHttpStatus());
+        }
+
+        $records = $handler->getRecords();
+        $this->assertCount(1, $records);
+        $this->assertSame(['app', 'field'], array_keys($records[0]['context']));
+        $this->assertSame('monitoring.logsize', $records[0]['context']['field']);
     }
 
     public function testDisabledAppIsExcludedAndUnavailable(): void

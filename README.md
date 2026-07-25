@@ -89,10 +89,15 @@ MATA Node runs on each monitored environment and answers authenticated requests 
 - `GET /{dbname}/database-processes`
 - `GET /{dbname}/database-threads`
 
-Each `/apps` entry carries the independent booleans `error_monitoring_enabled` and
-`logsize_monitoring_enabled` (both default to `true`) plus `status.fatal_cursor`, an opaque
-equality-only fingerprint of the app's fatal-error observation that is `null` exactly when
-`status.fatal` is `0`. See the
+Each `/apps` entry is shaped by the app's optional `monitoring` block in `apps.json`
+(`loganalysis`, `logsize`, `sessions`, `reachability`, `alarms`, `events` — all default to
+`true`). `status` is present only with `loganalysis`, `logs` only with `logsize`, and `session`
+only with `sessions`; a disabled setting skips the scan instead of hiding its result, and the
+matching detail route answers `409`. A `monitoring` key appears only when something is disabled,
+and then lists the disabled settings alone.
+
+`status.fatal_cursor` is an opaque equality-only fingerprint of the app's fatal-error observation
+that is `null` exactly when `status.fatal` is `0`. See the
 [configuration reference](docs/configuration.md#app-metadata-responses) for the full contract.
 
 ### Authentication format
