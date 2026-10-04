@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Mata\Tests\Integration;
 
 use GuzzleHttp\Client;
+use MataSh\RateLimiter\RateLimitIdentifier;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Throwable;
@@ -102,6 +103,74 @@ final class HttpAuthMiddlewareTest extends TestCase
         $this->assertStringContainsString('"request_uri":"/server/info"', $log);
     }
 
+    public function testApiRateLimitResponseUsesPackageRetryTimestamp(): void
+    {
+        for ($request = 0; $request < 2; ++$request) {
+            $response = $this->client->get('/server/info', [
+                'headers' => ['X-Mata-Auth' => $this->generateAuthHeader()],
+            ]);
+            $this->assertSame(200, $response->getStatusCode(), (string) $response->getBody());
+        }
+
+        $stateFiles = glob($this->tmpDir . '/cache/rate_limit/*.json') ?: [];
+        $this->assertCount(1, $stateFiles);
+        $state = json_decode((string) file_get_contents($stateFiles[0]), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertIsArray($state);
+        $this->assertIsArray($state['timestamps'] ?? null);
+
+        /** @var list<int> $timestamps */
+        $timestamps = $state['timestamps'];
+        $expectedRetryAt = min($timestamps) + 60;
+
+        $denied = $this->client->get('/server/info', [
+            'headers' => ['X-Mata-Auth' => $this->generateAuthHeader()],
+        ]);
+
+        $this->assertSame(429, $denied->getStatusCode(), (string) $denied->getBody());
+        $this->assertSame([
+            'error' => 'Rate limit exceeded',
+            'limit' => 2,
+            'reset_at' => $expectedRetryAt,
+        ], $this->decodeJson($denied));
+        $this->assertRetryGuidance($denied, $expectedRetryAt);
+    }
+
+    public function testRateLimiterInitializationFailureFailsClosed(): void
+    {
+        touch($this->tmpDir . '/fail-rate-limit-init');
+        $before = time();
+
+        $response = $this->client->get('/server/info', [
+            'headers' => ['X-Mata-Auth' => $this->generateAuthHeader()],
+        ]);
+
+        $this->assertSame(429, $response->getStatusCode(), (string) $response->getBody());
+        $body = $this->decodeJson($response);
+        $this->assertGreaterThanOrEqual($before + 60, $body['reset_at']);
+        $this->assertLessThanOrEqual(time() + 60, $body['reset_at']);
+        $this->assertRetryGuidance($response, $body['reset_at']);
+    }
+
+    public function testRateLimiterRuntimeFailureFailsClosed(): void
+    {
+        $identifier = 'rate_limit_api_' . RateLimitIdentifier::fromIp('127.0.0.1');
+        file_put_contents(
+            $this->tmpDir . '/cache/rate_limit/' . hash('sha256', $identifier) . '.json',
+            'invalid',
+        );
+        $before = time();
+
+        $response = $this->client->get('/server/info', [
+            'headers' => ['X-Mata-Auth' => $this->generateAuthHeader()],
+        ]);
+
+        $this->assertSame(429, $response->getStatusCode(), (string) $response->getBody());
+        $body = $this->decodeJson($response);
+        $this->assertGreaterThanOrEqual($before + 60, $body['reset_at']);
+        $this->assertLessThanOrEqual(time() + 60, $body['reset_at']);
+        $this->assertRetryGuidance($response, $body['reset_at']);
+    }
+
     public function testMissingReadmeReturnsPayloadWithOkStatusThroughRouter(): void
     {
         $response = $this->client->get('/testapp/readme', [
@@ -181,6 +250,14 @@ final class HttpAuthMiddlewareTest extends TestCase
         $body = $this->decodeJson($replay);
         $this->assertSame('Unauthorized', $body['error']);
         $this->assertSame('Nonce already used (replay attack detected)', $body['message']);
+    }
+
+    private function assertRetryGuidance(ResponseInterface $response, int $resetAt): void
+    {
+        $retryAfter = (int) $response->getHeaderLine('Retry-After');
+
+        $this->assertGreaterThanOrEqual(1, $retryAfter);
+        $this->assertEqualsWithDelta($resetAt - time(), $retryAfter, 1);
     }
 
     private function generateAuthHeader(?string $nonce = null): string
@@ -270,7 +347,7 @@ $auth = new Auth(
 
 $rateLimiter = RateLimiterFactory::create(new RateLimitingConfig(
     enabled: true,
-    storageType: 'file',
+    storageType: file_exists($basePath . '/fail-rate-limit-init') ? 'unsupported' : 'file',
     filePath: $paths->cachePath . '/rate_limit',
     redisHost: null,
     redisPort: 6379,
@@ -280,7 +357,7 @@ $rateLimiter = RateLimiterFactory::create(new RateLimitingConfig(
     loginWindowSeconds: 60,
     dashboardMaxRequests: 100,
     dashboardWindowSeconds: 60,
-    apiMaxRequests: 100,
+    apiMaxRequests: 2,
     apiWindowSeconds: 60,
     authFailedMaxRequests: 100,
     authFailedWindowSeconds: 60,

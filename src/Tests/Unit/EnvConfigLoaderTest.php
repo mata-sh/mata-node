@@ -82,6 +82,35 @@ ENV
         }
     }
 
+    public function testSessionRateLimitStorageFallsBackToFile(): void
+    {
+        $configDir = sys_get_temp_dir() . '/mata-node-rate-limit-env-' . bin2hex(random_bytes(6));
+        mkdir($configDir, 0777, true);
+        file_put_contents($configDir . '/config.env', "RATE_LIMIT_STORAGE=session\n");
+        $previousEnv = $_ENV['RATE_LIMIT_STORAGE'] ?? null;
+        $previousServer = $_SERVER['RATE_LIMIT_STORAGE'] ?? null;
+        $previousProcess = getenv('RATE_LIMIT_STORAGE');
+        unset($_ENV['RATE_LIMIT_STORAGE'], $_SERVER['RATE_LIMIT_STORAGE']);
+        putenv('RATE_LIMIT_STORAGE');
+
+        try {
+            $config = (new EnvConfigLoader())->load(['config.env'], $configDir);
+
+            $this->assertSame('file', $config->rateLimiting->storageType);
+        } finally {
+            unset($_ENV['RATE_LIMIT_STORAGE'], $_SERVER['RATE_LIMIT_STORAGE']);
+            if ($previousEnv !== null) {
+                $_ENV['RATE_LIMIT_STORAGE'] = $previousEnv;
+            }
+            if ($previousServer !== null) {
+                $_SERVER['RATE_LIMIT_STORAGE'] = $previousServer;
+            }
+            putenv($previousProcess === false ? 'RATE_LIMIT_STORAGE' : 'RATE_LIMIT_STORAGE=' . $previousProcess);
+            unlink($configDir . '/config.env');
+            rmdir($configDir);
+        }
+    }
+
     public function testEmptyDashboardApiKeyIsCriticalConfigError(): void
     {
         $result = (new EnvConfigLoader())->validateConfig($this->createConfig(dashboardApiKey: ''));

@@ -7,6 +7,10 @@ namespace Mata\Services;
 use Mata\Config\Dto\RateLimitingConfig;
 use MataSh\RateLimiter\RateLimiter as MataShRateLimiter;
 use MataSh\RateLimiter\RateLimitIdentifier;
+use MataSh\RateLimiter\RateLimitResult;
+use Psr\Log\LoggerInterface;
+use RuntimeException;
+use Throwable;
 
 /**
  * Wrapper service for mata-sh/rate-limiter package.
@@ -16,61 +20,56 @@ use MataSh\RateLimiter\RateLimitIdentifier;
  */
 class RateLimiter
 {
-    private MataShRateLimiter $rateLimiter;
+    private ?MataShRateLimiter $rateLimiter;
     private RateLimitingConfig $config;
+    private LoggerInterface $logger;
 
-    public function __construct(MataShRateLimiter $rateLimiter, RateLimitingConfig $config)
-    {
+    public function __construct(
+        ?MataShRateLimiter $rateLimiter,
+        RateLimitingConfig $config,
+        LoggerInterface $logger,
+    ) {
         $this->rateLimiter = $rateLimiter;
         $this->config = $config;
+        $this->logger = $logger;
 
-        // Apply global enable/disable setting
-        $this->rateLimiter->setRateLimitingEnabled($config->enabled);
+        $this->rateLimiter?->setRateLimitingEnabled($config->enabled);
     }
 
     /**
-     * Check if request should be rate limited for specific route group.
-     *
-     * @param string      $group Route group: 'login', 'dashboard', 'api'
-     * @param null|string $ip    Optional IP address (defaults to $_SERVER['REMOTE_ADDR'])
-     *
-     * @return bool True if rate limit exceeded, false if within limits
+     * Atomically consume one request for a route group.
      */
-    public function isRateLimited(string $group, ?string $ip = null): bool
+    public function consume(string $group, ?string $ip = null): RateLimitResult
     {
         if (!$this->config->enabled) {
-            return false;
+            return new RateLimitResult(true, 0, null);
         }
 
-        $identifier = RateLimitIdentifier::fromIp($ip);
         $limits = $this->config->getLimitForGroup($group);
 
-        // allow() returns true if allowed, we need to return true if limited
-        return !$this->rateLimiter->allow(
-            $identifier,
-            $limits['maxRequests'],
-            $limits['windowSeconds']
-        );
+        try {
+            return $this->requireRateLimiter()->consume(
+                $group . '_' . RateLimitIdentifier::fromIp($ip),
+                $limits['maxRequests'],
+                $limits['windowSeconds']
+            );
+        } catch (Throwable $e) {
+            $this->logger->error('Rate-limit request denied after limiter failure', [
+                'group' => $group,
+                'exception' => $e,
+            ]);
+
+            return new RateLimitResult(
+                false,
+                $limits['maxRequests'],
+                time() + $limits['windowSeconds'],
+            );
+        }
     }
 
-    /**
-     * Get current rate limit status for route group.
-     *
-     * @param string      $group Route group: 'login', 'dashboard', 'api'
-     * @param null|string $ip    Optional IP address
-     *
-     * @return array{allowed: bool, current: int, limit: int, remaining: int, reset_at: int, storage_type: string}
-     */
-    public function check(string $group, ?string $ip = null): array
+    public function getLimit(string $group): int
     {
-        $identifier = RateLimitIdentifier::fromIp($ip);
-        $limits = $this->config->getLimitForGroup($group);
-
-        return $this->rateLimiter->check(
-            $identifier,
-            $limits['maxRequests'],
-            $limits['windowSeconds']
-        );
+        return $this->config->getLimitForGroup($group)['maxRequests'];
     }
 
     /**
@@ -78,6 +77,15 @@ class RateLimiter
      */
     public function getRateLimiter(): MataShRateLimiter
     {
+        return $this->requireRateLimiter();
+    }
+
+    private function requireRateLimiter(): MataShRateLimiter
+    {
+        if ($this->rateLimiter === null) {
+            throw new RuntimeException('Rate limiter is unavailable');
+        }
+
         return $this->rateLimiter;
     }
 }

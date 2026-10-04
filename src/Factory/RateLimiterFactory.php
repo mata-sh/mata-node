@@ -7,6 +7,9 @@ namespace Mata\Factory;
 use Mata\Config\Dto\RateLimitingConfig;
 use Mata\Services\RateLimiter;
 use MataSh\RateLimiter\RateLimiter as MataShRateLimiter;
+use MataSh\RateLimiter\Storage\ApcuStorage;
+use MataSh\RateLimiter\Storage\FileStorage;
+use MataSh\RateLimiter\Storage\RedisStorage;
 use Psr\Log\LoggerInterface;
 use Redis;
 use RuntimeException;
@@ -26,7 +29,7 @@ final class RateLimiterFactory
      * @param RateLimitingConfig $config Configuration for rate limiting
      * @param LoggerInterface    $logger Logger for initialization messages
      *
-     * @return null|RateLimiter Rate limiter, or null when disabled or initialization fails
+     * @return null|RateLimiter Rate limiter, or null when disabled
      */
     public static function create(
         RateLimitingConfig $config,
@@ -37,8 +40,6 @@ final class RateLimiterFactory
         }
 
         try {
-            $redis = null;
-
             // Initialize Redis if configured
             if ($config->storageType === 'redis') {
                 $redis = new Redis();
@@ -64,17 +65,23 @@ final class RateLimiterFactory
                     'host' => $config->redisHost,
                     'port' => $config->redisPort,
                 ]);
+
+                $storage = new RedisStorage($redis);
+            } else {
+                $storage = match ($config->storageType) {
+                    'file' => new FileStorage($config->filePath),
+                    'apcu' => new ApcuStorage(),
+                    default => throw new RuntimeException('Unsupported rate limiter storage: ' . $config->storageType),
+                };
             }
 
             // Initialize RateLimiter with configured backend
             $packageRateLimiter = new MataShRateLimiter(
-                storageType: $config->storageType,
-                fileStoragePath: $config->filePath,
-                redis: $redis,
+                storage: $storage,
                 logger: $logger
             );
 
-            $rateLimiter = new RateLimiter($packageRateLimiter, $config);
+            $rateLimiter = new RateLimiter($packageRateLimiter, $config, $logger);
 
             $logger->info('Rate limiting initialized', [
                 'storage' => $config->storageType,
@@ -83,9 +90,12 @@ final class RateLimiterFactory
 
             return $rateLimiter;
         } catch (Throwable $e) {
-            $logger->error('Failed to initialize rate limiter: ' . $e->getMessage());
+            $logger->critical('Failed to initialize rate limiter; all protected requests will be denied', [
+                'storage' => $config->storageType,
+                'exception' => $e,
+            ]);
 
-            return null;
+            return new RateLimiter(null, $config, $logger);
         }
     }
 }

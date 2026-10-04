@@ -6,6 +6,7 @@ namespace Mata\Tests\Unit;
 
 use Mata\Config\Dto\RateLimitingConfig;
 use Mata\Factory\RateLimiterFactory;
+use MataSh\RateLimiter\Storage\FileStorage;
 use Monolog\Handler\TestHandler;
 use Monolog\Logger;
 use PHPUnit\Framework\TestCase;
@@ -28,12 +29,52 @@ class RateLimiterFactoryTest extends TestCase
         $this->assertEmpty($handler->getRecords());
     }
 
-    private function createConfig(bool $enabled): RateLimitingConfig
+    public function testEnabledFileRateLimitingInitializesFileStorage(): void
     {
+        $directory = sys_get_temp_dir() . '/mata-rate-limiter-factory-' . bin2hex(random_bytes(8));
+        $logger = new Logger('test');
+
+        try {
+            $rateLimiter = RateLimiterFactory::create(
+                $this->createConfig(enabled: true, filePath: $directory),
+                $logger
+            );
+
+            $this->assertNotNull($rateLimiter);
+            $this->assertInstanceOf(FileStorage::class, $rateLimiter->getRateLimiter()->getStorage());
+            $this->assertDirectoryExists($directory);
+        } finally {
+            if (is_dir($directory)) {
+                rmdir($directory);
+            }
+        }
+    }
+
+    public function testInitializationFailureReturnsFailClosedLimiter(): void
+    {
+        $handler = new TestHandler();
+        $logger = new Logger('test', [$handler]);
+        $rateLimiter = RateLimiterFactory::create(
+            $this->createConfig(enabled: true, storageType: 'unsupported'),
+            $logger,
+        );
+
+        $this->assertNotNull($rateLimiter);
+        $result = $rateLimiter->consume('api', '192.0.2.1');
+        $this->assertFalse($result->isAllowed());
+        $this->assertNotNull($result->getRetryAt());
+        $this->assertTrue($handler->hasCriticalRecords());
+    }
+
+    private function createConfig(
+        bool $enabled,
+        ?string $filePath = null,
+        string $storageType = 'file',
+    ): RateLimitingConfig {
         return new RateLimitingConfig(
             enabled: $enabled,
-            storageType: 'file',
-            filePath: null,
+            storageType: $storageType,
+            filePath: $filePath,
             redisHost: '127.0.0.1',
             redisPort: 6379,
             redisPassword: null,

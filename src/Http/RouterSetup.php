@@ -127,19 +127,24 @@ class RouterSetup
                 exit;
             }
 
-            if ($this->rateLimiter?->isRateLimited('api', $ip)) {
-                $status = $this->rateLimiter->check('api', $ip);
+            $rateLimitResult = $this->rateLimiter?->consume('api', $ip);
+            if ($rateLimitResult !== null && !$rateLimitResult->isAllowed()) {
+                $limit = $this->rateLimiter->getLimit('api');
+                $retryAt = $rateLimitResult->getRetryAt();
                 $this->logger->warning('Rate limit exceeded', [
                     'group' => 'api',
                     'ip' => $ip,
-                    'limit' => $status['limit'],
-                    'current' => $status['current'],
+                    'limit' => $limit,
+                    'current' => $rateLimitResult->getCurrent(),
                     'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
                 ]);
+                if ($retryAt !== null) {
+                    header('Retry-After: ' . max(1, $retryAt - time()));
+                }
                 $this->sendJson([
                     'error' => 'Rate limit exceeded',
-                    'limit' => $status['limit'],
-                    'reset_at' => $status['reset_at'],
+                    'limit' => $limit,
+                    'reset_at' => $retryAt,
                 ], 429);
 
                 exit;
@@ -148,12 +153,12 @@ class RouterSetup
             $authResult = $this->auth->validateHmacAuth();
 
             if (!$authResult['success']) {
-                if ($this->rateLimiter?->isRateLimited('auth_failed', $ip)) {
-                    $status = $this->rateLimiter->check('auth_failed', $ip);
+                $failedAuthRateLimitResult = $this->rateLimiter?->consume('auth_failed', $ip);
+                if ($failedAuthRateLimitResult !== null && !$failedAuthRateLimitResult->isAllowed()) {
                     $this->logger->warning('Failed auth rate limit exceeded', [
                         'ip' => $ip,
-                        'limit' => $status['limit'],
-                        'current' => $status['current'],
+                        'limit' => $this->rateLimiter->getLimit('auth_failed'),
+                        'current' => $failedAuthRateLimitResult->getCurrent(),
                     ]);
                 }
 
