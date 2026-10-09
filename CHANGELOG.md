@@ -5,6 +5,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Database process lists no longer include query text: `info` holds only the statement keyword (e.g. `SELECT`), since full SQL can contain application data or credentials. Rows now use lowercase keys (`id`, `user`, `host`, `db`, `command`, `time`, `state`, `info`), which the dashboard's process modal already expects
+
 ### Removed
 - Unused mail configuration: `config/mail.config.env` is no longer required or loaded, and the `symfony/mailer` dependency is gone. Existing `config/mail.config.env` files can be deleted
 

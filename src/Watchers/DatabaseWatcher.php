@@ -177,12 +177,59 @@ class DatabaseWatcher
         return (int) $result[0]['Value'];
     }
 
+    /**
+     * Retrieve the process list without query text.
+     *
+     * `info` carries only the statement keyword (e.g. `SELECT`), because full query text
+     * can contain application data, credentials or tokens.
+     *
+     * @return list<array{id: int, user: ?string, host: ?string, db: ?string, command: ?string, time: int, state: ?string, info: ?string}>
+     */
     public function retrieveProcessList(string $databaseName): array
     {
         $sql = <<<'SQL'
-            SHOW FULL PROCESSLIST;
+            SELECT ID AS id, USER AS user, HOST AS host, DB AS db, COMMAND AS command,
+                   TIME AS time, STATE AS state, INFO AS info
+            FROM information_schema.processlist
         SQL;
 
-        return $this->getConnection($databaseName)->runQuery($sql);
+        $rows = $this->getConnection($databaseName)->runQuery($sql);
+
+        return array_map(self::sanitizeProcessRow(...), array_values($rows));
+    }
+
+    /**
+     * @param array<string, mixed> $row Process-list row with lowercase column aliases
+     *
+     * @return array{id: int, user: ?string, host: ?string, db: ?string, command: ?string, time: int, state: ?string, info: ?string}
+     */
+    public static function sanitizeProcessRow(array $row): array
+    {
+        $text = static fn (mixed $value): ?string => is_scalar($value) ? (string) $value : null;
+
+        return [
+            'id' => (int) ($row['id'] ?? 0),
+            'user' => $text($row['user'] ?? null),
+            'host' => $text($row['host'] ?? null),
+            'db' => $text($row['db'] ?? null),
+            'command' => $text($row['command'] ?? null),
+            'time' => (int) ($row['time'] ?? 0),
+            'state' => $text($row['state'] ?? null),
+            'info' => self::statementType($text($row['info'] ?? null)),
+        ];
+    }
+
+    /**
+     * Reduce SQL text to its leading statement keyword, skipping comments.
+     */
+    public static function statementType(?string $sql): ?string
+    {
+        if ($sql === null) {
+            return null;
+        }
+
+        $pattern = '~^(?:\s+|/\*.*?\*/|(?:--\s|#)[^\n]*(?:\n|$))*([a-z]+)~is';
+
+        return preg_match($pattern, $sql, $matches) === 1 ? strtoupper($matches[1]) : null;
     }
 }
