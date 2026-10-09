@@ -388,7 +388,7 @@ $routerSetup = new RouterSetup(
     $paths,
     new AppWatcher(new Tools(), $logger, $paths->rootPath, $watcherConfig, $transmitConfig, null, $cache, $commandRunner),
     new ServerWatcher($paths->rootPath, $cache, $transmitConfig, $commandRunner),
-    new DatabaseWatcher([], $commandRunner),
+    new DatabaseWatcher(null),
     new GeneralConfig(false, false, [], []),
     $rateLimiter
 );

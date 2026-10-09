@@ -13,6 +13,8 @@ use Mata\Watchers\Server\CronjobInspector;
 
 class ServerWatcher
 {
+    public const MYSQL_PROCESS_NAMES = 'mysqld|mariadbd';
+
     private string $rootPath;
     private FileCache $cache;
     private bool $isDiskSpaceCheckEnabled;
@@ -64,7 +66,7 @@ class ServerWatcher
             'processes' => [
                 'total' => (int) $this->commandRunner->run(ShellCommands::totalProcessCount()),
                 'php' => $this->commandRunner->countProcesses('php', exact: false),
-                'sql' => $this->commandRunner->countProcesses(DatabaseWatcher::MYSQL_PROCESS_NAMES),
+                'sql' => $this->commandRunner->countProcesses(self::MYSQL_PROCESS_NAMES),
             ],
         ];
 

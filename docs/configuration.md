@@ -11,7 +11,7 @@ make bootstrap-config
 | --- | --- |
 | [`config.env`](#configconfigenv) | Dashboard credentials, access control, logging, rate limiting |
 | [`apps.json`](#configappsjson) | Watched applications: logs, sessions, Composer, monitoring switches |
-| [`databases.json`](#configdatabasesjson) | MySQL/MariaDB connections for the database endpoints |
+| [`databases.json`](#configdatabasesjson) | Database connections and the monitoring block for `/databases/*` |
 | [`transmit.json`](#configtransmitjson) | Node limits, disk check, cron heartbeats |
 
 JSON files must be strict JSON (no comments, no trailing commas).
@@ -476,24 +476,45 @@ Object fields (all optional):
 
 ## `config/databases.json`
 
-Object map of database name to connection. The name is the `{dbname}` in the database routes and
-appears in `/server/databases`. Use `{}` to monitor no databases.
+Connections plus one `monitoring` block. Without `monitoring` the `/databases/*` routes return
+`404`; `{}` is valid.
 
 ```json
 {
-  "primary": {
-    "host": "localhost",
-    "port": "3306",
-    "username": "mata_monitor",
-    "password": "",
-    "database": "app_db",
-    "description": "Main application database"
+  "connections": {
+    "primary": {
+      "engine": "mariadb",
+      "host": "localhost",
+      "port": "3306",
+      "username": "mata_monitor",
+      "password": "",
+      "database": "app_db",
+      "description": "Main application database"
+    }
+  },
+  "monitoring": {
+    "instance": "primary",
+    "connection": "primary",
+    "databases": ["primary"]
   }
 }
 ```
 
-All fields except `description` are required, and all values are strings (`"port": "3306"`, not
-`3306`). Use a read-only account: the node only reads status, connection and process information.
+| Field | Meaning |
+| --- | --- |
+| `connections.<name>` | `host`, `port`, `username`, `password`, `database` required (strings; `port` may be a number), `description` optional |
+| `connections.<name>.engine` | `mariadb` (MariaDB and MySQL, default) |
+| `monitoring.instance` | Label returned in responses; not secret |
+| `monitoring.connection` | Connection used for status and process queries |
+| `monitoring.databases` | Connections whose `database` schemas are monitored; defaults to `[connection]`. Process rows of other schemas are never returned |
+
+Unknown keys, missing fields and unknown references are rejected at startup
+(`configuration_invalid`). Startup never connects to a database.
+
+Use a read-only account. For complete process lists it needs the `PROCESS` privilege
+(`GRANT PROCESS ON *.* TO 'mata_monitor'@'...'`); without it `/databases/processes` reports
+`"visibility": "own_sessions"`. A privilege granted only through a role is reported as
+`own_sessions`.
 
 ## `config/transmit.json`
 

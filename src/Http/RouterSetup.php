@@ -226,11 +226,8 @@ class RouterSetup
         ];
 
         $databaseRoutes = [
-            ['/server/databases', fn () => $this->databaseWatcher->getDatabasesStatus()],
-            ['/{dbname}/database-status', fn (string $dbname) => $this->databaseWatcher->retrieveCompleteStatus($dbname)],
-            ['/{dbname}/database-connections', fn (string $dbname) => $this->databaseWatcher->retrieveActiveMaxConnections($dbname)],
-            ['/{dbname}/database-processes', fn (string $dbname) => $this->databaseWatcher->retrieveProcessList($dbname)],
-            ['/{dbname}/database-threads', fn (string $dbname) => $this->databaseWatcher->retrieveActiveThreads($dbname)],
+            ['/databases/overview', fn () => $this->databaseWatcher->getOverview()],
+            ['/databases/processes', fn () => $this->databaseWatcher->getProcesses($_GET)],
         ];
 
         $this->registerJsonRoutes($serverRoutes);

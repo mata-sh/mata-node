@@ -4,233 +4,162 @@ declare(strict_types=1);
 
 namespace Mata\Watchers;
 
+use Closure;
+use DateTimeImmutable;
+use DateTimeZone;
 use Mata\Config\Dto\DatabaseConfig;
+use Mata\Config\Dto\DatabaseMonitoringConfig;
 use Mata\Core\Database;
 use Mata\Core\DatabaseInterface;
-use Mata\Services\Command\CommandRunnerInterface;
-use Mata\Services\Command\NativeCommandRunner;
+use Mata\Watchers\Database\DatabaseDriverFactory;
+use Mata\Watchers\Database\DatabaseDriverInterface;
+use Mata\Watchers\Database\ProcessList;
 use Mata\Watchers\Exceptions\DatabaseWatcherException;
 use PDOException;
-use Throwable;
+use UnexpectedValueException;
 
+/**
+ * Serves `/databases/overview` and `/databases/processes` for the configured
+ * monitoring connection.
+ */
 class DatabaseWatcher
 {
-    public const MYSQL_PROCESS_NAMES = 'mysqld|mariadbd';
+    private const DEFAULT_LIMIT = 50;
+    private const MAX_LIMIT = 100;
 
-    private array $connections = [];
-    private array $configs = [];
-    private CommandRunnerInterface $commandRunner;
+    private ?DatabaseInterface $connection = null;
 
-    public function __construct(array $databasesConfig, ?CommandRunnerInterface $commandRunner = null)
-    {
-        $this->configs = $databasesConfig;
-        $this->commandRunner = $commandRunner ?? new NativeCommandRunner();
+    /** @var Closure(string, DatabaseConfig): DatabaseInterface */
+    private Closure $connector;
+
+    /**
+     * @param null|Closure(string, DatabaseConfig): DatabaseInterface $connector Opens a connection from DSN and config
+     */
+    public function __construct(
+        private readonly ?DatabaseMonitoringConfig $config,
+        private readonly DatabaseDriverFactory $drivers = new DatabaseDriverFactory(),
+        ?Closure $connector = null,
+    ) {
+        $this->connector = $connector
+            ?? static fn (string $dsn, DatabaseConfig $config): DatabaseInterface => new Database($dsn, $config->username, $config->password);
     }
 
     /**
-     * Get a database connection by name.
-     *
-     * @throws DatabaseWatcherException if the database name doesn't exist
+     * @return array<string, mixed>
      */
-    private function getConnection(string $databaseName): DatabaseInterface
+    public function getOverview(): array
     {
-        if (!isset($this->configs[$databaseName])) {
-            throw DatabaseWatcherException::notFound($databaseName, array_keys($this->configs));
-        }
-
-        if (!isset($this->connections[$databaseName])) {
-            $config = $this->configs[$databaseName];
-
-            try {
-                $this->connections[$databaseName] = new Database(
-                    new DatabaseConfig(
-                        host: $config['host'],
-                        username: $config['username'],
-                        password: $config['password'],
-                        database: $config['database'],
-                        port: $config['port'],
-                        description: $config['description'] ?? ''
-                    )
-                );
-            } catch (PDOException $error) {
-                $host = $config['host'] ?? 'unknown';
-                $port = $config['port'] ?? 'unknown';
-                $database = $config['database'] ?? 'unknown';
-
-                throw DatabaseWatcherException::connectionFailed(
-                    $databaseName,
-                    (string) $host,
-                    (string) $port,
-                    (string) $database,
-                    $error->getMessage()
-                );
-            }
-        }
-
-        return $this->connections[$databaseName];
-    }
-
-    /**
-     * Get status for configured databases.
-     */
-    public function getDatabasesStatus(): array
-    {
-        $databases = [];
-
-        foreach ($this->configs as $databaseName => $config) {
-            $databases[$databaseName] = $this->retrieveConfiguredDatabaseStatus((string) $databaseName, $config);
-        }
+        $config = $this->requireConfig();
+        $driver = $this->driver($config);
+        $status = $this->query($config, fn (DatabaseInterface $db) => $driver->overview($db));
 
         return [
-            'processes' => [
-                'sql' => $this->commandRunner->countProcesses(self::MYSQL_PROCESS_NAMES),
-            ],
-            'databases' => $databases,
+            ...$this->envelope($config, $driver),
+            'status' => $status->toArray(),
+            'databases' => array_map(
+                static fn (DatabaseConfig $database): array => ['name' => $database->database, 'description' => $database->description],
+                $config->databases,
+            ),
         ];
     }
 
-    private function retrieveConfiguredDatabaseStatus(string $databaseName, array $config): array
+    /**
+     * @param array<array-key, mixed> $query Request query parameters
+     *
+     * @return array<string, mixed>
+     */
+    public function getProcesses(array $query): array
     {
-        $status = [
-            'database' => $databaseName,
-            'configured_database' => $config['database'] ?? '',
-            'host' => $config['host'] ?? '',
-            'port' => (int) ($config['port'] ?? 0),
-            'description' => $config['description'] ?? '',
-            'max_connections' => 0,
-            'active_threads' => 0,
-            'active_processes' => 0,
-            'process_list' => [],
-            'connection_error' => '',
+        $config = $this->requireConfig();
+        [$database, $activeOnly, $limit] = $this->parseProcessQuery($query, $config->schemaNames());
+
+        $driver = $this->driver($config);
+        [$rows, $visibility] = $this->query(
+            $config,
+            fn (DatabaseInterface $db) => [$driver->processes($db), $driver->visibility($db)],
+        );
+
+        return [
+            ...$this->envelope($config, $driver),
+            'visibility' => $visibility->value,
+            ...ProcessList::build($rows, $config->schemaNames(), $database, $activeOnly, $limit),
         ];
+    }
 
-        foreach (['host', 'username', 'password', 'database', 'port'] as $requiredKey) {
-            if (!array_key_exists($requiredKey, $config)) {
-                $status['connection_error'] = "Missing database config key: {$requiredKey}";
+    private function requireConfig(): DatabaseMonitoringConfig
+    {
+        return $this->config ?? throw DatabaseWatcherException::notConfigured();
+    }
 
-                return $status;
+    private function driver(DatabaseMonitoringConfig $config): DatabaseDriverInterface
+    {
+        return $this->drivers->create($config->connection->engine);
+    }
+
+    /**
+     * @template T
+     *
+     * @param Closure(DatabaseInterface): T $read
+     *
+     * @return T
+     */
+    private function query(DatabaseMonitoringConfig $config, Closure $read): mixed
+    {
+        $connection = $config->connection;
+
+        if ($this->connection === null) {
+            try {
+                $this->connection = ($this->connector)($this->driver($config)->dsn($connection), $connection);
+            } catch (PDOException $error) {
+                throw DatabaseWatcherException::connectionFailed($connection->name, $connection->host, $connection->port, $error->getMessage());
             }
         }
 
         try {
-            return array_merge($status, $this->retrieveCompleteStatus($databaseName));
-        } catch (Throwable $error) {
-            $status['connection_error'] = $error->getMessage();
-
-            return $status;
+            return $read($this->connection);
+        } catch (PDOException|UnexpectedValueException $error) {
+            throw DatabaseWatcherException::queryFailed($connection->name, $error->getMessage());
         }
     }
 
     /**
-     * Retrieve complete database status including all metrics.
-     *
-     * @return array{
-     *     database: string,
-     *     max_connections: int,
-     *     active_threads: int,
-     *     active_processes: int,
-     *     process_list: array
-     * }
+     * @return array{engine: string, instance: string, collected_at: string}
      */
-    public function retrieveCompleteStatus(string $databaseName): array
+    private function envelope(DatabaseMonitoringConfig $config, DatabaseDriverInterface $driver): array
     {
         return [
-            'database' => $databaseName,
-            'max_connections' => $this->retrieveActiveMaxConnections($databaseName),
-            'active_threads' => $this->retrieveActiveThreads($databaseName),
-            'active_processes' => $this->retrieveActiveProcesses($databaseName),
-            'process_list' => $this->retrieveProcessList($databaseName),
-        ];
-    }
-
-    public function retrieveActiveMaxConnections(string $databaseName): int
-    {
-        $sql = <<<'SQL'
-            SHOW VARIABLES LIKE 'max_connections'
-        SQL;
-
-        $result = $this->getConnection($databaseName)->select($sql);
-
-        return (int) $result[0]['Value'];
-    }
-
-    public function retrieveActiveThreads(string $databaseName): int
-    {
-        $sql = <<<'SQL'
-            SHOW STATUS LIKE 'Threads_connected'
-        SQL;
-
-        $result = $this->getConnection($databaseName)->select($sql);
-
-        return (int) $result[0]['Value'];
-    }
-
-    public function retrieveActiveProcesses(string $databaseName): int
-    {
-        $sql = <<<'SQL'
-            SELECT COUNT(*) as Value
-            FROM information_schema.processlist
-            WHERE command != 'Sleep'
-        SQL;
-
-        $result = $this->getConnection($databaseName)->select($sql);
-
-        return (int) $result[0]['Value'];
-    }
-
-    /**
-     * Retrieve the process list without query text.
-     *
-     * `info` carries only the statement keyword (e.g. `SELECT`), because full query text
-     * can contain application data, credentials or tokens.
-     *
-     * @return list<array{id: int, user: ?string, host: ?string, db: ?string, command: ?string, time: int, state: ?string, info: ?string}>
-     */
-    public function retrieveProcessList(string $databaseName): array
-    {
-        $sql = <<<'SQL'
-            SELECT ID AS id, USER AS user, HOST AS host, DB AS db, COMMAND AS command,
-                   TIME AS time, STATE AS state, INFO AS info
-            FROM information_schema.processlist
-        SQL;
-
-        $rows = $this->getConnection($databaseName)->select($sql);
-
-        return array_map(self::sanitizeProcessRow(...), $rows);
-    }
-
-    /**
-     * @param array<string, mixed> $row Process-list row with lowercase column aliases
-     *
-     * @return array{id: int, user: ?string, host: ?string, db: ?string, command: ?string, time: int, state: ?string, info: ?string}
-     */
-    public static function sanitizeProcessRow(array $row): array
-    {
-        $text = static fn (mixed $value): ?string => is_scalar($value) ? (string) $value : null;
-
-        return [
-            'id' => (int) ($row['id'] ?? 0),
-            'user' => $text($row['user'] ?? null),
-            'host' => $text($row['host'] ?? null),
-            'db' => $text($row['db'] ?? null),
-            'command' => $text($row['command'] ?? null),
-            'time' => (int) ($row['time'] ?? 0),
-            'state' => $text($row['state'] ?? null),
-            'info' => self::statementType($text($row['info'] ?? null)),
+            'engine' => $driver->engine(),
+            'instance' => $config->instance,
+            'collected_at' => (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format(DATE_ATOM),
         ];
     }
 
     /**
-     * Reduce SQL text to its leading statement keyword, skipping comments.
+     * @param array<array-key, mixed> $query
+     * @param list<string>            $schemas
+     *
+     * @return array{0: null|string, 1: bool, 2: int}
      */
-    public static function statementType(?string $sql): ?string
+    private function parseProcessQuery(array $query, array $schemas): array
     {
-        if ($sql === null) {
-            return null;
+        $database = $query['database'] ?? null;
+        if ($database !== null && !is_string($database)) {
+            throw DatabaseWatcherException::invalidParameter('database', 'must be a single value');
+        }
+        if ($database !== null && !in_array($database, $schemas, true)) {
+            throw DatabaseWatcherException::unknownDatabase($database, $schemas);
         }
 
-        $pattern = '~^(?:\s+|/\*.*?\*/|(?:--\s|#)[^\n]*(?:\n|$))*([a-z]+)~is';
+        $activeOnly = $query['active_only'] ?? '1';
+        if ($activeOnly !== '0' && $activeOnly !== '1') {
+            throw DatabaseWatcherException::invalidParameter('active_only', 'must be 0 or 1');
+        }
 
-        return preg_match($pattern, $sql, $matches) === 1 ? strtoupper($matches[1]) : null;
+        $limit = $query['limit'] ?? (string) self::DEFAULT_LIMIT;
+        if (!is_string($limit) || !ctype_digit($limit) || (int) $limit < 1 || (int) $limit > self::MAX_LIMIT) {
+            throw DatabaseWatcherException::invalidParameter('limit', 'must be an integer from 1 to ' . self::MAX_LIMIT);
+        }
+
+        return [$database, $activeOnly === '1', (int) $limit];
     }
 }

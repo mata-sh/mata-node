@@ -1,26 +1,27 @@
 {
-    "primary": {
-        "host": "localhost",
-        "username": "root",
-        "password": "",
-        "database": "mata_primary",
-        "port": "3306",
-        "description": "example description"
+    "connections": {
+        "primary": {
+            "engine": "mariadb",
+            "host": "localhost",
+            "port": "3306",
+            "username": "mata_monitor",
+            "password": "",
+            "database": "mata_primary",
+            "description": "example description"
+        },
+        "analytics": {
+            "engine": "mariadb",
+            "host": "localhost",
+            "port": "3306",
+            "username": "mata_monitor",
+            "password": "",
+            "database": "mata_analytics",
+            "description": "example description"
+        }
     },
-    "analytics": {
-        "host": "localhost",
-        "username": "root",
-        "password": "",
-        "database": "mata_analytics",
-        "port": "3306",
-        "description": "example description"
-    },
-    "reporting": {
-        "host": "localhost",
-        "username": "root",
-        "password": "",
-        "database": "mata_reporting",
-        "port": "3306",
-        "description": "example description"
+    "monitoring": {
+        "instance": "primary",
+        "connection": "primary",
+        "databases": ["primary", "analytics"]
     }
 }

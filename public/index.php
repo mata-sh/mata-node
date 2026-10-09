@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Bramus\Router\Router;
+use Mata\Config\DatabasesConfigParser;
 use Mata\Config\LogConfigurator;
 use Mata\Config\StartupConfigException;
 use Mata\Config\StartupConfigInventory;
@@ -54,7 +55,7 @@ try {
     $log = $logConfigurator->createConfiguredLogger($envConfig->logging, $paths, 'app');
 
     $watcherConfig = $startupConfig->jsonConfig('apps.json');
-    $databasesConfig = $startupConfig->jsonConfig('databases.json');
+    $databaseMonitoring = (new DatabasesConfigParser())->parse($startupConfig->jsonConfig('databases.json'));
     $transmitConfig = $startupConfig->jsonConfig('transmit.json');
 
     $tools = new Tools();
@@ -78,7 +79,7 @@ try {
         composerPhpBin: $envConfig->composer->phpBin,
     );
     $serverWatcher = new ServerWatcher($paths->rootPath, $fileCache, $transmitConfig, $commandRunner);
-    $databaseWatcher = new DatabaseWatcher($databasesConfig, $commandRunner);
+    $databaseWatcher = new DatabaseWatcher($databaseMonitoring);
 
     $router = new Router();
     $routerSetup = new RouterSetup(

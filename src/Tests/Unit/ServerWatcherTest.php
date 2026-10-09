@@ -6,7 +6,6 @@ namespace Mata\Tests\Unit;
 
 use Mata\Services\FileCache;
 use Mata\Tests\Support\FakeCommandRunner;
-use Mata\Watchers\DatabaseWatcher;
 use Mata\Watchers\ServerWatcher;
 use PHPUnit\Framework\TestCase;
 
@@ -75,7 +74,7 @@ class ServerWatcherTest extends TestCase
             ],
             [
                 FakeCommandRunner::processCountKey('php', false) => 3,
-                FakeCommandRunner::processCountKey(DatabaseWatcher::MYSQL_PROCESS_NAMES) => 2,
+                FakeCommandRunner::processCountKey(ServerWatcher::MYSQL_PROCESS_NAMES) => 2,
             ]
         );
 

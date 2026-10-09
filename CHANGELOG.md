@@ -5,10 +5,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-- Database process lists no longer include query text: `info` holds only the statement keyword (e.g. `SELECT`), since full SQL can contain application data or credentials. Rows now use lowercase keys (`id`, `user`, `host`, `db`, `command`, `time`, `state`, `info`), which the dashboard's process modal already expects
+### Added
+- `/databases/overview`: instance-wide connection status, cheap enough for collection
+- `/databases/processes`: session list limited to monitored schemas, with `database`, `active_only` and `limit` parameters and a `visibility` field; returns the statement keyword, never query text
+
+### Changed
+- `config/databases.json` has a new shape: connections under `connections`, plus a `monitoring` block. The old flat format fails startup with `configuration_invalid`; see `docs/configuration.md`
 
 ### Removed
+- `/server/databases` and `/{dbname}/database-status`, `-connections`, `-processes`, `-threads`. The SQL process count remains in `/server/data`
 - Unused mail configuration: `config/mail.config.env` is no longer required or loaded, and the `symfony/mailer` dependency is gone. Existing `config/mail.config.env` files can be deleted
 
 ## [0.2.0] - 2026-10-09
