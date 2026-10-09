@@ -3,6 +3,14 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- `make` targets that start containers create the external `mata-network` if it is missing, so the node no longer depends on MATA Dashboard being set up first
+
+### Fixed
+- Docker README describes this project; config reference covers all five config files; custom log parsers are documented (`docs/log-parsers.md`)
+
 ## [0.2.0] - 2026-10-09
 
 First public release. Earlier versions were developed privately; this entry

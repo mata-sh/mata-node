@@ -1,22 +1,49 @@
 # Configuration reference
 
-MATA Node reads two JSON files:
-
-- `config/apps.json` — static metadata and monitoring configuration for watched applications.
-- `config/transmit.json` — node operational limits.
-
-Bootstrap from the examples:
+All five files in `config/` must exist, or every endpoint returns `503` with
+`configuration_missing`. Create the missing ones from `config/example/`:
 
 ```bash
-cp config/example/apps.json.example config/apps.json
-cp config/example/transmit.json.example config/transmit.json
+make bootstrap-config
 ```
 
-Do not keep trailing commas. The loader uses PHP `json_decode()` on strict JSON.
+| File | Contents |
+| --- | --- |
+| [`config.env`](#configconfigenv) | Dashboard credentials, access control, logging, rate limiting |
+| `mail.config.env` | Not used by the node; keep the example file |
+| [`apps.json`](#configappsjson) | Watched applications: logs, sessions, Composer, monitoring switches |
+| [`databases.json`](#configdatabasesjson) | MySQL/MariaDB connections for the database endpoints |
+| [`transmit.json`](#configtransmitjson) | Node limits, disk check, cron heartbeats |
 
-## Environment files
+JSON files must be strict JSON (no comments, no trailing commas).
 
-In Docker, changes to `config/config.env` or `config/mail.config.env` do not affect running containers because env files are only read at container creation. Run `make dev-recreate` to apply changes; `make dev-restart` is not enough. Non-Docker setups pick up changes immediately.
+`/health` reports `checks.config_files_present` and lists `missing_config_files`. If startup
+fails, every route returns `503` (`Retry-After: 300`, `Cache-Control: no-store`) with
+`{"status": "not_ready", "reason": "...", "missing_config_files": [...]}`; `reason` is
+`configuration_missing`, `configuration_invalid` or `initialization_failed`, and file names are
+basenames only.
+
+In Docker, env files are read only at container creation: run `make dev-recreate` after editing
+them. Non-Docker setups pick up changes immediately.
+
+## `config/config.env`
+
+| Key | Default | Purpose |
+| --- | --- | --- |
+| `DASHBOARD_SERVER_ID` | `dashboard` | This node's entry key in the dashboard's `servers.json`. |
+| `DASHBOARD_API_KEY` | empty | Shared HMAC secret; the `api_key` of that entry. |
+| `DASHBOARD_CLOCK_SKEW_WINDOW` | `120` | Accepted request timestamp skew, seconds. |
+| `DOMAIN` | none (required) | Domain the node is served on. |
+| `MAINTENANCE_MODE_ENABLED` | `OFF` | `ON` returns `503` with `Retry-After: 300` on every route except `/health`. |
+| `IP_WHITELIST_ENABLED`, `ALLOWED_IPS` | `OFF`, empty | Restrict authenticated routes to listed IPs/CIDRs, e.g. `198.51.100.10,2001:db8::/32`. |
+| `TRUSTED_PROXIES` | empty | Client IP is `REMOTE_ADDR`; `X-Forwarded-For` is used only when `REMOTE_ADDR` is listed here. Never list untrusted proxies. |
+| `DISPLAY_ERRORS`, `LOG_LEVEL` | `0`, `notices` | PHP error display and level. |
+| `MONOLOG_LEVEL`, `APP_LOG_PATH` | `debug`, `logs/app.log` | Node application log. |
+| `TEMP_DIR` | `temp/` | Cache directory. |
+| `COMPOSER_BIN`, `COMPOSER_PHP_BIN` | `composer` from `PATH` | Node-wide defaults for Composer audits. |
+| `RATE_LIMIT_ENABLED`, `RATE_LIMIT_STORAGE` | `ON`, `file` | Rate limiting; storage `file` or `redis` (`RATE_LIMIT_REDIS_*`). |
+| `RATE_LIMIT_API_MAX_REQUESTS`, `RATE_LIMIT_API_WINDOW_SECONDS` | `200`, `60` | Limit per client IP on authenticated routes. |
+| `RATE_LIMIT_AUTH_FAILED_MAX_REQUESTS`, `RATE_LIMIT_AUTH_FAILED_WINDOW_SECONDS` | `10`, `300` | Limit on failed authentication attempts. |
 
 ## Path base
 
@@ -213,18 +240,9 @@ they are neither validated nor returned by `/apps`.
 | `error_monitoring_enabled` | 2026-07-25 | `monitoring.loganalysis` |
 | `logsize_monitoring_enabled` | 2026-07-25 | `monitoring.logsize` |
 
-`alarms_enabled` never affected node behavior and the dashboard only turned it into an unused CSS
-class, so it suppressed nothing. `monitoring.alarms` does suppress alarm elevation.
-
-`ping` was returned by `/apps` as the string `"on"` or `"off"` and had no node behavior; the
-dashboard used it to skip availability probes. `error_monitoring_enabled` and
-`logsize_monitoring_enabled` were returned as booleans and gated only dashboard-side event
-production — the node still ran every scan. Their replacements skip the scan on the node.
-
-**Upgrading.** Remove `ping` entries from `config/apps.json`; the key is ignored. Apps that had
-`"ping": "off"` must be migrated by hand to `"monitoring": {"reachability": false}`, otherwise the
-dashboard starts probing them again. `"ping": "on"` needs no migration, because `reachability`
-defaults to `true`.
+**Upgrading.** Migrate disabled settings by hand, e.g. `"ping": "off"` to
+`"monitoring": {"reachability": false}`; otherwise the feature turns back on. Enabled settings
+need no migration, since every `monitoring` switch defaults to `true`.
 
 ### App metadata responses
 
@@ -404,23 +422,13 @@ App-level parser format settings are unsupported. Use structured log group `type
 
 #### Analysis behavior
 
-For `/apps` counts and the fatal cursor, each configured log file is read once as a bounded-memory
-stream; the node never loads a whole log into memory and never shells out for counting. Severity
-counting stays line based: `fatal` and `warnings` count matching physical lines, `total` counts
-newline-terminated lines.
+For `/apps` counts and the fatal cursor, each log file is streamed once with memory capped at one
+line (max 5 MB; longer lines are streamed through). `fatal` and `warnings` count matching lines,
+like `grep -c`; `total` counts newline-terminated lines. The cursor fingerprints the ordered fatal
+entries including multiline stack traces; JSON records are canonicalized first, so key order does
+not matter.
 
-The fatal cursor additionally fingerprints the complete ordered fatal entries of each file.
-`php_error_log` and `monolog` entries include their multiline stack traces and context blocks.
-JSON records are canonicalized before hashing, so re-serializing the same record with a different
-key order does not change the cursor. Per-file fingerprints are combined in canonical sorted order,
-so the cursor does not depend on the order logs appear in the configuration or on map iteration
-order.
-
-Severity counting is line-complete at any line length, matching what `grep -c` would report. Peak
-memory is one logical line, capped at 5 MB; a longer line is streamed past that point while
-matching continues across the boundary, so its counts stay correct. Only the JSON key-order
-canonicalization needs a whole record in memory, so it applies to records up to that 5 MB cap;
-beyond it the record's raw bytes are fingerprinted instead.
+To support another log format, add a parser class: see [Custom log parsers](log-parsers.md).
 
 ### Composer fields
 
@@ -454,18 +462,39 @@ Supported forms:
 }
 ```
 
-With `composer: true` or a truthy string (`true`, `on`, `1`, `yes`), the node auto-detects:
+With `composer: true` or a truthy string (`true`, `on`, `1`, `yes`), the node reads
+`<path>/composer.json` and `<path>/composer.lock`.
 
-- `<path>/composer.json`
-- `<path>/composer.lock`
+Object fields (all optional):
 
-Object fields:
+| Key | Default | Behavior |
+| --- | --- | --- |
+| `composer.enabled` | `true` when any other key is set | Truthy value enables, falsy disables Composer for the app. |
+| `composer.json` | `<path>/composer.json` | Path to `composer.json`. Required for audit. |
+| `composer.lock` | `<path>/composer.lock` | Path to `composer.lock`. Required for libraries and audit. |
+| `composer.bin` | `COMPOSER_BIN`, else `composer` from `PATH` | Composer executable. If it ends in `.phar`, the command is run as `php <bin>`. |
+| `composer.php_bin` | `COMPOSER_PHP_BIN`, else `php` | PHP binary used to run a `.phar`. |
 
-| Key | Required | Default | Behavior |
-| --- | --- | --- | --- |
-| `composer.json` | Yes when using object form | none | Path to `composer.json`. Required for audit. |
-| `composer.lock` | Yes when using object form | none | Path to `composer.lock`. Required for libraries and audit. |
-| `composer.bin` | No | `composer` from `PATH` | Composer executable. If it ends in `.phar`, the command is run as `php <bin>`. |
+## `config/databases.json`
+
+Object map of database name to connection. The name is the `{dbname}` in the database routes and
+appears in `/server/databases`. Use `{}` to monitor no databases.
+
+```json
+{
+  "primary": {
+    "host": "localhost",
+    "port": "3306",
+    "username": "mata_monitor",
+    "password": "",
+    "database": "app_db",
+    "description": "Main application database"
+  }
+}
+```
+
+All fields except `description` are required, and all values are strings (`"port": "3306"`, not
+`3306`). Use a read-only account: the node only reads status, connection and process information.
 
 ## `config/transmit.json`
 

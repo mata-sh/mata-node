@@ -7,223 +7,87 @@
 <h3 align="center">MATA Node</h3>
 
 <p align="center">
-    MATA Node is the lightweight, stateless companion to the <a href="https://github.com/mata-sh/mata-dashboard">MATA Dashboard</a>.
-</p>
-
-<p>
-It exposes a **read-only API** that the dashboard polls for monitoring data.
+    The lightweight, stateless companion to the <a href="https://github.com/mata-sh/mata-dashboard">MATA Dashboard</a>.
 </p>
 </div>
 
-## Mental Model
-
-- **Dashboard pulls data from nodes.**
-- **Nodes never initiate connections.**
-- **Nodes are stateless and read-only.**
-
-MATA Node runs on each monitored environment and answers authenticated requests from the dashboard. It does not send data outbound, store monitoring history, or perform remote actions.
-
-## What it does
-
-- Exposes read-only monitoring endpoints
-- Returns snapshots about system and application state
-- Stays lightweight enough for shared hosting and constrained VPS environments
-
-## What it does not do
-
-- No UI
-- No persistence
-- No outbound connections
-- No alerting
-- No remote execution
+MATA Node runs on each monitored host and exposes a read-only, HMAC-authenticated API that the
+dashboard polls. It never initiates connections, stores no history, and has no UI, alerting or
+remote execution. For how dashboard and nodes fit together, see the
+[MATA Dashboard](https://github.com/mata-sh/mata-dashboard) documentation.
 
 ## What is exposed
 
-**Snapshots may include:**
-- CPU / RAM / disk usage
-- Process snapshots
-- Recent log lines
-- Session counts
-- Composer package inventory
-- Static application metadata and log/session status
-- Optional database status snapshots
+**Snapshots:** CPU / RAM / disk, processes, recent log lines and log status, session counts,
+Composer packages and audits, application metadata, cron heartbeats, optional database status.
 
-**Not exposed:**
-- Secrets
-- Environment variables
-- Database contents
-- Source code
+**Never exposed:** secrets, environment variables, database contents, source code.
 
-## Security model
-
-- **Read-only API**
-- **Pull-only traffic**: dashboard → node
-- **HMAC authentication** via `X-Mata-Auth`
-- **Short time window** for request validation
-- **Replay protection** via nonce checking
-- **HTTPS recommended / expected in production**
-- **Optional IP allowlisting**
-- **Rate limiting** on API access
-
+Security: pull-only HMAC requests with a short time window and nonce replay protection, rate
+limiting, optional IP allowlist; HTTPS expected in production. Details in the dashboard's
+[security architecture](https://github.com/mata-sh/mata-dashboard/blob/main/docs/architecture/security.md#node-authentication).
 Report vulnerabilities privately; see [`SECURITY.md`](SECURITY.md).
 
 ## API
 
-### Public
-- `GET /health` — health check
-
-### Authenticated
-- `GET /server/data`
-- `GET /server/info`
-- `GET /server/php`
-- `GET /server/cronjobs`
-- `GET /apps`
-- `GET /apps/libraries`
-- `GET /apps/composer-audit`
-- `GET /{app}/readme`
-- `GET /{app}/sessions`
-- `GET /{app}/logs`
-- `GET /{app}/logs-status`
-- `GET /{app}/libraries`
-- `GET /server/databases`
-- `GET /{dbname}/database-status`
-- `GET /{dbname}/database-connections`
-- `GET /{dbname}/database-processes`
-- `GET /{dbname}/database-threads`
-
-Each `/apps` entry is shaped by the app's optional `monitoring` block in `apps.json`
-(`loganalysis`, `logsize`, `sessions`, `reachability`, `alarms`, `events` — all default to
-`true`). `status` is present only with `loganalysis`, `logs` only with `logsize`, and `session`
-only with `sessions`; a disabled setting skips the scan instead of hiding its result, and the
-matching detail route answers `409`. A `monitoring` key appears only when something is disabled,
-and then lists the disabled settings alone.
-
-`status.fatal_cursor` is an opaque equality-only fingerprint of the app's fatal-error observation
-that is `null` exactly when `status.fatal` is `0`. See the
-[configuration reference](docs/configuration.md#app-metadata-responses) for the full contract.
-
-### Authentication format
-
-Authenticated requests use a single header:
+`GET /health` is public. All other routes require the `X-Mata-Auth` header:
 
 ```text
-X-Mata-Auth: <server_id>|<unix_timestamp>|<nonce>|<hex_hmac_sha256>
+X-Mata-Auth: <server_id>|<unix_timestamp>|<nonce>|<hex HMAC-SHA256(server_id|timestamp|nonce, api_key)>
 ```
 
-The node validates the server ID, timestamp window, nonce, and HMAC signature. The signature is
-`HMAC-SHA256(server_id|timestamp|nonce, api_key)`, so the API key itself never travels over the wire.
-`<server_id>` is this node's entry key in the dashboard's `servers.json` (see below).
+| Scope | Routes |
+| --- | --- |
+| Server | `/server/data`, `/server/info`, `/server/php`, `/server/cronjobs`, `/server/databases` |
+| Apps | `/apps`, `/apps/libraries`, `/apps/composer-audit` |
+| Per app | `/{app}/readme`, `/{app}/sessions`, `/{app}/logs`, `/{app}/logs-status`, `/{app}/libraries` |
+| Per database | `/{dbname}/database-status`, `-connections`, `-processes`, `-threads` |
 
-## Quick Start
+All routes are `GET`. `/apps` responses depend on each app's `monitoring` switches; see
+[app metadata responses](docs/configuration.md#app-metadata-responses).
 
-### Requirements
+## Quick start
 
-- PHP 8.3+
-- Docker / Docker Compose for the containerized setup
-- Or any web server that can serve `public/` and run PHP 8.3+
+Requires PHP 8.3+, plus Docker or any web server that can serve `public/`.
 
-### Docker
+**Docker** (details in [`docker/README.md`](docker/README.md)):
 
 ```bash
-git clone <repository-url>
-cd mata-node
+git clone https://github.com/mata-sh/mata-node.git && cd mata-node
 make dev-start
-```
-
-Health check:
-
-```bash
 curl http://localhost:3310/health
 ```
 
-### Non-Docker / constrained environments
+**Without Docker:**
 
 ```bash
-git clone <repository-url>
-cd mata-node
-cp config/example/config.env.example config/config.env
-cp config/example/apps.json.example config/apps.json
-cp config/example/transmit.json.example config/transmit.json
+git clone https://github.com/mata-sh/mata-node.git && cd mata-node
+make bootstrap-config   # creates all config files from config/example/
 composer install
 ```
 
-Then:
-- point your web root to `public/`
-- use one of the example web server configs in `docs/examples/webserver-configs/`
-- set `DASHBOARD_SERVER_ID` and `DASHBOARD_API_KEY` in `config/config.env`
+Point the web root to `public/` using one of the configs in
+[`docs/examples/webserver-configs/`](docs/examples/webserver-configs/).
 
-### Minimal config
+## Configuration
 
-Main runtime settings live in:
-- `.env` — Docker/infrastructure settings
-- `config/config.env` — node application settings
-- `config/apps.json` — watched applications, static environment metadata, optional status endpoints, sessions, logs, and composer metadata; see [configuration reference](docs/configuration.md#configappsjson)
-- `config/transmit.json` — node operational limits, see [configuration reference](docs/configuration.md#configtransmitjson)
-
-Redis session stores should use `sessions.count_key` when available so the node reads one maintained counter instead of scanning session keys.
-
-At minimum, set the shared dashboard credentials in `config/config.env`:
+At minimum, set the dashboard credentials in `config/config.env`:
 
 ```env
 DASHBOARD_SERVER_ID=prod-web-01
 DASHBOARD_API_KEY=your-shared-secret
 ```
 
-`DASHBOARD_SERVER_ID` must exactly match this node's entry key in the dashboard's
-`config/servers.json` — the JSON property name (e.g. `"prod-web-01": { ... }`), not a field
-inside the entry. `DASHBOARD_API_KEY` must match that entry's `api_key` value. Renaming the
-key in `servers.json` breaks authentication for this node until both sides agree again.
+`DASHBOARD_SERVER_ID` must equal this node's entry key in the dashboard's `config/servers.json`
+(the property name, e.g. `"prod-web-01": { ... }`), and `DASHBOARD_API_KEY` that entry's
+`api_key`.
 
-Optional app-level IP allowlisting is available for shared hosting:
+Then describe the watched apps in `config/apps.json`. Everything else, including IP allowlisting,
+maintenance mode and databases, is in the [configuration reference](docs/configuration.md).
+Other log formats can be added with a [custom log parser](docs/log-parsers.md).
 
-```env
-IP_WHITELIST_ENABLED=ON
-ALLOWED_IPS=198.51.100.10,2001:db8::/32
-TRUSTED_PROXIES=
-```
-
-By default, client IP detection uses `REMOTE_ADDR`. `X-Forwarded-For` is used only when `REMOTE_ADDR` matches `TRUSTED_PROXIES`. Do not add untrusted proxies.
-
-To pause authenticated API access during maintenance:
-
-```env
-MAINTENANCE_MODE_ENABLED=ON
-```
-
-Maintenance mode leaves `/health` available and returns `503 Service Unavailable` with `Retry-After: 300` for all other routes.
-
-## Health check
-
-- Endpoint: `/health`
-- No authentication required
-- Returns `200` when healthy and `503` when unhealthy or when startup has not completed
-
-Healthy response:
-
-```json
-{
-  "status": "healthy",
-  "timestamp": "2025-01-25 12:34:56",
-  "checks": {
-    "logs_writable": true,
-    "cache_writable": true,
-    "config_files_present": true
-  },
-  "missing_config_files": []
-}
-```
-
-During startup failure, every endpoint (including `/health`) returns `503 Service Unavailable` with `Retry-After: 300`, `Cache-Control: no-store`, and a JSON body:
-
-```json
-{
-  "status": "not_ready",
-  "reason": "configuration_missing",
-  "missing_config_files": ["apps.json"]
-}
-```
-
-`reason` is `configuration_missing`, `configuration_invalid`, or `initialization_failed`. File names are basenames only.
+`/health` returns `200` when healthy and `503` otherwise. On a startup failure every route returns
+`503` with `reason` `configuration_missing`, `configuration_invalid` or `initialization_failed`.
 
 ## License
 

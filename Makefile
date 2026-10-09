@@ -292,10 +292,14 @@ docker-setup:
 	@echo "$(COLOR_YELLOW)4.$(COLOR_RESET) Start containers: $(COLOR_CYAN)make dev-start$(COLOR_RESET)"
 	@echo "$(COLOR_YELLOW)5.$(COLOR_RESET) Check health at $(COLOR_CYAN)http://localhost:3310/health$(COLOR_RESET)"
 
+# Create the external network shared with MATA Dashboard if neither project has yet
+docker-network:
+	@docker network inspect mata-network >/dev/null 2>&1 || docker network create mata-network >/dev/null
+
 ## Development (Docker)
 
 # Start development environment (auto-runs docker-setup if needed)
-dev-start:
+dev-start: docker-network
 	@echo "$(COLOR_BLUE)🚀 Starting docker development environment...$(COLOR_RESET)"
 	@# Check if setup is needed
 	@if [ ! -f .env ] || [ ! -f config/config.env ] || [ ! -f config/mail.config.env ] || [ ! -f config/apps.json ] || [ ! -f config/transmit.json ] || [ ! -f config/databases.json ]; then \
@@ -313,7 +317,7 @@ dev-start:
 	echo "$(COLOR_CYAN)🩺 Health: http://localhost:$$PORT/health$(COLOR_RESET)"
 
 # Start dev environment and follow logs
-dev-logs:
+dev-logs: docker-network
 	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 	docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f
 
@@ -326,11 +330,11 @@ dev-restart:
 	docker-compose -f docker-compose.yml -f docker-compose.dev.yml restart
 
 # Recreate development containers to reload env files
-dev-recreate:
+dev-recreate: docker-network
 	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --force-recreate --no-build
 
 # Rebuild development containers from scratch
-dev-rebuild:
+dev-rebuild: docker-network
 	docker-compose -f docker-compose.yml -f docker-compose.dev.yml down
 	docker-compose -f docker-compose.yml -f docker-compose.dev.yml build --no-cache
 	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
@@ -338,7 +342,7 @@ dev-rebuild:
 ## Production
 
 # Deploy production environment
-prod-start:
+prod-start: docker-network
 	@echo "$(COLOR_BLUE)🚀 Deploying production environment...$(COLOR_RESET)"
 	@if [ ! -f .env ]; then \
 		echo "$(COLOR_RED)❌ ERROR: .env file required for production$(COLOR_RESET)"; \
@@ -356,7 +360,7 @@ prod-stop:
 	docker-compose -f docker-compose.yml -f docker-compose.prod.yml down
 
 # Rebuild production from scratch
-prod-rebuild:
+prod-rebuild: docker-network
 	docker-compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache
 	docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
@@ -422,7 +426,7 @@ composer-update:
 	fi
 
 # Clear and rebuild vendor (delete named volume and reinstall)
-composer-rebuild:
+composer-rebuild: docker-network
 	@echo "$(COLOR_YELLOW)🧹 Clearing vendor volume and rebuilding...$(COLOR_RESET)"
 	@read -p "This will delete the vendor-data volume. Continue? [y/N]: " -n 1 -r; \
 	echo; \
@@ -528,7 +532,7 @@ docker-help:
 .PHONY: help bootstrap-config setup install-hooks \
 	test test-coverage \
 	bootstrap \
-	docker-setup dev-start dev-logs dev-stop dev-restart dev-recreate dev-rebuild \
+	docker-setup docker-network dev-start dev-logs dev-stop dev-restart dev-recreate dev-rebuild \
 	prod-start prod-stop prod-rebuild \
 	logs logs-web logs-db logs-php logs-app ps \
 	shell shell-www \
