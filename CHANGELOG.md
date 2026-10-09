@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `/databases/overview`: instance-wide connection status, cheap enough for collection
 - `/databases/processes`: session list limited to monitored schemas, with `database`, `active_only` and `limit` parameters and a `visibility` field; returns the statement keyword, never query text
+- PostgreSQL support for `/databases/*` (`"engine": "pgsql"`); the Docker images include `pdo_pgsql`, and `postgres` processes count toward the SQL process count in `/server/data`
 
 ### Changed
 - `config/databases.json` has a new shape: `engine`, one `connection` and the monitored `databases`. The old format fails startup with `configuration_invalid`; see `docs/configuration.md`

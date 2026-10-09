@@ -11,7 +11,7 @@ final class DatabaseDriverFactory
     public const DEFAULT_ENGINE = 'mariadb';
 
     /** @var list<string> */
-    public const ENGINES = ['mariadb'];
+    public const ENGINES = ['mariadb', 'pgsql'];
 
     public static function supports(string $engine): bool
     {
@@ -22,6 +22,7 @@ final class DatabaseDriverFactory
     {
         return match ($engine) {
             'mariadb' => new MariaDbDriver(),
+            'pgsql' => new PostgresDriver(),
             default => throw new InvalidArgumentException("Unsupported database engine: {$engine}"),
         };
     }

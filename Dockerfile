@@ -18,13 +18,14 @@ RUN apt-get update && apt-get install -y \
     libonig-dev \
     libxml2-dev \
     libzip-dev \
+    libpq-dev \
     zip \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # Configure and install PHP extensions
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j$(nproc) pdo_mysql mbstring exif pcntl bcmath gd zip opcache
+    && docker-php-ext-install -j$(nproc) pdo_mysql pdo_pgsql mbstring exif pcntl bcmath gd zip opcache
 
 # Install Composer
 COPY --from=composer /usr/bin/composer /usr/bin/composer
@@ -62,6 +63,7 @@ RUN apt-get update && apt-get install -y \
     libonig-dev \
     libxml2-dev \
     libzip-dev \
+    libpq-dev \
     # Runtime dependencies (permanent)
     libpng16-16 \
     libjpeg62-turbo \
@@ -69,10 +71,11 @@ RUN apt-get update && apt-get install -y \
     libonig5 \
     libxml2 \
     libzip4 \
+    libpq5 \
     cron \
     curl \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j$(nproc) pdo_mysql mbstring exif pcntl bcmath gd zip opcache \
+    && docker-php-ext-install -j$(nproc) pdo_mysql pdo_pgsql mbstring exif pcntl bcmath gd zip opcache \
     && apt-get purge -y --auto-remove \
         libpng-dev \
         libjpeg62-turbo-dev \
@@ -80,6 +83,7 @@ RUN apt-get update && apt-get install -y \
         libonig-dev \
         libxml2-dev \
         libzip-dev \
+        libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory

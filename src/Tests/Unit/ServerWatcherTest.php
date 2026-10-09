@@ -74,7 +74,7 @@ class ServerWatcherTest extends TestCase
             ],
             [
                 FakeCommandRunner::processCountKey('php', false) => 3,
-                FakeCommandRunner::processCountKey(ServerWatcher::MYSQL_PROCESS_NAMES) => 2,
+                FakeCommandRunner::processCountKey(ServerWatcher::SQL_PROCESS_NAMES) => 2,
             ]
         );
 

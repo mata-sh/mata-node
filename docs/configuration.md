@@ -476,7 +476,7 @@ Object fields (all optional):
 
 ## `config/databases.json`
 
-Lets the node watch one MariaDB or MySQL server for the `/databases/*` routes: which server,
+Lets the node watch one MariaDB, MySQL or PostgreSQL server for the `/databases/*` routes: which server,
 how to log in, and which of its databases to report on.
 
 ```json
@@ -503,7 +503,7 @@ The node logs in once with `connection`. `/databases/overview` reports server-wi
 
 | Field | Meaning |
 | --- | --- |
-| `engine` | Database type; selects the driver. `mariadb` (also for MySQL) |
+| `engine` | Database type; selects the driver. `mariadb` (also for MySQL) or `pgsql` |
 | `connection` | `host`, `port` (string or number), `username`, `password`; use a read-only account |
 | `databases` | Database name => description shown in the dashboard; at least one |
 
@@ -515,6 +515,13 @@ The account needs no write rights. For a complete process list it needs the `PRO
 privilege (`GRANT PROCESS ON *.* TO 'mata_monitor'@'...'`); without it `/databases/processes`
 reports `"visibility": "own_sessions"` and shows only the account's own sessions. A privilege
 granted only through a role is also reported as `own_sessions`.
+
+On PostgreSQL the node connects to the `postgres` database. For a complete process list and
+server-wide counts the account needs the `pg_read_all_stats` role
+(`GRANT pg_read_all_stats TO mata_monitor`) or superuser; without it `/databases/processes`
+reports `own_sessions`, and the overview's `connections` and `running` count only the account's
+own sessions. PostgreSQL has no equivalent for `max_used_connections`, `refused_connections` and
+`aborted_connects`; they are `null`.
 
 ## `config/transmit.json`
 
