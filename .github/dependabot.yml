@@ -4,24 +4,49 @@ updates:
   - package-ecosystem: "composer"
     directory: "/"
 
-    # Keep noise low
     schedule:
       interval: "monthly"
 
-    # Only one open PR at a time
-    open-pull-requests-limit: 1
+    # Security updates only: 0 disables routine version PRs, but security PRs
+    # are not subject to this limit. Needs "Dependabot security updates" enabled
+    # in the repository settings. `composer audit` in CI is the backstop; run
+    # `composer update` manually now and then.
+    open-pull-requests-limit: 0
 
-    # Clear labeling
     labels:
       - "dependencies"
 
-    # Conservative commit messages
     commit-message:
       prefix: "deps"
 
-    # Reduce churn: ignore non-security minor/major bumps
+    # One PR when an advisory hits several packages (e.g. Symfony components).
+    groups:
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+
+    schedule:
+      interval: "monthly"
+
+    labels:
+      - "dependencies"
+
+    commit-message:
+      prefix: "ci"
+
+    # Workflows pin actions to commit SHAs; Dependabot bumps the SHA and the
+    # version comment together. Only major bumps (e.g. Node runtime moves),
+    # all actions in one PR.
+    groups:
+      actions:
+        patterns:
+          - "*"
     ignore:
       - dependency-name: "*"
         update-types:
           - "version-update:semver-minor"
-          - "version-update:semver-major"
+          - "version-update:semver-patch"
