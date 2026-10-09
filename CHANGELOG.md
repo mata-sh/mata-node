@@ -3,14 +3,6 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Changed
-- `make` targets that start containers create the external `mata-network` if it is missing, so the node no longer depends on MATA Dashboard being set up first
-
-### Fixed
-- Docker README describes this project; config reference covers all five config files; custom log parsers are documented (`docs/log-parsers.md`)
-
 ## [0.2.0] - 2026-10-09
 
 First public release. Earlier versions were developed privately; this entry
@@ -21,7 +13,7 @@ summarizes what landed since then. Pairs with MATA Dashboard 0.6.0.
 - Application sessions (file and Redis backends), Composer audit endpoint, and per-app monitoring controls
 - Fatal log cursors and a configurable log readout limit
 - IP allowlist enforcement and persistent nonce replay protection
-- Configuration reference (`docs/configuration.md`)
+- Configuration reference covering all five config files (`docs/configuration.md`) and a custom log parser guide (`docs/log-parsers.md`)
 
 ### Changed
 - App endpoints return curated metadata instead of the raw app configuration
@@ -30,6 +22,7 @@ summarizes what landed since then. Pairs with MATA Dashboard 0.6.0.
 - Maintenance mode blocks authenticated API routes
 - The `live` environment is renamed to `prod`
 - The legacy `alarms_enabled`, `ping`, `error_monitoring_enabled` and `logsize_monitoring_enabled` app settings are removed; see the configuration reference for replacements
+- `make` targets that start containers create the external `mata-network` if it is missing, so the node no longer depends on MATA Dashboard being set up first
 - Relicensed under the Apache License 2.0
 
 ### Fixed
