@@ -1,7 +1,6 @@
 {
     "connections": {
         "primary": {
-            "engine": "mariadb",
             "host": "localhost",
             "port": "3306",
             "username": "mata_monitor",
@@ -10,7 +9,6 @@
             "description": "example description"
         },
         "analytics": {
-            "engine": "mariadb",
             "host": "localhost",
             "port": "3306",
             "username": "mata_monitor",
@@ -20,8 +18,10 @@
         }
     },
     "monitoring": {
-        "instance": "primary",
         "connection": "primary",
-        "databases": ["primary", "analytics"]
+        "databases": [
+            "primary",
+            "analytics"
+        ]
     }
 }

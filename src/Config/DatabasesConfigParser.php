@@ -98,13 +98,13 @@ final class DatabasesConfigParser
 
         $this->assertKnownKeys($monitoring, self::MONITORING_KEYS, 'monitoring');
 
-        $instance = $this->stringValue($monitoring['instance'] ?? null, 'monitoring.instance');
+        $connectionName = $this->stringValue($monitoring['connection'] ?? null, 'monitoring.connection');
+        $connection = $connections[$connectionName] ?? $this->fail('monitoring.connection', "references unknown connection '{$connectionName}'");
+
+        $instance = $this->stringValue($monitoring['instance'] ?? $connectionName, 'monitoring.instance');
         if (trim($instance) === '') {
             $this->fail('monitoring.instance', 'must not be empty');
         }
-
-        $connectionName = $this->stringValue($monitoring['connection'] ?? null, 'monitoring.connection');
-        $connection = $connections[$connectionName] ?? $this->fail('monitoring.connection', "references unknown connection '{$connectionName}'");
 
         $databaseNames = $monitoring['databases'] ?? [$connectionName];
         if (!is_array($databaseNames) || !array_is_list($databaseNames) || $databaseNames === []) {

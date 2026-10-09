@@ -476,45 +476,80 @@ Object fields (all optional):
 
 ## `config/databases.json`
 
-Connections plus one `monitoring` block. Without `monitoring` the `/databases/*` routes return
-`404`; `{}` is valid.
+Lets the node watch one MariaDB or MySQL server for the `/databases/*` routes. The file has two
+parts:
+
+- **`connections`**: login details, one entry per database, under a name you choose.
+- **`monitoring`**: which connection the node logs in with, and which databases it reports on.
+
+`{}` turns database monitoring off; the `/databases/*` routes then return `404`.
+
+### Example
+
+One server with two databases, `app_db` and `analytics_db`:
 
 ```json
 {
   "connections": {
     "primary": {
-      "engine": "mariadb",
       "host": "localhost",
       "port": "3306",
       "username": "mata_monitor",
-      "password": "",
+      "password": "secret",
       "database": "app_db",
-      "description": "Main application database"
+      "description": "Main application"
+    },
+    "analytics": {
+      "host": "localhost",
+      "port": "3306",
+      "username": "mata_monitor",
+      "password": "secret",
+      "database": "analytics_db",
+      "description": "Reporting"
     }
   },
   "monitoring": {
-    "instance": "primary",
     "connection": "primary",
-    "databases": ["primary"]
+    "databases": ["primary", "analytics"]
   }
 }
 ```
 
-| Field | Meaning |
-| --- | --- |
-| `connections.<name>` | `host`, `port`, `username`, `password`, `database` required (strings; `port` may be a number), `description` optional |
-| `connections.<name>.engine` | `mariadb` (MariaDB and MySQL, default) |
-| `monitoring.instance` | Label returned in responses; not secret |
-| `monitoring.connection` | Connection used for status and process queries |
-| `monitoring.databases` | Connections whose `database` schemas are monitored; defaults to `[connection]`. Process rows of other schemas are never returned |
+The node logs in with `primary`. Server-wide numbers in `/databases/overview` (connections,
+limits, uptime) cover the whole server. `/databases/processes` lists only sessions on `app_db`
+and `analytics_db`; sessions on any other database of that server are never returned. Of the
+`analytics` entry only `database` and `description` are used.
 
-Unknown keys, missing fields and unknown references are rejected at startup
-(`configuration_invalid`). Startup never connects to a database.
+With a single database, `"monitoring": { "connection": "primary" }` is enough.
 
-Use a read-only account. For complete process lists it needs the `PROCESS` privilege
-(`GRANT PROCESS ON *.* TO 'mata_monitor'@'...'`); without it `/databases/processes` reports
-`"visibility": "own_sessions"`. A privilege granted only through a role is reported as
-`own_sessions`.
+### `connections.<name>`
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `host`, `port` | yes | Server address. `port` is a string or number |
+| `username`, `password` | yes | Login; use a read-only account (see below) |
+| `database` | yes | Database (schema) name on the server |
+| `description` | no | Text shown in the dashboard |
+| `engine` | no | `mariadb` (default, also for MySQL) |
+
+### `monitoring`
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `connection` | yes | Name of the connection the node logs in with |
+| `databases` | no | Names of connections whose databases are reported on. Default: only `connection` |
+| `instance` | no | Name for the database server, returned as `instance` in responses so the dashboard can tell servers apart without seeing the host. Default: the value of `connection` |
+
+### Validation and account
+
+Unknown keys, missing fields and names that don't match a connection fail startup with
+`configuration_invalid`. Startup never connects to the database, so an outage cannot stop the
+node.
+
+The account needs no write rights. For a complete process list it needs the `PROCESS`
+privilege (`GRANT PROCESS ON *.* TO 'mata_monitor'@'...'`); without it `/databases/processes`
+reports `"visibility": "own_sessions"` and shows only the account's own sessions. A privilege
+granted only through a role is also reported as `own_sessions`.
 
 ## `config/transmit.json`
 
