@@ -10,7 +10,6 @@ use Mata\Config\Dto\EnvConfig;
 use Mata\Config\Dto\EnvironmentConfig;
 use Mata\Config\Dto\GeneralConfig;
 use Mata\Config\Dto\LoggingConfig;
-use Mata\Config\Dto\MailConfig;
 use Mata\Config\Dto\PhpConfig;
 use Mata\Config\Dto\RateLimitingConfig;
 use Mata\Config\EnvConfigLoader;
@@ -215,18 +214,6 @@ ENV
             logging: new LoggingConfig(
                 path: 'logs/app.log',
                 level: 'debug',
-            ),
-            mail: new MailConfig(
-                dsn: null,
-                fromEmail: null,
-                fromName: null,
-                alertRecipients: [],
-                testRecipients: [],
-                devRecipients: [],
-                mailerApp: 'sendgrid',
-                mailerDev: 'phpmailer',
-                charset: 'utf-8',
-                wordWrap: 50,
             ),
             rateLimiting: new RateLimitingConfig(
                 enabled: true,

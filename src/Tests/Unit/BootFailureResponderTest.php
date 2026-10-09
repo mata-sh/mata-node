@@ -26,7 +26,7 @@ final class BootFailureResponderTest extends TestCase
     {
         $response = $this->responder->build(StartupFailureReason::ConfigurationMissing, [
             '/private/config/apps.json',
-            'mail.config.env',
+            'config.env',
             '../../config/apps.json',
         ]);
 
@@ -37,7 +37,7 @@ final class BootFailureResponderTest extends TestCase
         $this->assertSame([
             'status' => 'not_ready',
             'reason' => 'configuration_missing',
-            'missing_config_files' => ['mail.config.env', 'apps.json'],
+            'missing_config_files' => ['config.env', 'apps.json'],
         ], json_decode($response->body, true, flags: JSON_THROW_ON_ERROR));
     }
 

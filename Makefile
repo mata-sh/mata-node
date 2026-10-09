@@ -13,7 +13,7 @@ COLOR_CYAN := $(shell git config --get-color "" "cyan")
 COLOR_MAGENTA := $(shell git config --get-color "" "magenta")
 
 # Config bootstrap source/target files
-ENV_CONFIG_FILES := config.env mail.config.env
+ENV_CONFIG_FILES := config.env
 JSON_CONFIG_FILES := apps.json transmit.json databases.json
 
 # ============================================
@@ -199,8 +199,7 @@ setup:
 	@echo "$(COLOR_CYAN)⚙️  NEXT STEPS:$(COLOR_RESET)"
 	@echo "$(COLOR_YELLOW)1.$(COLOR_RESET) Edit $(COLOR_BOLD)config/config.env$(COLOR_RESET) - set DOMAIN and DASHBOARD_API_KEY"
 	@echo "$(COLOR_YELLOW)2.$(COLOR_RESET) Review $(COLOR_BOLD)config/apps.json$(COLOR_RESET), $(COLOR_BOLD)config/transmit.json$(COLOR_RESET), and $(COLOR_BOLD)config/databases.json$(COLOR_RESET)"
-	@echo "$(COLOR_YELLOW)3.$(COLOR_RESET) Edit $(COLOR_BOLD)config/mail.config.env$(COLOR_RESET) - configure email settings (optional)"
-	@echo "$(COLOR_YELLOW)4.$(COLOR_RESET) Choose webserver config from $(COLOR_BOLD)docs/examples/webserver-configs/README.md$(COLOR_RESET)"
+	@echo "$(COLOR_YELLOW)3.$(COLOR_RESET) Choose webserver config from $(COLOR_BOLD)docs/examples/webserver-configs/README.md$(COLOR_RESET)"
 	@echo ""
 	@echo "$(COLOR_BLUE)Or use Docker:$(COLOR_RESET) $(COLOR_CYAN)make docker-setup$(COLOR_RESET) then $(COLOR_CYAN)make dev-start$(COLOR_RESET)"
 
@@ -302,7 +301,7 @@ docker-network:
 dev-start: docker-network
 	@echo "$(COLOR_BLUE)🚀 Starting docker development environment...$(COLOR_RESET)"
 	@# Check if setup is needed
-	@if [ ! -f .env ] || [ ! -f config/config.env ] || [ ! -f config/mail.config.env ] || [ ! -f config/apps.json ] || [ ! -f config/transmit.json ] || [ ! -f config/databases.json ]; then \
+	@if [ ! -f .env ] || [ ! -f config/config.env ] || [ ! -f config/apps.json ] || [ ! -f config/transmit.json ] || [ ! -f config/databases.json ]; then \
 		echo "$(COLOR_YELLOW)⚠️  Setup files missing. Running docker-setup first...$(COLOR_RESET)"; \
 		echo ""; \
 		$(MAKE) docker-setup; \

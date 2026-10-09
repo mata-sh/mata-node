@@ -376,7 +376,6 @@ final class AppsSummaryEndpointTest extends TestCase
         mkdir($basePath . '/logs', 0775, true);
         mkdir($basePath . '/cache', 0775, true);
         file_put_contents($basePath . '/config/config.env', 'DASHBOARD_API_KEY=' . self::API_KEY . "\n");
-        file_put_contents($basePath . '/config/mail.config.env', '');
         file_put_contents($basePath . '/config/apps.json', '{}');
         file_put_contents($basePath . '/config/databases.json', '{}');
         file_put_contents($basePath . '/config/transmit.json', '{}');

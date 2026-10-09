@@ -14,7 +14,6 @@ services:
       - "${WEB_PORT:-3310}:80"
     env_file:
       - ./config/config.env
-      - ./config/mail.config.env
     environment:
       # Optional: Override application settings from config/*.env files
       # See .env.example for available Docker environment variables

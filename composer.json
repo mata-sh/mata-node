@@ -28,7 +28,6 @@
     "prefer-stable": true,
     "require": {
         "php": "^8.3",
-        "symfony/mailer": "^7.2",
         "bramus/router": "^1.6",
         "guzzlehttp/guzzle": "^7.9",
         "vlucas/phpdotenv": "^5.6",

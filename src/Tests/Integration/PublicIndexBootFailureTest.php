@@ -55,7 +55,6 @@ final class PublicIndexBootFailureTest extends TestCase
             'reason' => 'configuration_missing',
             'missing_config_files' => [
                 'config.env',
-                'mail.config.env',
                 'apps.json',
                 'databases.json',
                 'transmit.json',

@@ -21,8 +21,6 @@ use Mata\Utils\Tools;
 use Mata\Watchers\AppWatcher;
 use Mata\Watchers\DatabaseWatcher;
 use Mata\Watchers\ServerWatcher;
-use Symfony\Component\Mailer\Mailer;
-use Symfony\Component\Mailer\Transport;
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
 
@@ -64,19 +62,6 @@ try {
     $rateLimiter = RateLimiterFactory::create($envConfig->rateLimiting, $log);
     $app = new App($auth, $envConfig, $paths, $rateLimiter);
     $app->setBaseUrl($envConfig->environment->domain);
-
-    // Currently unused: reserved for sending mail alerts on critical failures
-    // directly, without relying on the dashboard or a queue.
-    /*
-    $transport = Transport::fromDsn($envConfig->mail->dsn);
-    $mailer = new Mailer($transport);
-
-    $mailCfg = [
-        'from_email' => $envConfig->mail->fromEmail,
-        'from_name' => $envConfig->mail->fromName,
-        'recipients' => $envConfig->mail->alertRecipients,
-    ];
-    */
 
     $fileCache = new FileCache($paths->cachePath);
     $commandRunner = new NativeCommandRunner();

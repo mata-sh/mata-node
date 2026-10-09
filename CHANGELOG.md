@@ -3,6 +3,11 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Removed
+- Unused mail configuration: `config/mail.config.env` is no longer required or loaded, and the `symfony/mailer` dependency is gone. Existing `config/mail.config.env` files can be deleted
+
 ## [0.2.0] - 2026-10-09
 
 First public release. Earlier versions were developed privately; this entry

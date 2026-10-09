@@ -9,7 +9,6 @@ final class StartupConfigInventory
     /** @var list<string> */
     public const ENV_FILES = [
         'config.env',
-        'mail.config.env',
     ];
 
     /** @var list<string> */

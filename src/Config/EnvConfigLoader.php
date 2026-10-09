@@ -11,7 +11,6 @@ use Mata\Config\Dto\EnvConfig;
 use Mata\Config\Dto\EnvironmentConfig;
 use Mata\Config\Dto\GeneralConfig;
 use Mata\Config\Dto\LoggingConfig;
-use Mata\Config\Dto\MailConfig;
 use Mata\Config\Dto\PhpConfig;
 use Mata\Config\Dto\RateLimitingConfig;
 use Mata\Security\IpAllowlist;
@@ -23,7 +22,7 @@ use Mata\Security\IpAllowlist;
  * - Multiple .env file support
  * - Environment variable validation
  * - Type-safe configuration parsing via DTOs
- * - Structured configuration sections (app, database, mail, etc.)
+ * - Structured configuration sections (app, logging, auth, etc.)
  * - Default value handling
  * - Comma-separated value parsing
  * - Boolean value normalization
@@ -52,7 +51,6 @@ final class EnvConfigLoader
             general: $this->loadGeneralConfig(),
             php: $this->loadPhpConfig(),
             logging: $this->loadLoggingConfig(),
-            mail: $this->loadMailConfig(),
             rateLimiting: $this->loadRateLimitingConfig(),
             auth: $this->loadAuthConfig(),
             composer: $this->loadComposerConfig(),
@@ -92,22 +90,6 @@ final class EnvConfigLoader
         return new LoggingConfig(
             path: $this->getEnv('APP_LOG_PATH', 'logs/app.log'),
             level: $this->getEnv('MONOLOG_LEVEL', 'debug'),
-        );
-    }
-
-    private function loadMailConfig(): MailConfig
-    {
-        return new MailConfig(
-            dsn: $this->getEnv('SYM_MAILER_DSN'),
-            fromEmail: $this->getEnv('SYM_FROM_EMAIL'),
-            fromName: $this->getEnv('SYM_FROM_NAME'),
-            alertRecipients: $this->parseCommaSeparated($this->getEnv('MAIL_ALERT_RECIPIENTS', '')),
-            testRecipients: $this->parseCommaSeparated($this->getEnv('MAIL_TEST_RECIPIENTS', '')),
-            devRecipients: $this->parseCommaSeparated($this->getEnv('MAIL_DEV_RECIPIENTS', '')),
-            mailerApp: $this->getEnv('MAILER_APP', 'sendgrid'),
-            mailerDev: $this->getEnv('MAILER_DEV', 'phpmailer'),
-            charset: $this->getEnv('MAIL_CHARSET', 'utf-8'),
-            wordWrap: (int) $this->getEnv('MAIL_WORD_WRAP', '50'),
         );
     }
 
@@ -258,20 +240,6 @@ final class EnvConfigLoader
             $warnings[] = [
                 'identifier' => 'config.logging.level.missing',
                 'message' => 'Monolog level not configured - default log level may be used',
-            ];
-        }
-
-        // Mail configuration warnings
-        if (empty($config->mail->dsn)) {
-            $warnings[] = [
-                'identifier' => 'config.mail.dsn.missing',
-                'message' => 'Mail DSN not configured - email notifications will not work',
-            ];
-        }
-        if (empty($config->mail->fromEmail)) {
-            $warnings[] = [
-                'identifier' => 'config.mail.from_email.missing',
-                'message' => 'Mail from_email not configured - emails may not send properly',
             ];
         }
 

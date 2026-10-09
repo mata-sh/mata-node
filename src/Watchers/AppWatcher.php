@@ -19,9 +19,6 @@ use Mata\Watchers\SessionBackends\SessionBackendFactory;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 
-// use Alerts\LogAlert;
-// use Alerts\EmailAlert;
-
 class AppWatcher
 {
     private LoggerInterface $logger;

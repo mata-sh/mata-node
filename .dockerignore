@@ -18,7 +18,6 @@ vendor/
 .env.*
 !.env.example
 config/config.env
-config/mail.config.env
 config/mysql.mata.env
 config/.htpasswd
 

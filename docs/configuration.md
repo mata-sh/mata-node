@@ -1,6 +1,6 @@
 # Configuration reference
 
-All five files in `config/` must exist, or every endpoint returns `503` with
+All four files in `config/` must exist, or every endpoint returns `503` with
 `configuration_missing`. Create the missing ones from `config/example/`:
 
 ```bash
@@ -10,7 +10,6 @@ make bootstrap-config
 | File | Contents |
 | --- | --- |
 | [`config.env`](#configconfigenv) | Dashboard credentials, access control, logging, rate limiting |
-| `mail.config.env` | Not used by the node; keep the example file |
 | [`apps.json`](#configappsjson) | Watched applications: logs, sessions, Composer, monitoring switches |
 | [`databases.json`](#configdatabasesjson) | MySQL/MariaDB connections for the database endpoints |
 | [`transmit.json`](#configtransmitjson) | Node limits, disk check, cron heartbeats |

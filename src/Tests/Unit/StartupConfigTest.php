@@ -40,7 +40,6 @@ final class StartupConfigTest extends TestCase
         file_put_contents($this->configDir . '/apps.json', '{}');
 
         $this->assertSame([
-            'mail.config.env',
             'databases.json',
             'transmit.json',
         ], StartupConfigInventory::findMissingFiles($this->configDir));

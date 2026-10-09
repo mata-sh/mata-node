@@ -17,7 +17,6 @@ final class EnvConfig
         public readonly GeneralConfig $general,
         public readonly PhpConfig $php,
         public readonly LoggingConfig $logging,
-        public readonly MailConfig $mail,
         public readonly RateLimitingConfig $rateLimiting,
         public readonly AuthConfig $auth,
         public readonly ComposerConfig $composer,

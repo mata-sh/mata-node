@@ -26,7 +26,7 @@ chmod -R u+rwX,go-rwx /var/www/html/temp /var/www/html/logs
 
 # Copy config files from examples if they don't exist
 echo "📋 Checking for config files..."
-for file in config.env mail.config.env; do
+for file in config.env; do
     if [ ! -f "/var/www/html/config/$file" ]; then
         if [ -f "/var/www/html/config/example/${file}.example" ]; then
             cp "/var/www/html/config/example/${file}.example" "/var/www/html/config/$file"
