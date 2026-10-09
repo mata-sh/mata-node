@@ -54,13 +54,15 @@ composer lint
 
 ## Release & Changelog
 
-Maintainers can generate a changelog when creating a new release tag using:
+Update `CHANGELOG.md` in the same change as anything a node operator or the dashboard would
+notice: endpoints, response shapes, config keys, security behavior, deployment. Add one concise
+bullet under `## [Unreleased]` (create it above the latest release if missing), in `Added`,
+`Changed`, `Fixed` or `Removed`. Say what changed and any action operators must take. Skip
+refactors, tests and internal-only changes. Never name customers, deployments or internal hosts.
 
-```bash
-make changelog
-```
-
-This script builds a commit-based changelog to include in release notes.
+At release time `[Unreleased]` becomes the version heading. Releases are tagged with plain
+semantic versions (for example `0.2.0`, no `v` prefix); pushing the tag runs the release
+workflow, which publishes a GitHub release with a CycloneDX SBOM.
 
 ---
 
