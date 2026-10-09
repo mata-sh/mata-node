@@ -6,6 +6,7 @@ namespace Mata\Watchers;
 
 use Mata\Config\Dto\DatabaseConfig;
 use Mata\Core\Database;
+use Mata\Core\DatabaseInterface;
 use Mata\Services\Command\CommandRunnerInterface;
 use Mata\Services\Command\NativeCommandRunner;
 use Mata\Watchers\Exceptions\DatabaseWatcherException;
@@ -31,7 +32,7 @@ class DatabaseWatcher
      *
      * @throws DatabaseWatcherException if the database name doesn't exist
      */
-    private function getConnection(string $databaseName): Database
+    private function getConnection(string $databaseName): DatabaseInterface
     {
         if (!isset($this->configs[$databaseName])) {
             throw DatabaseWatcherException::notFound($databaseName, array_keys($this->configs));
@@ -148,7 +149,7 @@ class DatabaseWatcher
             SHOW VARIABLES LIKE 'max_connections'
         SQL;
 
-        $result = $this->getConnection($databaseName)->runQuery($sql);
+        $result = $this->getConnection($databaseName)->select($sql);
 
         return (int) $result[0]['Value'];
     }
@@ -159,7 +160,7 @@ class DatabaseWatcher
             SHOW STATUS LIKE 'Threads_connected'
         SQL;
 
-        $result = $this->getConnection($databaseName)->runQuery($sql);
+        $result = $this->getConnection($databaseName)->select($sql);
 
         return (int) $result[0]['Value'];
     }
@@ -172,7 +173,7 @@ class DatabaseWatcher
             WHERE command != 'Sleep'
         SQL;
 
-        $result = $this->getConnection($databaseName)->runQuery($sql);
+        $result = $this->getConnection($databaseName)->select($sql);
 
         return (int) $result[0]['Value'];
     }
@@ -193,9 +194,9 @@ class DatabaseWatcher
             FROM information_schema.processlist
         SQL;
 
-        $rows = $this->getConnection($databaseName)->runQuery($sql);
+        $rows = $this->getConnection($databaseName)->select($sql);
 
-        return array_map(self::sanitizeProcessRow(...), array_values($rows));
+        return array_map(self::sanitizeProcessRow(...), $rows);
     }
 
     /**

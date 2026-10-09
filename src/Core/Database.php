@@ -9,14 +9,9 @@ use PDO;
 use PDOException;
 
 /**
- * MySQL database connection wrapper with prepared statements.
+ * Read-only MySQL/MariaDB connection for monitoring queries.
  *
- * Provides secure database operations with:
- * - PDO-based connection management
- * - Prepared statement support for SQL injection prevention
- * - Transaction support for data integrity
- * - Type-safe configuration via DatabaseConfig DTO
- * - Consistent error handling
+ * PDO-based, with prepared statements and configuration via DatabaseConfig.
  */
 class Database implements DatabaseInterface
 {
@@ -45,68 +40,19 @@ class Database implements DatabaseInterface
     }
 
     /**
-     * Execute SQL query with prepared statement parameters.
-     *
-     * Handles both SELECT and INSERT/UPDATE/DELETE operations.
+     * Run a read query with prepared statement parameters.
      *
      * @param array<int|string,mixed> $params Parameters for prepared statement
      *
-     * @return array<int,array<string,mixed>>|int Result array for SELECT, insert ID for INSERT, affected rows for UPDATE/DELETE
+     * @return list<array<string,mixed>> Result rows
      *
      * @throws PDOException If query execution fails
      */
-    public function runQuery(string $sql, array $params = []): array|int
+    public function select(string $sql, array $params = []): array
     {
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
 
-        $firstWord = strtok(trim($sql), ' ');
-        $sqlType = strtoupper($firstWord === false ? '' : $firstWord);
-
-        return match ($sqlType) {
-            'INSERT' => (int) $this->pdo->lastInsertId(),
-            'UPDATE', 'DELETE' => $stmt->rowCount(),
-            default => $stmt->fetchAll(PDO::FETCH_ASSOC),
-        };
-    }
-
-    /**
-     * Begin database transaction for atomic operations.
-     *
-     * @throws PDOException If transaction cannot be started
-     */
-    public function beginTransaction(): void
-    {
-        $this->pdo->beginTransaction();
-    }
-
-    /**
-     * Commit current database transaction.
-     *
-     * @throws PDOException If commit fails
-     */
-    public function commit(): void
-    {
-        $this->pdo->commit();
-    }
-
-    /**
-     * Rollback current database transaction.
-     *
-     * @throws PDOException If rollback fails
-     */
-    public function rollback(): void
-    {
-        $this->pdo->rollBack();
-    }
-
-    /**
-     * Get the underlying PDO connection instance.
-     *
-     * @return PDO Raw PDO connection for advanced operations
-     */
-    public function getPdo(): PDO
-    {
-        return $this->pdo;
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }
