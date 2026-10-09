@@ -52,6 +52,16 @@ composer lint
 
 ---
 
+## Documentation
+
+`docs/configuration.md`, `docs/log-parsers.md`, `docs/shell-command-surface.md` and
+`docker/README.md` are also published in the Node section of the
+[MATA Dashboard docs site](https://github.com/mata-sh/mata-dashboard/tree/main/scripts/docs).
+Keep links between them relative, and link anything else by absolute GitHub URL, so they work
+in both places. A new page must also be added to mata-dashboard's `sync-node-docs.sh` and nav.
+
+---
+
 ## Release & Changelog
 
 Update `CHANGELOG.md` in the same change as anything a node operator or the dashboard would

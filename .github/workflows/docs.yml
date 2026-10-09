@@ -1,0 +1,24 @@
+name: Docs
+
+# The docs site is built by mata-dashboard, which pulls docs/ and docker/README.md from here.
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'docs/**', 'docker/README.md' ]
+
+permissions:
+  contents: read
+
+jobs:
+  trigger-dashboard-docs:
+    name: Rebuild dashboard docs site
+    runs-on: ubuntu-latest
+    env:
+      # Fine-grained token with Contents: write on mata-sh/mata-dashboard
+      TOKEN: ${{ secrets.DASHBOARD_DOCS_DISPATCH_TOKEN }}
+    steps:
+      - name: Dispatch node-docs to mata-dashboard
+        if: env.TOKEN != ''
+        run: gh api repos/mata-sh/mata-dashboard/dispatches -f event_type=node-docs
+        env:
+          GH_TOKEN: ${{ env.TOKEN }}
