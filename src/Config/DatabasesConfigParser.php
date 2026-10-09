@@ -11,125 +11,89 @@ use Mata\Watchers\Database\DatabaseDriverFactory;
 /**
  * Validates `databases.json` and builds the monitoring configuration.
  *
- * Only checks the file's structure and references; it never connects to a database,
- * so a database outage cannot fail startup.
+ * Only checks the file's structure; it never connects to a database, so a database
+ * outage cannot fail startup.
  */
 final class DatabasesConfigParser
 {
-    private const TOP_LEVEL_KEYS = ['connections', 'monitoring'];
-    private const CONNECTION_KEYS = ['engine', 'host', 'port', 'username', 'password', 'database', 'description'];
-    private const REQUIRED_CONNECTION_KEYS = ['host', 'port', 'username', 'password', 'database'];
-    private const MONITORING_KEYS = ['instance', 'connection', 'databases'];
+    private const TOP_LEVEL_KEYS = ['engine', 'connection', 'databases'];
+    private const CONNECTION_KEYS = ['host', 'port', 'username', 'password'];
 
     /**
      * @param array<mixed> $config Decoded `databases.json`
      *
-     * @return null|DatabaseMonitoringConfig Null when no `monitoring` block is configured
+     * @return null|DatabaseMonitoringConfig Null for `{}` (monitoring off)
      *
-     * @throws StartupConfigException When the structure or a reference is invalid
+     * @throws StartupConfigException When the structure is invalid
      */
     public function parse(array $config): ?DatabaseMonitoringConfig
     {
-        $this->assertKnownKeys($config, self::TOP_LEVEL_KEYS, '');
-
-        $connections = $this->parseConnections($config['connections'] ?? []);
-
-        if (!array_key_exists('monitoring', $config)) {
+        if ($config === []) {
             return null;
         }
 
-        return $this->parseMonitoring($config['monitoring'], $connections);
-    }
+        $this->assertObject($config, '');
+        $this->assertKeys($config, self::TOP_LEVEL_KEYS, '');
 
-    /**
-     * @return array<string, DatabaseConfig>
-     */
-    private function parseConnections(mixed $connections): array
-    {
-        if (!is_array($connections) || ($connections !== [] && array_is_list($connections))) {
-            $this->fail('connections', 'must be an object of named connections');
+        $engine = $this->stringValue($config['engine'], 'engine');
+        if (!DatabaseDriverFactory::supports($engine)) {
+            $this->fail('engine', 'must be one of: ' . implode(', ', DatabaseDriverFactory::ENGINES));
         }
 
-        $parsed = [];
-        foreach ($connections as $name => $connection) {
-            $name = (string) $name;
-            $field = "connections.{$name}";
+        $connection = $config['connection'];
+        $this->assertObject($connection, 'connection');
+        $this->assertKeys($connection, self::CONNECTION_KEYS, 'connection');
 
-            if (!is_array($connection) || ($connection !== [] && array_is_list($connection))) {
-                $this->fail($field, 'must be an object');
-            }
+        $databases = $config['databases'];
+        if (!is_array($databases) || $databases === [] || array_is_list($databases)) {
+            $this->fail('databases', 'must be a non-empty object of database name => description');
+        }
+        $descriptions = [];
+        foreach ($databases as $name => $description) {
+            $descriptions[$name] = $this->stringValue($description, "databases.{$name}");
+        }
 
-            $this->assertKnownKeys($connection, self::CONNECTION_KEYS, $field);
-
-            foreach (self::REQUIRED_CONNECTION_KEYS as $key) {
-                if (!array_key_exists($key, $connection)) {
-                    $this->fail("{$field}.{$key}", 'is required');
-                }
-            }
-
-            $engine = $this->stringValue($connection['engine'] ?? DatabaseDriverFactory::DEFAULT_ENGINE, "{$field}.engine");
-            if (!DatabaseDriverFactory::supports($engine)) {
-                $this->fail("{$field}.engine", 'must be one of: ' . implode(', ', DatabaseDriverFactory::ENGINES));
-            }
-
-            $parsed[$name] = new DatabaseConfig(
-                name: $name,
+        return new DatabaseMonitoringConfig(
+            new DatabaseConfig(
                 engine: $engine,
-                host: $this->stringValue($connection['host'], "{$field}.host"),
-                port: $this->stringValue($connection['port'], "{$field}.port", allowInt: true),
-                username: $this->stringValue($connection['username'], "{$field}.username"),
-                password: $this->stringValue($connection['password'], "{$field}.password"),
-                database: $this->stringValue($connection['database'], "{$field}.database"),
-                description: $this->stringValue($connection['description'] ?? '', "{$field}.description"),
-            );
-        }
-
-        return $parsed;
+                host: $this->stringValue($connection['host'], 'connection.host'),
+                port: $this->stringValue($connection['port'], 'connection.port', allowInt: true),
+                username: $this->stringValue($connection['username'], 'connection.username'),
+                password: $this->stringValue($connection['password'], 'connection.password'),
+            ),
+            $descriptions,
+        );
     }
 
     /**
-     * @param array<string, DatabaseConfig> $connections
+     * @phpstan-assert array<string, mixed> $value
      */
-    private function parseMonitoring(mixed $monitoring, array $connections): DatabaseMonitoringConfig
+    private function assertObject(mixed $value, string $field): void
     {
-        if (!is_array($monitoring) || ($monitoring !== [] && array_is_list($monitoring))) {
-            $this->fail('monitoring', 'must be an object');
+        if (!is_array($value) || array_is_list($value)) {
+            $this->fail($field === '' ? 'file' : $field, 'must be an object');
         }
-
-        $this->assertKnownKeys($monitoring, self::MONITORING_KEYS, 'monitoring');
-
-        $connectionName = $this->stringValue($monitoring['connection'] ?? null, 'monitoring.connection');
-        $connection = $connections[$connectionName] ?? $this->fail('monitoring.connection', "references unknown connection '{$connectionName}'");
-
-        $instance = $this->stringValue($monitoring['instance'] ?? $connectionName, 'monitoring.instance');
-        if (trim($instance) === '') {
-            $this->fail('monitoring.instance', 'must not be empty');
-        }
-
-        $databaseNames = $monitoring['databases'] ?? [$connectionName];
-        if (!is_array($databaseNames) || !array_is_list($databaseNames) || $databaseNames === []) {
-            $this->fail('monitoring.databases', 'must be a non-empty list of connection names');
-        }
-
-        $databases = [];
-        foreach ($databaseNames as $index => $name) {
-            $name = $this->stringValue($name, "monitoring.databases.{$index}");
-            $databases[] = $connections[$name] ?? $this->fail("monitoring.databases.{$index}", "references unknown connection '{$name}'");
-        }
-
-        return new DatabaseMonitoringConfig($instance, $connection, $databases);
     }
 
     /**
+     * Every key is required and no other key is allowed.
+     *
      * @param array<mixed> $values
-     * @param list<string> $known
+     * @param list<string> $keys
      */
-    private function assertKnownKeys(array $values, array $known, string $field): void
+    private function assertKeys(array $values, array $keys, string $field): void
     {
+        $path = static fn (int|string $key): string => $field === '' ? (string) $key : "{$field}.{$key}";
+
         foreach (array_keys($values) as $key) {
-            if (!in_array($key, $known, true)) {
-                $path = $field === '' ? (string) $key : "{$field}.{$key}";
-                $this->fail($path, 'is not a known key');
+            if (!in_array($key, $keys, true)) {
+                $this->fail($path($key), 'is not a known key');
+            }
+        }
+
+        foreach ($keys as $key) {
+            if (!array_key_exists($key, $values)) {
+                $this->fail($path($key), 'is required');
             }
         }
     }

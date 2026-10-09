@@ -29,12 +29,9 @@ final class MariaDbDriver implements DatabaseDriverInterface
 
     public function dsn(DatabaseConfig $config): string
     {
-        $dsn = "mysql:host={$config->host}";
-        if ($config->port !== '') {
-            $dsn .= ";port={$config->port}";
-        }
+        $port = $config->port !== '' ? ";port={$config->port}" : '';
 
-        return $dsn . ";dbname={$config->database};charset=utf8mb4";
+        return "mysql:host={$config->host}{$port};charset=utf8mb4";
     }
 
     public function overview(DatabaseInterface $db): OverviewStatus

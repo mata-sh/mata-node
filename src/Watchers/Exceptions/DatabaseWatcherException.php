@@ -11,7 +11,7 @@ class DatabaseWatcherException extends HttpException
     public static function notConfigured(): self
     {
         return new self(
-            message: 'Add a monitoring block to config/databases.json to enable database monitoring.',
+            message: 'Configure config/databases.json to enable database monitoring.',
             error: 'Database monitoring not configured',
             httpStatus: 404,
         );
@@ -43,27 +43,25 @@ class DatabaseWatcherException extends HttpException
         );
     }
 
-    public static function connectionFailed(string $connection, string $host, string $port, string $details): self
+    public static function connectionFailed(string $host, string $port, string $details): self
     {
         return new self(
-            message: "Failed to connect to database '{$connection}' on {$host}:{$port}: {$details}",
+            message: "Failed to connect to the database server on {$host}:{$port}: {$details}",
             error: 'Database connection failed',
             httpStatus: 503,
             context: [
-                'connection' => $connection,
                 'host' => $host,
                 'port' => $port,
             ]
         );
     }
 
-    public static function queryFailed(string $connection, string $details): self
+    public static function queryFailed(string $details): self
     {
         return new self(
-            message: "Database query failed on '{$connection}': {$details}",
+            message: "Database query failed: {$details}",
             error: 'Database query failed',
             httpStatus: 503,
-            context: ['connection' => $connection]
         );
     }
 }

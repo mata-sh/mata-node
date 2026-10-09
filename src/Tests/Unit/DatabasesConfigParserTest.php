@@ -15,23 +15,24 @@ use PHPUnit\Framework\TestCase;
  */
 final class DatabasesConfigParserTest extends TestCase
 {
-    private const CONNECTION = ['host' => 'localhost', 'port' => '3306', 'username' => 'u', 'password' => 'p', 'database' => 'app'];
+    private const CONFIG = [
+        'engine' => 'mariadb',
+        'connection' => ['host' => 'localhost', 'port' => 3306, 'username' => 'u', 'password' => 'p'],
+        'databases' => ['app_db' => 'Main application', 'analytics_db' => ''],
+    ];
 
-    public function testParsesMonitoringBlock(): void
+    public function testParsesConfig(): void
     {
-        $config = (new DatabasesConfigParser())->parse([
-            'connections' => ['primary' => self::CONNECTION],
-            'monitoring' => ['instance' => 'main', 'connection' => 'primary'],
-        ]);
+        $config = (new DatabasesConfigParser())->parse(self::CONFIG);
 
-        $this->assertSame('mariadb', $config?->connection->engine);
-        $this->assertSame(['app'], $config->schemaNames());
+        $this->assertSame('3306', $config?->connection->port);
+        $this->assertSame(['app_db', 'analytics_db'], $config->databaseNames());
     }
 
-    public function testRejectsOldFlatFormat(): void
+    public function testRequiresEngine(): void
     {
         $this->expectException(StartupConfigException::class);
 
-        (new DatabasesConfigParser())->parse(['primary' => self::CONNECTION]);
+        (new DatabasesConfigParser())->parse(array_diff_key(self::CONFIG, ['engine' => true]));
     }
 }

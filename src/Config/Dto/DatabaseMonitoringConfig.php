@@ -5,29 +5,24 @@ declare(strict_types=1);
 namespace Mata\Config\Dto;
 
 /**
- * Database monitoring settings from the `monitoring` block of `databases.json`.
+ * Database monitoring settings from `databases.json`.
  */
 final class DatabaseMonitoringConfig
 {
     /**
-     * @param string               $instance   Non-secret label returned in responses
-     * @param DatabaseConfig       $connection Connection used for status and process queries
-     * @param list<DatabaseConfig> $databases  Monitored databases; their schema names form the allowlist
+     * @param DatabaseConfig           $connection Login used for status and process queries
+     * @param array<array-key, string> $databases  Monitored database name => description
      */
     public function __construct(
-        public readonly string $instance,
         public readonly DatabaseConfig $connection,
         public readonly array $databases,
     ) {}
 
     /**
-     * @return list<string> Unique schema names in configuration order
+     * @return list<string> Monitored database names in configuration order
      */
-    public function schemaNames(): array
+    public function databaseNames(): array
     {
-        return array_values(array_unique(array_map(
-            static fn (DatabaseConfig $database): string => $database->database,
-            $this->databases,
-        )));
+        return array_map(strval(...), array_keys($this->databases));
     }
 }

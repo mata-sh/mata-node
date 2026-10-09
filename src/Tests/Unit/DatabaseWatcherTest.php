@@ -26,10 +26,10 @@ final class DatabaseWatcherTest extends TestCase
 
     public function testInvalidLimitIs400(): void
     {
-        $connection = new DatabaseConfig('primary', 'mariadb', 'localhost', '3306', 'u', 'p', 'app');
+        $connection = new DatabaseConfig('mariadb', 'localhost', '3306', 'u', 'p');
 
         $this->expectExceptionObject(DatabaseWatcherException::invalidParameter('limit', 'must be an integer from 1 to 100'));
 
-        (new DatabaseWatcher(new DatabaseMonitoringConfig('main', $connection, [$connection])))->getProcesses(['limit' => '101']);
+        (new DatabaseWatcher(new DatabaseMonitoringConfig($connection, ['app' => ''])))->getProcesses(['limit' => '101']);
     }
 }

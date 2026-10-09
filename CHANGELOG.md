@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/databases/processes`: session list limited to monitored schemas, with `database`, `active_only` and `limit` parameters and a `visibility` field; returns the statement keyword, never query text
 
 ### Changed
-- `config/databases.json` has a new shape: connections under `connections`, plus a `monitoring` block. The old flat format fails startup with `configuration_invalid`; see `docs/configuration.md`
+- `config/databases.json` has a new shape: `engine`, one `connection` and the monitored `databases`. The old format fails startup with `configuration_invalid`; see `docs/configuration.md`
 
 ### Removed
 - `/server/databases` and `/{dbname}/database-status`, `-connections`, `-processes`, `-threads`. The SQL process count remains in `/server/data`

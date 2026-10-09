@@ -54,11 +54,11 @@ class DatabaseWatcher
         $status = $this->query($config, fn (DatabaseInterface $db) => $driver->overview($db));
 
         return [
-            ...$this->envelope($config, $driver),
+            ...$this->envelope($driver),
             'status' => $status->toArray(),
             'databases' => array_map(
-                static fn (DatabaseConfig $database): array => ['name' => $database->database, 'description' => $database->description],
-                $config->databases,
+                static fn (string $name): array => ['name' => $name, 'description' => $config->databases[$name]],
+                $config->databaseNames(),
             ),
         ];
     }
@@ -71,7 +71,7 @@ class DatabaseWatcher
     public function getProcesses(array $query): array
     {
         $config = $this->requireConfig();
-        [$database, $activeOnly, $limit] = $this->parseProcessQuery($query, $config->schemaNames());
+        [$database, $activeOnly, $limit] = $this->parseProcessQuery($query, $config->databaseNames());
 
         $driver = $this->driver($config);
         [$rows, $visibility] = $this->query(
@@ -80,9 +80,9 @@ class DatabaseWatcher
         );
 
         return [
-            ...$this->envelope($config, $driver),
+            ...$this->envelope($driver),
             'visibility' => $visibility->value,
-            ...ProcessList::build($rows, $config->schemaNames(), $database, $activeOnly, $limit),
+            ...ProcessList::build($rows, $config->databaseNames(), $database, $activeOnly, $limit),
         ];
     }
 
@@ -111,43 +111,42 @@ class DatabaseWatcher
             try {
                 $this->connection = ($this->connector)($this->driver($config)->dsn($connection), $connection);
             } catch (PDOException $error) {
-                throw DatabaseWatcherException::connectionFailed($connection->name, $connection->host, $connection->port, $error->getMessage());
+                throw DatabaseWatcherException::connectionFailed($connection->host, $connection->port, $error->getMessage());
             }
         }
 
         try {
             return $read($this->connection);
         } catch (PDOException|UnexpectedValueException $error) {
-            throw DatabaseWatcherException::queryFailed($connection->name, $error->getMessage());
+            throw DatabaseWatcherException::queryFailed($error->getMessage());
         }
     }
 
     /**
-     * @return array{engine: string, instance: string, collected_at: string}
+     * @return array{engine: string, collected_at: string}
      */
-    private function envelope(DatabaseMonitoringConfig $config, DatabaseDriverInterface $driver): array
+    private function envelope(DatabaseDriverInterface $driver): array
     {
         return [
             'engine' => $driver->engine(),
-            'instance' => $config->instance,
             'collected_at' => (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format(DATE_ATOM),
         ];
     }
 
     /**
      * @param array<array-key, mixed> $query
-     * @param list<string>            $schemas
+     * @param list<string>            $databases
      *
      * @return array{0: null|string, 1: bool, 2: int}
      */
-    private function parseProcessQuery(array $query, array $schemas): array
+    private function parseProcessQuery(array $query, array $databases): array
     {
         $database = $query['database'] ?? null;
         if ($database !== null && !is_string($database)) {
             throw DatabaseWatcherException::invalidParameter('database', 'must be a single value');
         }
-        if ($database !== null && !in_array($database, $schemas, true)) {
-            throw DatabaseWatcherException::unknownDatabase($database, $schemas);
+        if ($database !== null && !in_array($database, $databases, true)) {
+            throw DatabaseWatcherException::unknownDatabase($database, $databases);
         }
 
         $activeOnly = $query['active_only'] ?? '1';

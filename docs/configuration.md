@@ -11,7 +11,7 @@ make bootstrap-config
 | --- | --- |
 | [`config.env`](#configconfigenv) | Dashboard credentials, access control, logging, rate limiting |
 | [`apps.json`](#configappsjson) | Watched applications: logs, sessions, Composer, monitoring switches |
-| [`databases.json`](#configdatabasesjson) | Database connections and the monitoring block for `/databases/*` |
+| [`databases.json`](#configdatabasesjson) | Database server login and monitored databases for `/databases/*` |
 | [`transmit.json`](#configtransmitjson) | Node limits, disk check, cron heartbeats |
 
 JSON files must be strict JSON (no comments, no trailing commas).
@@ -476,73 +476,38 @@ Object fields (all optional):
 
 ## `config/databases.json`
 
-Lets the node watch one MariaDB or MySQL server for the `/databases/*` routes. The file has two
-parts:
-
-- **`connections`**: login details, one entry per database, under a name you choose.
-- **`monitoring`**: which connection the node logs in with, and which databases it reports on.
-
-`{}` turns database monitoring off; the `/databases/*` routes then return `404`.
-
-### Example
-
-One server with two databases, `app_db` and `analytics_db`:
+Lets the node watch one MariaDB or MySQL server for the `/databases/*` routes: which server,
+how to log in, and which of its databases to report on.
 
 ```json
 {
-  "connections": {
-    "primary": {
-      "host": "localhost",
-      "port": "3306",
-      "username": "mata_monitor",
-      "password": "secret",
-      "database": "app_db",
-      "description": "Main application"
-    },
-    "analytics": {
-      "host": "localhost",
-      "port": "3306",
-      "username": "mata_monitor",
-      "password": "secret",
-      "database": "analytics_db",
-      "description": "Reporting"
-    }
+  "engine": "mariadb",
+  "connection": {
+    "host": "localhost",
+    "port": "3306",
+    "username": "mata_monitor",
+    "password": "secret"
   },
-  "monitoring": {
-    "connection": "primary",
-    "databases": ["primary", "analytics"]
+  "databases": {
+    "app_db": "Main application",
+    "analytics_db": "Reporting"
   }
 }
 ```
 
-The node logs in with `primary`. Server-wide numbers in `/databases/overview` (connections,
-limits, uptime) cover the whole server. `/databases/processes` lists only sessions on `app_db`
-and `analytics_db`; sessions on any other database of that server are never returned. Of the
-`analytics` entry only `database` and `description` are used.
+The node logs in once with `connection`. `/databases/overview` reports server-wide numbers
+(connections, limits, uptime). `/databases/processes` lists only sessions on `app_db` and
+`analytics_db`; sessions on any other database of that server are never returned.
 
-With a single database, `"monitoring": { "connection": "primary" }` is enough.
+`{}` turns database monitoring off; the `/databases/*` routes then return `404`.
 
-### `connections.<name>`
+| Field | Meaning |
+| --- | --- |
+| `engine` | Database type; selects the driver. `mariadb` (also for MySQL) |
+| `connection` | `host`, `port` (string or number), `username`, `password`; use a read-only account |
+| `databases` | Database name => description shown in the dashboard; at least one |
 
-| Field | Required | Meaning |
-| --- | --- | --- |
-| `host`, `port` | yes | Server address. `port` is a string or number |
-| `username`, `password` | yes | Login; use a read-only account (see below) |
-| `database` | yes | Database (schema) name on the server |
-| `description` | no | Text shown in the dashboard |
-| `engine` | no | `mariadb` (default, also for MySQL) |
-
-### `monitoring`
-
-| Field | Required | Meaning |
-| --- | --- | --- |
-| `connection` | yes | Name of the connection the node logs in with |
-| `databases` | no | Names of connections whose databases are reported on. Default: only `connection` |
-| `instance` | no | Name for the database server, returned as `instance` in responses so the dashboard can tell servers apart without seeing the host. Default: the value of `connection` |
-
-### Validation and account
-
-Unknown keys, missing fields and names that don't match a connection fail startup with
+All fields are required. Unknown keys and missing fields fail startup with
 `configuration_invalid`. Startup never connects to the database, so an outage cannot stop the
 node.
 
