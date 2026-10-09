@@ -8,7 +8,7 @@ namespace Mata\Core;
  * Common contract for database implementations used by the application.
  *
  * Allows swapping the concrete database connection while keeping consumers
- * agnostic of the actual implementation (e.g. real PDO-backed or null object).
+ * agnostic of the actual implementation.
  */
 interface DatabaseInterface
 {

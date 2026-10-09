@@ -33,9 +33,6 @@ class Database implements DatabaseInterface
      */
     public function __construct(DatabaseConfig $config)
     {
-        // if (class_exists(Logger::class)) {
-        //     $this->logger = Logger::getInstance();
-        // }
         $dsn = "mysql:host={$config->host}";
         if (!empty($config->port)) {
             $dsn .= ";port={$config->port}";
