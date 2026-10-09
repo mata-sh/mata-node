@@ -59,6 +59,7 @@ composer lint
 [MATA Dashboard docs site](https://github.com/mata-sh/mata-dashboard/tree/main/scripts/docs).
 Keep links between them relative, and link anything else by absolute GitHub URL, so they work
 in both places. A new page must also be added to mata-dashboard's `sync-node-docs.sh` and nav.
+Changes appear on the site with the next mata-dashboard docs deploy.
 
 ---
 

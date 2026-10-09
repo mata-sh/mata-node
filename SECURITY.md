@@ -21,7 +21,7 @@ Older releases and unmaintained branches are not supported.
 
 ## Deployment guidance
 
-See the [security model](README.md#security-model) for the node's defaults and
+See the [security model](README.md#what-is-exposed) for the node's defaults and
 [shell command surface](docs/shell-command-surface.md) for the commands the node
 runs on the host. Serve the node over HTTPS only and point the web root at
 `public/`, never at the repository root.
