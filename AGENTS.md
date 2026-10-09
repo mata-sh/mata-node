@@ -5,6 +5,11 @@
 Keep `CHANGELOG.md` current without being asked, following
 [CONTRIBUTING.md](CONTRIBUTING.md#release--changelog).
 
+## Secret scanning
+
+gitleaks is not in CI; `gitleaks-action` needs a paid licence for org repos. Run
+`gitleaks git` locally before publishing and after any history rewrite.
+
 ## Commit messages
 
 Keep them concise. The subject (`type(scope): summary`) says what changed; add a body only
