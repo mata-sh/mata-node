@@ -65,6 +65,8 @@ MATA Node runs on each monitored environment and answers authenticated requests 
 - **Optional IP allowlisting**
 - **Rate limiting** on API access
 
+Report vulnerabilities privately; see [`SECURITY.md`](SECURITY.md).
+
 ## API
 
 ### Public
@@ -225,4 +227,4 @@ During startup failure, every endpoint (including `/health`) returns `503 Servic
 
 ## License
 
-MIT
+Apache License 2.0. See [`LICENSE`](LICENSE) and [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).

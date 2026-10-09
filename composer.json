@@ -1,14 +1,29 @@
 {
     "name": "mata/mata-node",
-    "description": "Mata Monitoring Tool",
+    "description": "Lightweight, stateless agent for MATA Dashboard: exposes read-only, HMAC-authenticated JSON endpoints for server, application, log and database health.",
     "type": "project",
-    "license": "MIT",
+    "keywords": [
+        "monitoring",
+        "agent",
+        "server-monitoring",
+        "shared-hosting",
+        "health-check"
+    ],
+    "homepage": "https://mata.sh",
+    "license": "Apache-2.0",
     "authors": [
         {
             "name": "XarcDev",
             "email": "mata@xarc.dev"
         }
     ],
+    "support": {
+        "email": "mata@xarc.dev",
+        "docs": "https://github.com/mata-sh/mata-node/tree/main/docs",
+        "issues": "https://github.com/mata-sh/mata-node/issues",
+        "source": "https://github.com/mata-sh/mata-node",
+        "security": "https://github.com/mata-sh/mata-node/blob/main/SECURITY.md"
+    },
     "minimum-stability": "stable",
     "prefer-stable": true,
     "require": {
