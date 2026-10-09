@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - "v*"
+      - "[0-9]+.[0-9]+.[0-9]+"
 
 permissions:
   contents: write
@@ -43,3 +43,21 @@ jobs:
 
       - name: Unit tests (PHPUnit)
         run: vendor/bin/phpunit
+
+      - name: Generate SBOM (CycloneDX)
+        run: |
+          composer CycloneDX:make-sbom \
+            --output-format JSON \
+            --output-file sbom.cdx.json \
+            --omit dev
+
+      - name: Generate checksums
+        run: |
+          sha256sum sbom.cdx.json > checksums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            sbom.cdx.json
+            checksums.txt
