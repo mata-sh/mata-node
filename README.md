@@ -7,12 +7,13 @@
 <h3 align="center">MATA Node</h3>
 
 <p align="center">
-    The lightweight, stateless companion to the <a href="https://github.com/mata-sh/mata-dashboard">MATA Dashboard</a>.
+    The lightweight, read-only companion to the <a href="https://github.com/mata-sh/mata-dashboard">MATA Dashboard</a>.
 </p>
 </div>
 
 MATA Node runs on each monitored host and exposes a read-only, HMAC-authenticated API that the
-dashboard polls. It never initiates connections, stores no history, and has no UI, alerting or
+dashboard polls. It never initiates connections and keeps no metric history; the only state on disk
+is caches, used nonces, rate-limit counters and log read positions. It has no UI, alerting or
 remote execution. For how dashboard and nodes fit together, see the
 [MATA Dashboard](https://github.com/mata-sh/mata-dashboard) documentation.
 
@@ -40,7 +41,7 @@ X-Mata-Auth: <server_id>|<unix_timestamp>|<nonce>|<hex HMAC-SHA256(server_id|tim
 | --- | --- |
 | Server | `/server/data`, `/server/info`, `/server/php`, `/server/cronjobs`, `/server/databases` |
 | Apps | `/apps`, `/apps/libraries`, `/apps/composer-audit` |
-| Per app | `/{app}/readme`, `/{app}/sessions`, `/{app}/logs`, `/{app}/logs-status`, `/{app}/libraries` |
+| Per app | `/{app}/readme`, `/{app}/sessions`, `/{app}/logs`, `/{app}/logs-status`, `/{app}/libraries`, `/{app}/composer-audit` |
 | Per database | `/{dbname}/database-status`, `-connections`, `-processes`, `-threads` |
 
 All routes are `GET`. `/apps` responses depend on each app's `monitoring` switches; see
@@ -48,9 +49,10 @@ All routes are `GET`. `/apps` responses depend on each app's `monitoring` switch
 
 ## Quick start
 
-Requires PHP 8.3+, plus Docker or any web server that can serve `public/`.
+Requires Docker, or PHP 8.3+ with a web server that serves `public/`.
 
-**Docker** (details in [`docker/README.md`](docker/README.md)):
+**Docker** (development setup; for production with `make prod-start` see
+[`docker/README.md`](docker/README.md#production)):
 
 ```bash
 git clone https://github.com/mata-sh/mata-node.git && cd mata-node
@@ -71,7 +73,10 @@ Point the web root to `public/` using one of the configs in
 
 ## Configuration
 
-At minimum, set the dashboard credentials in `config/config.env`:
+Every file in `config/example/` needs a counterpart in `config/`; `make bootstrap-config` and
+`make dev-start` create them. If one is still missing, the node copies it from the example and
+answers that request with `503` (`configuration_missing`). At minimum, set the dashboard
+credentials in `config/config.env`:
 
 ```env
 DASHBOARD_SERVER_ID=prod-web-01
