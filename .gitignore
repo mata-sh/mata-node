@@ -34,3 +34,7 @@ config/*.json
 xdebug.ini
 
 TODO.md
+
+# Local planning notes (not published)
+docs/plans/
+docs/*-plan.md

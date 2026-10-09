@@ -35,7 +35,6 @@ help:
 	@echo "  $(COLOR_GREEN)make bootstrap-config$(COLOR_RESET) - Create missing env/json config files from examples"
 	@echo "  $(COLOR_GREEN)make setup$(COLOR_RESET)            - Full setup (composer deps + config bootstrap) [$(COLOR_MAGENTA)composer, git$(COLOR_RESET)]"
 	@echo "  $(COLOR_GREEN)make install-hooks$(COLOR_RESET)    - Install git hooks [$(COLOR_MAGENTA)git$(COLOR_RESET)]"
-	@echo "  $(COLOR_GREEN)make changelog$(COLOR_RESET)        - Generate changelog [$(COLOR_MAGENTA)claude code$(COLOR_RESET)]"
 	@echo ""
 	@echo "$(COLOR_BOLD)Docker Dev Environment:$(COLOR_RESET)"
 	@echo "  $(COLOR_CYAN)Setup:$(COLOR_RESET)"
@@ -215,9 +214,6 @@ install-hooks:
 	else \
 		echo "$(COLOR_YELLOW)⚠️  .githooks/pre-commit not found, skipping$(COLOR_RESET)"; \
 	fi
-	@echo "$(COLOR_BLUE)🔧 Making scripts executable...$(COLOR_RESET)"
-	@chmod +x scripts/build/generate-changelog.sh scripts/docs/ai-update.sh 2>/dev/null || true
-	@echo "$(COLOR_GREEN)✅ Scripts are now executable$(COLOR_RESET)"
 
 
 # ============================================
@@ -236,15 +232,6 @@ test:
 # Run tests with coverage (in Docker container)
 test-coverage:
 	docker-compose exec mata-web vendor/bin/phpunit --coverage-html coverage
-
-# ============================================
-# Build & Release
-# ============================================
-
-# Generate changelog from git history
-changelog:
-	./scripts/build/generate-changelog.sh
-
 
 # ============================================
 # Docker Targets
@@ -540,7 +527,7 @@ docker-help:
 
 .PHONY: help bootstrap-config setup install-hooks \
 	test test-coverage \
-	changelog bootstrap \
+	bootstrap \
 	docker-setup dev-start dev-logs dev-stop dev-restart dev-recreate dev-rebuild \
 	prod-start prod-stop prod-rebuild \
 	logs logs-web logs-db logs-php logs-app ps \
