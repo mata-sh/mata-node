@@ -16,10 +16,10 @@ use PHPUnit\Framework\TestCase;
  */
 final class AppMonitoringSettingsTest extends TestCase
 {
-    public function testSettingsConstantListsTheSixKnownKeys(): void
+    public function testSettingsConstantListsTheSevenKnownKeys(): void
     {
         $this->assertSame(
-            ['loganalysis', 'logsize', 'sessions', 'reachability', 'alarms', 'events'],
+            ['loganalysis', 'logsize', 'sessions', 'reachability', 'alarms', 'events', 'libraryaudit'],
             AppMonitoringSettings::SETTINGS
         );
     }
@@ -60,6 +60,7 @@ final class AppMonitoringSettingsTest extends TestCase
         $this->assertTrue($settings->reachability);
         $this->assertTrue($settings->alarms);
         $this->assertTrue($settings->events);
+        $this->assertTrue($settings->libraryaudit);
     }
 
     #[DataProvider('singleSettingProvider')]
@@ -96,6 +97,7 @@ final class AppMonitoringSettingsTest extends TestCase
     public function testAllSettingsCanBeDisabledTogether(): void
     {
         $parsed = AppMonitoringSettings::parse([
+            'libraryaudit' => false,
             'events' => false,
             'alarms' => false,
             'reachability' => false,
@@ -115,6 +117,7 @@ final class AppMonitoringSettingsTest extends TestCase
             'reachability' => false,
             'alarms' => false,
             'events' => false,
+            'libraryaudit' => false,
         ], $settings->disabledMap());
     }
 
@@ -140,6 +143,7 @@ final class AppMonitoringSettingsTest extends TestCase
             'reachability' => true,
             'alarms' => true,
             'events' => true,
+            'libraryaudit' => true,
         ]);
 
         $this->assertNull($parsed['invalid_field']);

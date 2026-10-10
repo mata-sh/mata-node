@@ -81,7 +81,8 @@ Use lowercase `app-id` values. Route lookups lowercase the requested app name be
       "sessions": true,
       "reachability": true,
       "alarms": true,
-      "events": true
+      "events": true,
+      "libraryaudit": true
     },
     "sessions": {
       "type": "file",
@@ -164,7 +165,7 @@ Use lowercase `app-id` values. Route lookups lowercase the requested app name be
 
 ### Monitoring settings
 
-`monitoring` is an optional per-app JSON object with six independent switches. Every switch
+`monitoring` is an optional per-app JSON object with seven independent switches. Every switch
 defaults to `true`, so an app without a `monitoring` block behaves exactly as it did before the
 block existed.
 
@@ -177,7 +178,8 @@ block existed.
       "sessions": true,
       "reachability": true,
       "alarms": true,
-      "events": true
+      "events": true,
+      "libraryaudit": true
     }
   }
 }
@@ -204,16 +206,17 @@ The block may be sparse. Only list what you switch off:
 | `reachability` | `true` | No node behavior. Reported to the dashboard, which stops probing the app. |
 | `alarms` | `true` | No node behavior. Reported to the dashboard, which records events but never elevates them into alarms. |
 | `events` | `true` | No node behavior. Reported to the dashboard, which produces no events for the app. |
+| `libraryaudit` | `true` | No node behavior. Reported to the dashboard, which stops its scheduled Composer audit and library security events for the app. `/{app}/composer-audit` stays available. Only relevant when `composer` is enabled. |
 
-The first three actually skip work on the node — that is the point of the block. The last three
+The first three actually skip work on the node — that is the point of the block. The last four
 are transport-only: the node reports them and the dashboard acts on them.
 
 #### Validation
 
 | Input | Result |
 | --- | --- |
-| `monitoring` absent | all six settings `true` |
-| `monitoring` an empty object | all six settings `true` |
+| `monitoring` absent | all seven settings `true` |
+| `monitoring` an empty object | all seven settings `true` |
 | a key absent | that setting `true` |
 | literal `true` / `false` | taken as-is |
 | `"true"`, `"false"`, `"on"`, `"off"`, `""`, `1`, `0`, `1.0`, `null`, array, object | invalid application configuration, field `monitoring.<key>` |

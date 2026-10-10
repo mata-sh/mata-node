@@ -283,6 +283,7 @@ class AppMetadataTest extends TestCase
             'reachability' => ['reachability'],
             'alarms' => ['alarms'],
             'events' => ['events'],
+            'libraryaudit' => ['libraryaudit'],
         ];
     }
 
@@ -300,6 +301,7 @@ class AppMetadataTest extends TestCase
                     'reachability' => false,
                     'alarms' => false,
                     'events' => false,
+                    'libraryaudit' => false,
                 ],
                 'logs' => [['type' => 'php_error_log', 'paths' => ['app/logs/error.log']]],
             ]),
@@ -317,6 +319,7 @@ class AppMetadataTest extends TestCase
             'reachability' => false,
             'alarms' => false,
             'events' => false,
+            'libraryaudit' => false,
         ], $info['monitoring']);
     }
 
