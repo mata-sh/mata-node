@@ -3,7 +3,7 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - 2026-10-10
 
 ### Added
 - `monitoring.libraryaudit` per-app switch in `apps.json` (default `true`). Transport-only: `false` tells the dashboard to skip its scheduled Composer audit and library security events for the app. Update the node and the dashboard before setting it: older nodes reject the key in `apps.json`, and older dashboards reject an `/apps` payload that contains it
