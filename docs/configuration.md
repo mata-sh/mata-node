@@ -29,8 +29,8 @@ them. Non-Docker setups pick up changes immediately.
 
 | Key | Default | Purpose |
 | --- | --- | --- |
-| `DASHBOARD_SERVER_ID` | `dashboard` | This node's entry key in the dashboard's `servers.json`. |
-| `DASHBOARD_API_KEY` | empty | Shared HMAC secret; the `api_key` of that entry. |
+| `DASHBOARD_SERVER_ID` | `dashboard` | This node's entry key in the dashboard's `servers.json` and `servers.secrets.json`. |
+| `DASHBOARD_API_KEY` | empty | Shared HMAC secret; the `api_key` under the same name in the dashboard's `servers.secrets.json` (in `servers.json` up to dashboard 0.8.0). |
 | `DASHBOARD_CLOCK_SKEW_WINDOW` | `120` | Accepted request timestamp skew, seconds. |
 | `DOMAIN` | none (required) | Domain the node is served on. |
 | `MAINTENANCE_MODE_ENABLED` | `OFF` | `ON` returns `503` with `Retry-After: 300` on every route except `/health`. |

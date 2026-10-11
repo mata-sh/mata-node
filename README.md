@@ -84,8 +84,9 @@ DASHBOARD_API_KEY=your-shared-secret
 ```
 
 `DASHBOARD_SERVER_ID` must equal this node's entry key in the dashboard's `config/servers.json`
-(the property name, e.g. `"prod-web-01": { ... }`), and `DASHBOARD_API_KEY` that entry's
-`api_key`.
+(the property name, e.g. `"prod-web-01": { ... }`), and `DASHBOARD_API_KEY` the `api_key` stored
+under the same name in the dashboard's `config/servers.secrets.json`. Dashboards up to 0.8.0 keep
+it as `api_key` in the `servers.json` entry instead.
 
 Then describe the watched apps in `config/apps.json`. Everything else, including IP allowlisting,
 maintenance mode and databases, is in the [configuration reference](docs/configuration.md).
