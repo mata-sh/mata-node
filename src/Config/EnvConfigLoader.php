@@ -60,8 +60,6 @@ final class EnvConfigLoader
     {
         return new EnvironmentConfig(
             env: $this->getEnv('APP_ENV', 'prod'),
-            domain: $this->getEnv('DOMAIN', ''),
-            dir: $this->getEnv('DIR', ''),
             tempDir: $this->getEnv('TEMP_DIR', ''),
         );
     }
@@ -200,14 +198,6 @@ final class EnvConfigLoader
     {
         $criticalErrors = [];
         $warnings = [];
-
-        // Critical validation - DOMAIN
-        if (empty($config->environment->domain)) {
-            $criticalErrors[] = [
-                'identifier' => 'config.domain.missing',
-                'message' => 'DOMAIN is required but missing from configuration',
-            ];
-        }
 
         // Critical validation - dashboard HMAC secret
         if ('' === trim($config->auth->dashboardApiKey)) {

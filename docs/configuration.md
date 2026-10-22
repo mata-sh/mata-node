@@ -32,7 +32,6 @@ them. Non-Docker setups pick up changes immediately.
 | `DASHBOARD_SERVER_ID` | `dashboard` | This node's entry key in the dashboard's `servers.json` and `servers.secrets.json`. |
 | `DASHBOARD_API_KEY` | empty | Shared HMAC secret; the `api_key` under the same name in the dashboard's `servers.secrets.json` (in `servers.json` up to dashboard 0.8.0). |
 | `DASHBOARD_CLOCK_SKEW_WINDOW` | `120` | Accepted request timestamp skew, seconds. |
-| `DOMAIN` | none (required) | Domain the node is served on. |
 | `MAINTENANCE_MODE_ENABLED` | `OFF` | `ON` returns `503` with `Retry-After: 300` on every route except `/health`. |
 | `IP_WHITELIST_ENABLED`, `ALLOWED_IPS` | `OFF`, empty | Restrict authenticated routes to listed IPs/CIDRs, e.g. `198.51.100.10,2001:db8::/32`. |
 | `TRUSTED_PROXIES` | empty | Client IP is `REMOTE_ADDR`; `X-Forwarded-For` is used only when `REMOTE_ADDR` is listed here. Never list untrusted proxies. |

@@ -204,8 +204,6 @@ class EnvConfigLoaderTest extends TestCase
         return new EnvConfig(
             environment: new EnvironmentConfig(
                 env: 'test',
-                domain: 'example.test',
-                dir: '',
                 tempDir: '',
             ),
             general: new GeneralConfig(

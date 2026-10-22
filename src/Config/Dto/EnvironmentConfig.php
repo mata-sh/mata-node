@@ -7,15 +7,12 @@ namespace Mata\Config\Dto;
 /**
  * Immutable DTO representing environment configuration.
  *
- * Contains fundamental environment settings including runtime environment,
- * domain, and directory path information.
+ * Contains the runtime environment and the temp directory.
  */
 final class EnvironmentConfig
 {
     public function __construct(
         public readonly string $env,
-        public readonly string $domain,
-        public readonly string $dir,
         public readonly string $tempDir,
     ) {}
 }
