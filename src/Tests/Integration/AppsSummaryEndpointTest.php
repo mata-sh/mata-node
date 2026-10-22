@@ -207,6 +207,21 @@ final class AppsSummaryEndpointTest extends TestCase
         $this->assertStringNotContainsString('/shop/logs-status', $log);
     }
 
+    public function testInvalidUtf8IsSubstitutedInResponses(): void
+    {
+        // A Latin-1 README is not valid UTF-8; json_encode() used to return false and send an empty body.
+        mkdir($this->tmpDir . '/shop');
+        file_put_contents($this->tmpDir . '/shop/README.md', "Caf\xe9 menu");
+        $this->startServer(['shop' => $this->appConfig('Shop', 'shop')]);
+
+        $response = $this->client()->get('/shop/readme', [
+            'headers' => ['X-Mata-Auth' => $this->generateAuthHeader()],
+        ]);
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame(['content' => "Caf\u{FFFD} menu"], $this->decodeJson($response));
+    }
+
     public function testInvalidMonitoringSettingReturnsSafeConfigurationError(): void
     {
         $this->writeAppLog('shop', 'error.log', "[19-Jul-2026 12:00:00 UTC] PHP Fatal error: boom\n");

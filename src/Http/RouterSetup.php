@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Mata\Http;
 
 use Bramus\Router\Router;
+use JsonException;
 use Mata\Config\Dto\GeneralConfig;
 use Mata\Config\StartupConfigInventory;
 use Mata\Core\Auth;
@@ -269,8 +270,17 @@ class RouterSetup
 
     private function sendJson(mixed $payload, int $status = 200): void
     {
+        // Monitored logs and READMEs need not be UTF-8; substitute invalid bytes rather than send an empty body.
+        try {
+            $body = json_encode($payload, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE);
+        } catch (JsonException $e) {
+            $this->logger->error('Response encoding failed', ['exception' => $e]);
+            $status = 500;
+            $body = '{"error":"Request error","message":"Internal error"}';
+        }
+
         http_response_code($status);
         header('Content-Type: application/json');
-        echo json_encode($payload);
+        echo $body;
     }
 }
