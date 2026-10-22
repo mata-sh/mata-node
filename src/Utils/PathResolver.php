@@ -5,113 +5,75 @@ declare(strict_types=1);
 namespace Mata\Utils;
 
 use InvalidArgumentException;
-use Mata\Config\Dto\EnvConfig;
 use RuntimeException;
 
 class PathResolver
 {
-    public string $appPath;
-    public string $rootPath;
-    public string $logsPath;
-    public string $appLogPath;
-    public string $bootLogPath;
-    public string $tempPath;
-    public string $cachePath;
+    public readonly string $appPath;
+    public readonly string $rootPath;
+    public readonly string $logsPath;
+    public readonly string $appLogPath;
+    public readonly string $bootLogPath;
+    public readonly string $tempPath;
+    public readonly string $cachePath;
 
-    public function __construct(string $entryPointFile)
+    public static function fromEntryPoint(string $entryPointFile): self
     {
         $realPath = realpath($entryPointFile);
-
         if ($realPath === false) {
             throw new InvalidArgumentException('Entry point file not found: ' . $entryPointFile);
         }
 
-        $this->appPath = dirname($realPath, 2);
-        $rootPath = dirname($this->appPath);
+        return new self(dirname($realPath, 2));
+    }
 
+    private function __construct(string $appPath, string $logPath = '', string $tempDir = '', ?string $bootLogPath = null)
+    {
+        $rootPath = dirname($appPath);
         if ($rootPath === '.' || $rootPath === '') {
-            throw new RuntimeException('Cannot resolve root path from: ' . $this->appPath);
+            throw new RuntimeException('Cannot resolve root path from: ' . $appPath);
         }
 
+        $this->appPath = $appPath;
         $this->rootPath = $rootPath;
-        $this->logsPath = $this->appPath . DIRECTORY_SEPARATOR . 'logs';
-        $this->appLogPath = $this->logsPath . DIRECTORY_SEPARATOR . 'app.log';
-        $this->bootLogPath = $this->resolveBootLogPath();
-        $this->tempPath = $this->appPath . DIRECTORY_SEPARATOR . 'temp';
-        $this->cachePath = $this->tempPath . DIRECTORY_SEPARATOR . 'cache';
+        $this->appLogPath = $logPath !== '' ? $this->resolvePath($logPath) : $appPath . '/logs/app.log';
+        $this->logsPath = dirname($this->appLogPath);
+        $this->bootLogPath = $bootLogPath ?? $this->resolveBootLogPath();
+        $this->tempPath = $tempDir !== '' ? $this->resolvePath($tempDir) : $appPath . '/temp';
+        $this->cachePath = $this->tempPath . '/cache';
     }
 
     /**
-     * Apply config overrides for log/temp paths and ensure the resulting
-     * directories exist and are writable (created if absent).
+     * Apply APP_LOG_PATH and TEMP_DIR. Relative values resolve against the app path, empty ones
+     * keep the defaults; the boot log path stays, so boot errors of one request go to one file.
      */
-    public function applyConfiguredPaths(EnvConfig $config): void
+    public function withOverrides(string $logPath, string $tempDir): self
     {
-        $logPath = trim($config->logging->path);
-        if ($logPath !== '') {
-            $this->appLogPath = $this->resolvePath($logPath);
-            $this->logsPath = dirname($this->appLogPath);
-        }
-
-        $tempDir = trim($config->environment->tempDir);
-        if ($tempDir !== '') {
-            $this->tempPath = $this->resolvePath($tempDir);
-        }
-
-        $this->cachePath = $this->tempPath . DIRECTORY_SEPARATOR . 'cache';
-
-        $this->ensureDirectory($this->logsPath);
-        $this->ensureDirectory($this->tempPath);
-        $this->ensureDirectory($this->cachePath);
+        return new self($this->appPath, trim($logPath), trim($tempDir), $this->bootLogPath);
     }
 
     /**
-     * Ensure a directory exists and is writable; create it if not existing.
+     * Create the logs, temp and cache directories if missing.
      *
-     * @throws RuntimeException if the directory is not writable or cannot be created
+     * @throws RuntimeException if a directory cannot be created or is not writable
      */
-    private function ensureDirectory(string $path): void
+    public function ensureDirectories(): void
     {
-        if (!is_dir($path)) {
-            if (!mkdir($path, 0775, true)) {
+        foreach ([$this->logsPath, $this->tempPath, $this->cachePath] as $path) {
+            // Concurrent requests may create the directory between the check and mkdir().
+            if (!is_dir($path) && !@mkdir($path, 0775, true) && !is_dir($path)) {
                 throw new RuntimeException("Failed to create directory: {$path}");
             }
-        }
 
-        if (!is_writable($path)) {
-            throw new RuntimeException("Directory is not writable: {$path}");
+            if (!is_writable($path)) {
+                throw new RuntimeException("Directory is not writable: {$path}");
+            }
         }
     }
 
-    /**
-     * Resolve a path, treating relative paths as app-root relative.
-     */
     private function resolvePath(string $path): string
     {
-        if ($path === '') {
-            return $this->appPath;
-        }
-
-        if ($this->isAbsolutePath($path)) {
-            return $path;
-        }
-
-        return $this->appPath . DIRECTORY_SEPARATOR . $path;
-    }
-
-    private function isAbsolutePath(string $path): bool
-    {
-        if ($path === '') {
-            return false;
-        }
-
-        // Unix-style absolute path
-        if ($path[0] === DIRECTORY_SEPARATOR) {
-            return true;
-        }
-
-        // Windows drive letter paths like C:\ or C:/
-        return (bool) preg_match('/^[A-Za-z]:[\\\\\/]/', $path);
+        return str_starts_with($path, '/') ? $path : $this->appPath . '/' . $path;
     }
 
     private function resolveBootLogPath(): string
@@ -125,11 +87,8 @@ class PathResolver
             }
         }
 
-        $bootPath = $this->logsPath . DIRECTORY_SEPARATOR . 'boot.log';
-        $bootDir = dirname($bootPath);
-
-        if (is_dir($bootDir) && is_writable($bootDir)) {
-            return $bootPath;
+        if (is_dir($this->logsPath) && is_writable($this->logsPath)) {
+            return $this->logsPath . '/boot.log';
         }
 
         return sys_get_temp_dir() . '/mata-boot.log';

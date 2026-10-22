@@ -349,14 +349,7 @@ require $projectRoot . '/vendor/autoload.php';
 $logger = new Logger('http-auth-test');
 $logger->pushHandler(new StreamHandler($basePath . '/logs/app.log', Level::Debug));
 
-$paths = new PathResolver($projectRoot . '/public/index.php');
-$paths->appPath = $basePath;
-$paths->rootPath = $basePath;
-$paths->logsPath = $basePath . '/logs';
-$paths->appLogPath = $paths->logsPath . '/app.log';
-$paths->bootLogPath = $paths->logsPath . '/boot.log';
-$paths->tempPath = $basePath;
-$paths->cachePath = $basePath . '/cache';
+$paths = PathResolver::fromEntryPoint(__FILE__)->withOverrides('', $basePath);
 
 $auth = new Auth(
     new AuthConfig($serverId, $apiKey, 120),
@@ -405,8 +398,8 @@ $routerSetup = new RouterSetup(
     $auth,
     $logger,
     $paths,
-    new AppWatcher(new Tools(), $logger, $paths->rootPath, $watcherConfig, $transmitConfig, null, $cache, $commandRunner),
-    new ServerWatcher($paths->rootPath, $cache, $transmitConfig, $commandRunner),
+    new AppWatcher(new Tools(), $logger, $basePath, $watcherConfig, $transmitConfig, null, $cache, $commandRunner),
+    new ServerWatcher($basePath, $cache, $transmitConfig, $commandRunner),
     new DatabaseWatcher(null),
     new GeneralConfig(false, false, [], []),
     $rateLimiter

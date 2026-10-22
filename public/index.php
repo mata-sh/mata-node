@@ -29,7 +29,7 @@ $responder = new BootFailureResponder();
 $log = null;
 
 try {
-    $paths = new PathResolver(__FILE__);
+    $paths = PathResolver::fromEntryPoint(__FILE__);
 
     ini_set('display_errors', '0');
     ini_set('display_startup_errors', '0');
@@ -49,7 +49,8 @@ try {
     ))->initialize();
 
     $envConfig = $startupConfig->envConfig;
-    $paths->applyConfiguredPaths($envConfig);
+    $paths = $paths->withOverrides($envConfig->logging->path, $envConfig->environment->tempDir);
+    $paths->ensureDirectories();
 
     ini_set('error_log', $paths->logsPath . '/php-error.log');
     $log = $logConfigurator->createConfiguredLogger($envConfig->logging, $paths, 'app');

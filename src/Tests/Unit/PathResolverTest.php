@@ -4,14 +4,6 @@ declare(strict_types=1);
 
 namespace Mata\Tests\Unit;
 
-use Mata\Config\Dto\AuthConfig;
-use Mata\Config\Dto\ComposerConfig;
-use Mata\Config\Dto\EnvConfig;
-use Mata\Config\Dto\EnvironmentConfig;
-use Mata\Config\Dto\GeneralConfig;
-use Mata\Config\Dto\LoggingConfig;
-use Mata\Config\Dto\PhpConfig;
-use Mata\Config\Dto\RateLimitingConfig;
 use Mata\Utils\PathResolver;
 use PHPUnit\Framework\TestCase;
 
@@ -27,7 +19,7 @@ class PathResolverTest extends TestCase
         $rootPath = $this->createAppRoot();
 
         try {
-            $paths = new PathResolver($rootPath . '/public/index.php');
+            $paths = PathResolver::fromEntryPoint($rootPath . '/public/index.php');
 
             $this->assertSame($rootPath . '/temp', $paths->tempPath);
             $this->assertSame($rootPath . '/temp/cache', $paths->cachePath);
@@ -36,16 +28,21 @@ class PathResolverTest extends TestCase
         }
     }
 
-    public function testTempDirOverrideKeepsCacheUnderTemp(): void
+    public function testOverridesResolveAgainstAppPathAndKeepCacheUnderTemp(): void
     {
         $rootPath = $this->createAppRoot();
 
         try {
-            $paths = new PathResolver($rootPath . '/public/index.php');
-            $paths->applyConfiguredPaths($this->createConfig(tempDir: 'runtime-temp'));
+            $defaults = PathResolver::fromEntryPoint($rootPath . '/public/index.php');
+            $paths = $defaults->withOverrides('runtime-logs/node.log', 'runtime-temp');
+            $paths->ensureDirectories();
 
+            $this->assertSame($rootPath . '/runtime-logs/node.log', $paths->appLogPath);
+            $this->assertSame($rootPath . '/runtime-logs', $paths->logsPath);
             $this->assertSame($rootPath . '/runtime-temp', $paths->tempPath);
             $this->assertSame($rootPath . '/runtime-temp/cache', $paths->cachePath);
+            $this->assertSame($defaults->bootLogPath, $paths->bootLogPath);
+            $this->assertDirectoryExists($rootPath . '/runtime-logs');
             $this->assertDirectoryExists($rootPath . '/runtime-temp/cache');
         } finally {
             $this->removeDirectory(dirname($rootPath));
@@ -61,7 +58,7 @@ class PathResolverTest extends TestCase
         putenv('APP_LOG_PATH');
 
         try {
-            $paths = new PathResolver($rootPath . '/public/index.php');
+            $paths = PathResolver::fromEntryPoint($rootPath . '/public/index.php');
 
             $this->assertSame(sys_get_temp_dir() . '/mata-boot.log', $paths->bootLogPath);
         } finally {
@@ -83,57 +80,6 @@ class PathResolverTest extends TestCase
         return $rootPath;
     }
 
-    private function createConfig(string $tempDir = ''): EnvConfig
-    {
-        return new EnvConfig(
-            environment: new EnvironmentConfig(
-                env: 'test',
-                domain: 'https://example.test',
-                dir: '',
-                tempDir: $tempDir,
-            ),
-            general: new GeneralConfig(
-                maintenanceModeEnabled: false,
-                ipWhitelistEnabled: false,
-                allowedIps: [],
-                trustedProxies: [],
-            ),
-            php: new PhpConfig(
-                displayErrors: 0,
-                logLevel: 'notices',
-            ),
-            logging: new LoggingConfig(
-                path: 'logs/app.log',
-                level: 'debug',
-            ),
-            rateLimiting: new RateLimitingConfig(
-                enabled: true,
-                storageType: 'file',
-                filePath: null,
-                redisHost: '127.0.0.1',
-                redisPort: 6379,
-                redisPassword: null,
-                redisDatabase: 0,
-                loginMaxRequests: 10,
-                loginWindowSeconds: 60,
-                dashboardMaxRequests: 100,
-                dashboardWindowSeconds: 60,
-                apiMaxRequests: 200,
-                apiWindowSeconds: 60,
-                authFailedMaxRequests: 10,
-                authFailedWindowSeconds: 300,
-            ),
-            auth: new AuthConfig(
-                dashboardServerId: 'dashboard',
-                dashboardApiKey: 'test-key',
-            ),
-            composer: new ComposerConfig(
-                bin: null,
-                phpBin: null,
-            ),
-        );
-    }
-
     private function removeDirectory(string $path): void
     {
         if (!is_dir($path)) {
@@ -150,7 +96,7 @@ class PathResolverTest extends TestCase
                 continue;
             }
 
-            $itemPath = $path . DIRECTORY_SEPARATOR . $item;
+            $itemPath = $path . '/' . $item;
             if (is_dir($itemPath)) {
                 $this->removeDirectory($itemPath);
             } else {

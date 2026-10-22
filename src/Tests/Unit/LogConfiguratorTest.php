@@ -24,7 +24,7 @@ final class LogConfiguratorTest extends TestCase
         touch($basePath . '/app/public/index.php');
 
         try {
-            $paths = new PathResolver($basePath . '/app/public/index.php');
+            $paths = PathResolver::fromEntryPoint($basePath . '/app/public/index.php');
             (new LogConfigurator())->createConfiguredLogger(new LoggingConfig(path: 'logs/app.log', level: 'verbose'), $paths);
 
             $this->assertStringContainsString(
