@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - With rate limiting on, `RATE_LIMIT_STORAGE=redis` or `apcu` without the PHP extension fails startup with `configuration_invalid` instead of denying every request with `429`
 
 ### Removed
+- `make logs-db` and the database steps in `make docker-setup`; the Docker setup has no database container
 - `DOMAIN` and `DIR`, which nothing read; `DOMAIN` is no longer required
 - `DISPLAY_ERRORS` and `LOG_LEVEL`, which nothing read; PHP errors are never displayed and go to `logs/php-error.log`, and `error_reporting` comes from `php.ini` (`docker/php/php-*.ini` in Docker)
 - `RATE_LIMIT_LOGIN_*` and `RATE_LIMIT_DASHBOARD_*`, which the node never applied; they are ignored and can be deleted from `config.env`

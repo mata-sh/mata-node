@@ -284,12 +284,10 @@ docker-setup:
 	@echo "$(COLOR_GREEN)✅ Docker environment ready!$(COLOR_RESET)"
 	@echo ""
 	@echo "$(COLOR_CYAN)⚙️  NEXT STEPS:$(COLOR_RESET)"
-	@echo "$(COLOR_YELLOW)1.$(COLOR_RESET) Edit $(COLOR_BOLD).env$(COLOR_RESET) - change DB_PASSWORD and MYSQL_ROOT_PASSWORD to secure values"
-	@echo "$(COLOR_YELLOW)2.$(COLOR_RESET) Edit $(COLOR_BOLD)config/config.env$(COLOR_RESET) - set DASHBOARD_SERVER_ID and DASHBOARD_API_KEY"
-	@echo "    $(COLOR_BLUE)Note:$(COLOR_RESET) DB_HOST is auto-set to 'mata-db' for Docker networking"
-	@echo "$(COLOR_YELLOW)3.$(COLOR_RESET) Review $(COLOR_BOLD)config/apps.json$(COLOR_RESET), $(COLOR_BOLD)config/transmit.json$(COLOR_RESET), and $(COLOR_BOLD)config/databases.json$(COLOR_RESET)"
-	@echo "$(COLOR_YELLOW)4.$(COLOR_RESET) Start containers: $(COLOR_CYAN)make dev-start$(COLOR_RESET)"
-	@echo "$(COLOR_YELLOW)5.$(COLOR_RESET) Check health at $(COLOR_CYAN)http://localhost:3310/health$(COLOR_RESET)"
+	@echo "$(COLOR_YELLOW)1.$(COLOR_RESET) Edit $(COLOR_BOLD)config/config.env$(COLOR_RESET) - set DASHBOARD_SERVER_ID and DASHBOARD_API_KEY"
+	@echo "$(COLOR_YELLOW)2.$(COLOR_RESET) Review $(COLOR_BOLD)config/apps.json$(COLOR_RESET), $(COLOR_BOLD)config/transmit.json$(COLOR_RESET), and $(COLOR_BOLD)config/databases.json$(COLOR_RESET)"
+	@echo "$(COLOR_YELLOW)3.$(COLOR_RESET) Start containers: $(COLOR_CYAN)make dev-start$(COLOR_RESET)"
+	@echo "$(COLOR_YELLOW)4.$(COLOR_RESET) Check health at $(COLOR_CYAN)http://localhost:3310/health$(COLOR_RESET)"
 
 # Create the external network shared with MATA Dashboard if neither project has yet
 docker-network:
@@ -347,10 +345,6 @@ prod-start: docker-network
 		echo "$(COLOR_RED)❌ ERROR: .env file required for production$(COLOR_RESET)"; \
 		exit 1; \
 	fi
-	@if grep -q "change_me" .env; then \
-		echo "$(COLOR_RED)❌ ERROR: Update passwords in .env before deploying$(COLOR_RESET)"; \
-		exit 1; \
-	fi
 	docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 	@echo "$(COLOR_GREEN)✅ Production deployed!$(COLOR_RESET)"
 
@@ -374,15 +368,11 @@ logs:
 logs-web:
 	docker-compose logs -f mata-web
 
-# Follow database logs only
-logs-db:
-	docker-compose logs -f mata-db
-
-# Follow all container logs
+# Follow the PHP error log
 logs-php:
 	docker-compose exec -u www-data mata-web tail -fn 500 logs/php-error.log
 
-# Follow all container logs
+# Follow the app log
 logs-app:
 	docker-compose exec -u www-data mata-web tail -fn 500 logs/app.log
 	
@@ -510,7 +500,6 @@ docker-help:
 	@echo "$(COLOR_BOLD)Logs & Monitoring:$(COLOR_RESET)"
 	@echo "  $(COLOR_GREEN)make logs$(COLOR_RESET)            - Follow all logs"
 	@echo "  $(COLOR_GREEN)make logs-web$(COLOR_RESET)        - Follow web container logs"
-	@echo "  $(COLOR_GREEN)make logs-db$(COLOR_RESET)         - Follow database logs"
 	@echo "  $(COLOR_GREEN)make ps$(COLOR_RESET)              - Show container status"
 	@echo ""
 	@echo "$(COLOR_BOLD)Shell Access:$(COLOR_RESET)"
@@ -533,7 +522,7 @@ docker-help:
 	bootstrap \
 	docker-setup docker-network dev-start dev-logs dev-stop dev-restart dev-recreate dev-rebuild \
 	prod-start prod-stop prod-rebuild \
-	logs logs-web logs-db logs-php logs-app ps \
+	logs logs-web logs-php logs-app ps \
 	shell shell-www \
 	composer-install composer-update composer-rebuild \
 	down clean docker-clean docker-clean-all docker-help
