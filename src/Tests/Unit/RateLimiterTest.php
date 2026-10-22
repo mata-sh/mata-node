@@ -70,6 +70,30 @@ class RateLimiterTest extends TestCase
         $this->assertTrue($handler->hasErrorRecords());
     }
 
+    public function testIsExhaustedChecksWithoutConsuming(): void
+    {
+        $packageRateLimiter = $this->createMock(MataShRateLimiter::class);
+        $packageRateLimiter->expects($this->never())->method('consume');
+        $packageRateLimiter->expects($this->once())
+            ->method('check')
+            ->with('auth_failed_' . RateLimitIdentifier::fromIp('192.0.2.1'), 10, 300)
+            ->willReturn(['allowed' => false, 'current' => 10, 'limit' => 10, 'remaining' => 0, 'storage_type' => 'file']);
+        $rateLimiter = new RateLimiter($packageRateLimiter, $this->createConfig(), new Logger('test'));
+
+        $this->assertTrue($rateLimiter->isExhausted('auth_failed', '192.0.2.1'));
+    }
+
+    public function testIsExhaustedFailsClosed(): void
+    {
+        $handler = new TestHandler();
+        $packageRateLimiter = $this->createStub(MataShRateLimiter::class);
+        $packageRateLimiter->method('check')->willThrowException(new RuntimeException('backend failed'));
+        $rateLimiter = new RateLimiter($packageRateLimiter, $this->createConfig(), new Logger('test', [$handler]));
+
+        $this->assertTrue($rateLimiter->isExhausted('auth_failed', '192.0.2.1'));
+        $this->assertTrue($handler->hasErrorRecords());
+    }
+
     public function testDisabledRateLimitingRemainsAllowed(): void
     {
         $packageRateLimiter = $this->createMock(MataShRateLimiter::class);

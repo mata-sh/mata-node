@@ -151,17 +151,26 @@ class RouterSetup
                 exit;
             }
 
+            // Checked before authenticating, so an IP over the limit cannot keep guessing.
+            if ($this->rateLimiter?->isExhausted('auth_failed', $ip)) {
+                $this->logger->warning('Failed auth rate limit exceeded', [
+                    'ip' => $ip,
+                    'limit' => $this->rateLimiter->getLimit('auth_failed'),
+                    'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
+                ]);
+                header('Retry-After: ' . $this->rateLimiter->getWindowSeconds('auth_failed'));
+                $this->sendJson([
+                    'error' => 'Rate limit exceeded',
+                    'message' => 'Too many failed authentication attempts',
+                ], 429);
+
+                exit;
+            }
+
             $authResult = $this->auth->validateHmacAuth();
 
             if (!$authResult['success']) {
-                $failedAuthRateLimitResult = $this->rateLimiter?->consume('auth_failed', $ip);
-                if ($failedAuthRateLimitResult !== null && !$failedAuthRateLimitResult->isAllowed()) {
-                    $this->logger->warning('Failed auth rate limit exceeded', [
-                        'ip' => $ip,
-                        'limit' => $this->rateLimiter->getLimit('auth_failed'),
-                        'current' => $failedAuthRateLimitResult->getCurrent(),
-                    ]);
-                }
+                $this->rateLimiter?->consume('auth_failed', $ip);
 
                 $this->logger->warning('Authentication failed', [
                     'error' => $authResult['error'],

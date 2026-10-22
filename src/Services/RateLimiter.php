@@ -49,7 +49,7 @@ class RateLimiter
 
         try {
             return $this->requireRateLimiter()->consume(
-                $group . '_' . RateLimitIdentifier::fromIp($ip),
+                $this->identifier($group, $ip),
                 $limits['maxRequests'],
                 $limits['windowSeconds']
             );
@@ -67,9 +67,41 @@ class RateLimiter
         }
     }
 
+    /**
+     * Whether the group's limit is used up, without consuming a request; fails closed like consume().
+     */
+    public function isExhausted(string $group, ?string $ip = null): bool
+    {
+        if (!$this->config->enabled) {
+            return false;
+        }
+
+        $limits = $this->config->getLimitForGroup($group);
+
+        try {
+            return !$this->requireRateLimiter()->check(
+                $this->identifier($group, $ip),
+                $limits['maxRequests'],
+                $limits['windowSeconds']
+            )['allowed'];
+        } catch (Throwable $e) {
+            $this->logger->error('Rate-limit request denied after limiter failure', [
+                'group' => $group,
+                'exception' => $e,
+            ]);
+
+            return true;
+        }
+    }
+
     public function getLimit(string $group): int
     {
         return $this->config->getLimitForGroup($group)['maxRequests'];
+    }
+
+    public function getWindowSeconds(string $group): int
+    {
+        return $this->config->getLimitForGroup($group)['windowSeconds'];
     }
 
     /**
@@ -78,6 +110,11 @@ class RateLimiter
     public function getRateLimiter(): MataShRateLimiter
     {
         return $this->requireRateLimiter();
+    }
+
+    private function identifier(string $group, ?string $ip): string
+    {
+        return $group . '_' . RateLimitIdentifier::fromIp($ip);
     }
 
     private function requireRateLimiter(): MataShRateLimiter

@@ -112,9 +112,9 @@ final class HttpAuthMiddlewareTest extends TestCase
             $this->assertSame(200, $response->getStatusCode(), (string) $response->getBody());
         }
 
-        $stateFiles = glob($this->tmpDir . '/cache/rate_limit/*.json') ?: [];
-        $this->assertCount(1, $stateFiles);
-        $state = json_decode((string) file_get_contents($stateFiles[0]), true, 512, JSON_THROW_ON_ERROR);
+        $stateFile = $this->tmpDir . '/cache/rate_limit/'
+            . hash('sha256', 'rate_limit_api_' . RateLimitIdentifier::fromIp('127.0.0.1')) . '.json';
+        $state = json_decode((string) file_get_contents($stateFile), true, 512, JSON_THROW_ON_ERROR);
         $this->assertIsArray($state);
         $this->assertIsArray($state['timestamps'] ?? null);
 
@@ -133,6 +133,25 @@ final class HttpAuthMiddlewareTest extends TestCase
             'reset_at' => $expectedRetryAt,
         ], $this->decodeJson($denied));
         $this->assertRetryGuidance($denied, $expectedRetryAt);
+    }
+
+    public function testFailedAuthLimitBlocksTheIpEvenWithValidCredentials(): void
+    {
+        touch($this->tmpDir . '/strict-auth-failed-limit');
+
+        $failed = $this->client->get('/server/info', ['headers' => ['X-Mata-Auth' => 'invalid']]);
+        $this->assertSame(401, $failed->getStatusCode(), (string) $failed->getBody());
+
+        $blocked = $this->client->get('/server/info', [
+            'headers' => ['X-Mata-Auth' => $this->generateAuthHeader()],
+        ]);
+
+        $this->assertSame(429, $blocked->getStatusCode(), (string) $blocked->getBody());
+        $this->assertSame([
+            'error' => 'Rate limit exceeded',
+            'message' => 'Too many failed authentication attempts',
+        ], $this->decodeJson($blocked));
+        $this->assertSame('60', $blocked->getHeaderLine('Retry-After'));
     }
 
     public function testRateLimiterInitializationFailureFailsClosed(): void
@@ -358,7 +377,7 @@ $rateLimiter = RateLimiterFactory::create(new RateLimitingConfig(
     dashboardWindowSeconds: 60,
     apiMaxRequests: 2,
     apiWindowSeconds: 60,
-    authFailedMaxRequests: 100,
+    authFailedMaxRequests: file_exists($basePath . '/strict-auth-failed-limit') ? 1 : 100,
     authFailedWindowSeconds: 60,
 ), $logger);
 

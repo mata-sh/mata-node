@@ -42,7 +42,7 @@ them. Non-Docker setups pick up changes immediately.
 | `COMPOSER_BIN`, `COMPOSER_PHP_BIN` | `composer` from `PATH` | Node-wide defaults for Composer audits. |
 | `RATE_LIMIT_ENABLED`, `RATE_LIMIT_STORAGE` | `ON`, `file` | Rate limiting; storage `file` or `redis` (`RATE_LIMIT_REDIS_*`). |
 | `RATE_LIMIT_API_MAX_REQUESTS`, `RATE_LIMIT_API_WINDOW_SECONDS` | `200`, `60` | Limit per client IP on authenticated routes. |
-| `RATE_LIMIT_AUTH_FAILED_MAX_REQUESTS`, `RATE_LIMIT_AUTH_FAILED_WINDOW_SECONDS` | `10`, `300` | Limit on failed authentication attempts. |
+| `RATE_LIMIT_AUTH_FAILED_MAX_REQUESTS`, `RATE_LIMIT_AUTH_FAILED_WINDOW_SECONDS` | `10`, `300` | Failed authentication attempts per client IP. Once reached, the IP gets `429` on authenticated routes, valid credentials included, until the window passes. |
 
 Numeric keys take whole numbers: limits, windows and the clock skew window at least `1`, the
 Redis port `1`–`65535`. Any other value fails startup with `configuration_invalid`.
