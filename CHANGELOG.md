@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A JSON config file whose top level is a list instead of an object fails startup with `configuration_invalid`, and the boot log now says why a file is not valid JSON
 - `config.env` values are validated, and an invalid one fails startup with `configuration_invalid` instead of being silently replaced: integer settings (rate limits and windows, Redis port and database, `DASHBOARD_CLOCK_SKEW_WINDOW`) must be whole numbers in range instead of becoming `0`, on/off settings `ON`/`OFF`, `TRUE`/`FALSE`, `YES`/`NO` or `1`/`0` instead of meaning off, `RATE_LIMIT_STORAGE` one of `file`, `redis` and `apcu` instead of falling back to `file`, and `MONOLOG_LEVEL` a Monolog level name instead of falling back to `debug`
 
+- With rate limiting on, `RATE_LIMIT_STORAGE=redis` or `apcu` without the PHP extension fails startup with `configuration_invalid` instead of denying every request with `429`
+
 ### Removed
 - `DOMAIN` and `DIR`, which nothing read; `DOMAIN` is no longer required
 - `DISPLAY_ERRORS` and `LOG_LEVEL`, which nothing read; PHP errors are never displayed and go to `logs/php-error.log`, and `error_reporting` comes from `php.ini` (`docker/php/php-*.ini` in Docker)

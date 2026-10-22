@@ -47,7 +47,8 @@ Values are checked at startup; anything else fails it with `configuration_invali
 - On/off keys (`*_ENABLED`): `ON` or `OFF`; `TRUE`/`FALSE`, `YES`/`NO` and `1`/`0` also work, in any case.
 - Numeric keys: whole numbers; limits, windows and the clock skew window at least `1`, the Redis
   port `1`–`65535`.
-- `RATE_LIMIT_STORAGE`: `file`, `redis` or `apcu`.
+- `RATE_LIMIT_STORAGE`: `file`, `redis` or `apcu`; with rate limiting on, `redis` and `apcu` need
+  their PHP extension loaded.
 - `MONOLOG_LEVEL`: `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert` or `emergency`.
 
 ## Path base

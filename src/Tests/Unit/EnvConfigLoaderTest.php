@@ -166,6 +166,32 @@ class EnvConfigLoaderTest extends TestCase
         );
     }
 
+    #[DataProvider('extensionStorageProvider')]
+    public function testStorageWithoutItsExtensionIsCriticalConfigError(string $storage): void
+    {
+        if (extension_loaded($storage)) {
+            $this->markTestSkipped("The {$storage} extension is loaded");
+        }
+
+        $result = (new EnvConfigLoader())->validateConfig($this->createConfig(dashboardApiKey: 'test-secret', storageType: $storage));
+
+        $this->assertFalse($result['is_valid']);
+        $this->assertContains(
+            'config.rate_limit.storage.extension_missing',
+            array_column($result['critical_errors'], 'identifier')
+        );
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function extensionStorageProvider(): iterable
+    {
+        yield 'redis' => ['redis'];
+
+        yield 'apcu' => ['apcu'];
+    }
+
     /**
      * Load a config.env with these contents; its variables are unset before and restored after.
      */
@@ -211,6 +237,7 @@ class EnvConfigLoaderTest extends TestCase
         bool $ipWhitelistEnabled = false,
         array $allowedIps = [],
         array $trustedProxies = [],
+        string $storageType = 'file',
     ): EnvConfig {
 
         return new EnvConfig(
@@ -230,7 +257,7 @@ class EnvConfigLoaderTest extends TestCase
             ),
             rateLimiting: new RateLimitingConfig(
                 enabled: true,
-                storageType: 'file',
+                storageType: $storageType,
                 filePath: null,
                 redisHost: '127.0.0.1',
                 redisPort: 6379,

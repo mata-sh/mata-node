@@ -254,6 +254,15 @@ final class EnvConfigLoader
             }
         }
 
+        // Without the extension the rate limiter would deny every request
+        $storage = $config->rateLimiting->storageType;
+        if ($config->rateLimiting->enabled && in_array($storage, ['redis', 'apcu'], true) && !extension_loaded($storage)) {
+            $criticalErrors[] = [
+                'identifier' => 'config.rate_limit.storage.extension_missing',
+                'message' => "RATE_LIMIT_STORAGE is {$storage} but the {$storage} PHP extension is not loaded",
+            ];
+        }
+
         // Logging configuration warnings
         if (empty($config->logging->path)) {
             $warnings[] = [
