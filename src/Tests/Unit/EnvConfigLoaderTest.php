@@ -95,74 +95,68 @@ class EnvConfigLoaderTest extends TestCase
 
     public function testEmptyDashboardApiKeyIsCriticalConfigError(): void
     {
-        $result = (new EnvConfigLoader())->validateConfig($this->createConfig(dashboardApiKey: ''));
+        $errors = (new EnvConfigLoader())->validateConfig($this->createConfig(dashboardApiKey: ''));
 
-        $this->assertFalse($result['is_valid']);
         $this->assertContains(
             'config.auth.dashboard_api_key.missing',
-            array_column($result['critical_errors'], 'identifier')
+            array_column($errors, 'identifier')
         );
     }
 
     public function testWhitespaceDashboardApiKeyIsCriticalConfigError(): void
     {
-        $result = (new EnvConfigLoader())->validateConfig($this->createConfig(dashboardApiKey: '   '));
+        $errors = (new EnvConfigLoader())->validateConfig($this->createConfig(dashboardApiKey: '   '));
 
-        $this->assertFalse($result['is_valid']);
         $this->assertContains(
             'config.auth.dashboard_api_key.missing',
-            array_column($result['critical_errors'], 'identifier')
+            array_column($errors, 'identifier')
         );
     }
 
     public function testConfiguredDashboardApiKeyPassesCriticalValidation(): void
     {
-        $result = (new EnvConfigLoader())->validateConfig($this->createConfig(dashboardApiKey: 'test-secret'));
+        $errors = (new EnvConfigLoader())->validateConfig($this->createConfig(dashboardApiKey: 'test-secret'));
 
-        $this->assertTrue($result['is_valid']);
-        $this->assertSame([], $result['critical_errors']);
+        $this->assertSame([], $errors);
     }
 
     public function testEnabledIpWhitelistWithEmptyAllowedIpsIsCriticalConfigError(): void
     {
-        $result = (new EnvConfigLoader())->validateConfig($this->createConfig(
+        $errors = (new EnvConfigLoader())->validateConfig($this->createConfig(
             dashboardApiKey: 'test-secret',
             ipWhitelistEnabled: true,
             allowedIps: [],
         ));
 
-        $this->assertFalse($result['is_valid']);
         $this->assertContains(
             'config.ip_whitelist.allowed_ips.missing',
-            array_column($result['critical_errors'], 'identifier')
+            array_column($errors, 'identifier')
         );
     }
 
     public function testInvalidAllowedIpIsCriticalConfigError(): void
     {
-        $result = (new EnvConfigLoader())->validateConfig($this->createConfig(
+        $errors = (new EnvConfigLoader())->validateConfig($this->createConfig(
             dashboardApiKey: 'test-secret',
             allowedIps: ['not-an-ip'],
         ));
 
-        $this->assertFalse($result['is_valid']);
         $this->assertContains(
             'config.ip_whitelist.allowed_ips.invalid',
-            array_column($result['critical_errors'], 'identifier')
+            array_column($errors, 'identifier')
         );
     }
 
     public function testInvalidTrustedProxyIsCriticalConfigError(): void
     {
-        $result = (new EnvConfigLoader())->validateConfig($this->createConfig(
+        $errors = (new EnvConfigLoader())->validateConfig($this->createConfig(
             dashboardApiKey: 'test-secret',
             trustedProxies: ['10.0.0.0/999'],
         ));
 
-        $this->assertFalse($result['is_valid']);
         $this->assertContains(
             'config.ip_whitelist.trusted_proxies.invalid',
-            array_column($result['critical_errors'], 'identifier')
+            array_column($errors, 'identifier')
         );
     }
 
@@ -173,12 +167,11 @@ class EnvConfigLoaderTest extends TestCase
             $this->markTestSkipped("The {$storage} extension is loaded");
         }
 
-        $result = (new EnvConfigLoader())->validateConfig($this->createConfig(dashboardApiKey: 'test-secret', storageType: $storage));
+        $errors = (new EnvConfigLoader())->validateConfig($this->createConfig(dashboardApiKey: 'test-secret', storageType: $storage));
 
-        $this->assertFalse($result['is_valid']);
         $this->assertContains(
             'config.rate_limit.storage.extension_missing',
-            array_column($result['critical_errors'], 'identifier')
+            array_column($errors, 'identifier')
         );
     }
 

@@ -199,27 +199,22 @@ final class StartupConfigManager
     }
 
     /**
-     * Log validation warnings; fail on critical errors.
-     *
      * @throws StartupConfigException If critical validation errors exist
      */
     private function validateEnvConfig(EnvConfig $config): void
     {
-        $validationResult = $this->envLoader->validateConfig($config);
-
-        if (!$validationResult['is_valid']) {
-            foreach ($validationResult['critical_errors'] as $error) {
-                $this->logger->critical("[{$error['identifier']}] {$error['message']}");
-            }
-
-            throw StartupConfigException::invalid(
-                'Configuration validation failed with critical errors',
-                ['validation_errors' => $validationResult['critical_errors']],
-            );
+        $errors = $this->envLoader->validateConfig($config);
+        if ($errors === []) {
+            return;
         }
 
-        foreach ($validationResult['warnings'] as $warning) {
-            $this->logger->warning("[{$warning['identifier']}] {$warning['message']}");
+        foreach ($errors as $error) {
+            $this->logger->critical("[{$error['identifier']}] {$error['message']}");
         }
+
+        throw StartupConfigException::invalid(
+            'Configuration validation failed with critical errors',
+            ['validation_errors' => $errors],
+        );
     }
 }

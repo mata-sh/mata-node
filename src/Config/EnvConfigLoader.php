@@ -205,20 +205,15 @@ final class EnvConfigLoader
     }
 
     /**
-     * Validate loaded configuration and return validation results.
+     * Validate loaded configuration.
      *
      * @param EnvConfig $config Loaded configuration DTO
      *
-     * @return array{
-     *     critical_errors: list<array{identifier: string, message: string}>,
-     *     warnings: list<array{identifier: string, message: string}>,
-     *     is_valid: bool,
-     * }
+     * @return list<array{identifier: string, message: string}> Critical errors; empty when the config is valid
      */
     public function validateConfig(EnvConfig $config): array
     {
         $criticalErrors = [];
-        $warnings = [];
 
         // Critical validation - dashboard HMAC secret
         if ('' === trim($config->auth->dashboardApiKey)) {
@@ -263,18 +258,6 @@ final class EnvConfigLoader
             ];
         }
 
-        // Logging configuration warnings
-        if (empty($config->logging->path)) {
-            $warnings[] = [
-                'identifier' => 'config.logging.file.missing',
-                'message' => 'Log file path not configured - logs may not be written to file',
-            ];
-        }
-
-        return [
-            'critical_errors' => $criticalErrors,
-            'warnings' => $warnings,
-            'is_valid' => empty($criticalErrors),
-        ];
+        return $criticalErrors;
     }
 }
