@@ -14,18 +14,16 @@ use InvalidArgumentException;
 final class StartupConfigResult
 {
     /**
-     * @param EnvConfig                                              $envConfig   Application configuration loaded and validated from env files
-     * @param array<string, array<mixed>>                            $jsonConfigs Parsed JSON configs keyed by filename
-     * @param array<int, array{identifier: string, message: string}> $warnings    Non-critical validation warnings
+     * @param EnvConfig                           $envConfig   Application configuration loaded and validated from env files
+     * @param array<string, array<string, mixed>> $jsonConfigs Parsed JSON configs keyed by filename
      */
     public function __construct(
         public readonly EnvConfig $envConfig,
         private readonly array $jsonConfigs = [],
-        public readonly array $warnings = []
     ) {}
 
     /**
-     * @return array<mixed>
+     * @return array<string, mixed>
      */
     public function jsonConfig(string $filename): array
     {

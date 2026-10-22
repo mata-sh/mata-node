@@ -204,7 +204,11 @@ final class EnvConfigLoader
      *
      * @param EnvConfig $config Loaded configuration DTO
      *
-     * @return array<string,mixed> Validation results with critical_errors, warnings, and is_valid
+     * @return array{
+     *     critical_errors: list<array{identifier: string, message: string}>,
+     *     warnings: list<array{identifier: string, message: string}>,
+     *     is_valid: bool,
+     * }
      */
     public function validateConfig(EnvConfig $config): array
     {

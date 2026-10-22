@@ -56,43 +56,23 @@ final class StartupConfigManager
     }
 
     /**
-     * Initialize configuration from environment and JSON files.
+     * Create missing files from templates, then load and validate the env files and parse the JSON files.
      *
-     * Orchestrates the complete configuration workflow:
-     * 1. Detect missing config files
-     * 2. Create missing files from templates (then exit for user setup)
-     * 3. Load env configuration
-     * 4. Validate env configuration
-     * 5. Load JSON configuration files
-     * 6. Return configs and warnings
-     *
-     * @return StartupConfigResult Loaded configs and validation warnings
-     *
-     * @throws StartupConfigException When setup required, creation failed, loading failed, or validation failed
+     * @throws StartupConfigException When setup is required, creation failed, loading failed, or validation failed
      */
     public function initialize(): StartupConfigResult
     {
-        // Phase 1: Check for missing files
         $missingFiles = $this->findFilesToCreate($this->requiredFiles);
-
-        if (!empty($missingFiles)) {
+        if ($missingFiles !== []) {
             $this->handleMissingFiles($missingFiles);
         }
 
-        // Phase 2: Load env configuration
         $envConfig = $this->loadEnvConfig($this->envFiles);
+        $this->validateEnvConfig($envConfig);
 
-        // Phase 3: Validate env configuration
-        $validationResult = $this->validateEnvConfig($envConfig);
-
-        // Phase 4: Load JSON configuration files
-        $jsonConfigs = $this->loadJsonConfigs($this->jsonFiles);
-
-        // Phase 5: Return result with warnings
         return new StartupConfigResult(
             envConfig: $envConfig,
-            jsonConfigs: $jsonConfigs,
-            warnings: $validationResult['warnings'] ?? []
+            jsonConfigs: $this->loadJsonConfigs($this->jsonFiles),
         );
     }
 
@@ -130,53 +110,17 @@ final class StartupConfigManager
      */
     private function handleMissingFiles(array $missingFiles): never
     {
-        // Log missing files
         foreach ($missingFiles as $file) {
             $this->logger->critical("Missing config file: {$this->configDir}/{$file}");
         }
 
-        // Attempt to create from templates
         $this->logger->info('Attempting to create missing config files from templates...');
 
         try {
-            $results = $this->creator->createFromTemplates(
-                $missingFiles,
-                $this->configDir,
-                $this->exampleDir
-            );
-
-            $created = array_filter($results);
-            $failed = array_diff_key($results, $created);
-
-            // Log creation results
-            if (!empty($created)) {
-                $this->logger->info('Created config files from templates: ' . implode(', ', array_keys($created)));
-            }
-
-            if (!empty($failed)) {
-                $this->logger->error('Failed to create config files: ' . implode(', ', array_keys($failed)));
-
-                throw StartupConfigException::missing(
-                    'Failed to create required configuration files',
-                    array_keys($failed),
-                    ['failed_files' => array_keys($failed), 'example_dir' => $this->exampleDir],
-                );
-            }
-
-            // All files created successfully - tell user to configure them
-            $this->logger->info('All missing config files created successfully. Please review and update them with your settings.');
-
-            throw StartupConfigException::missing(
-                'Configuration files created from templates; user setup required',
-                array_keys($created),
-                ['created_files' => array_keys($created)],
-            );
-        } catch (StartupConfigException $e) {
-            // Re-throw our own exceptions
-            throw $e;
+            $results = $this->creator->createFromTemplates($missingFiles, $this->configDir, $this->exampleDir);
         } catch (Exception $e) {
-            // Wrap other exceptions
             $this->logger->error('Unexpected error during config file creation: ' . $e->getMessage());
+            $missingFiles = array_values($missingFiles);
 
             throw StartupConfigException::missing(
                 'Failed to create required configuration files',
@@ -184,6 +128,31 @@ final class StartupConfigManager
                 ['failed_files' => $missingFiles, 'example_dir' => $this->exampleDir],
             );
         }
+
+        $created = array_keys(array_filter($results));
+        $failed = array_keys(array_filter($results, static fn (bool $success): bool => !$success));
+
+        if ($created !== []) {
+            $this->logger->info('Created config files from templates: ' . implode(', ', $created));
+        }
+
+        if ($failed !== []) {
+            $this->logger->error('Failed to create config files: ' . implode(', ', $failed));
+
+            throw StartupConfigException::missing(
+                'Failed to create required configuration files',
+                $failed,
+                ['failed_files' => $failed, 'example_dir' => $this->exampleDir],
+            );
+        }
+
+        $this->logger->info('All missing config files created successfully. Please review and update them with your settings.');
+
+        throw StartupConfigException::missing(
+            'Configuration files created from templates; user setup required',
+            $created,
+            ['created_files' => $created],
+        );
     }
 
     /**
@@ -214,7 +183,7 @@ final class StartupConfigManager
      *
      * @param array<string> $jsonFiles JSON config filenames to parse
      *
-     * @return array<string, array<mixed>> Parsed configs keyed by filename
+     * @return array<string, array<string, mixed>> Parsed configs keyed by filename
      *
      * @throws StartupConfigException If a file is missing, unreadable, or invalid
      */
@@ -223,26 +192,21 @@ final class StartupConfigManager
         $configs = [];
 
         foreach ($jsonFiles as $file) {
-            $configs[$file] = $this->jsonLoader->loadArray($this->configDir . DIRECTORY_SEPARATOR . $file);
+            $configs[$file] = $this->jsonLoader->loadArray($this->configDir . '/' . $file);
         }
 
         return $configs;
     }
 
     /**
-     * Validate the loaded env configuration.
-     *
-     * @param EnvConfig $config Configuration to validate
-     *
-     * @return array<string, mixed> Validation result with 'is_valid', 'critical_errors', 'warnings'
+     * Log validation warnings; fail on critical errors.
      *
      * @throws StartupConfigException If critical validation errors exist
      */
-    private function validateEnvConfig(EnvConfig $config): array
+    private function validateEnvConfig(EnvConfig $config): void
     {
         $validationResult = $this->envLoader->validateConfig($config);
 
-        // Log critical errors
         if (!$validationResult['is_valid']) {
             foreach ($validationResult['critical_errors'] as $error) {
                 $this->logger->critical("[{$error['identifier']}] {$error['message']}");
@@ -254,11 +218,8 @@ final class StartupConfigManager
             );
         }
 
-        // Log warnings (non-critical)
-        foreach ($validationResult['warnings'] ?? [] as $warning) {
+        foreach ($validationResult['warnings'] as $warning) {
             $this->logger->warning("[{$warning['identifier']}] {$warning['message']}");
         }
-
-        return $validationResult;
     }
 }
