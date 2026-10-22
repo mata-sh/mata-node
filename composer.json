@@ -29,7 +29,6 @@
     "require": {
         "php": "^8.3",
         "bramus/router": "^1.6",
-        "guzzlehttp/guzzle": "^7.9",
         "vlucas/phpdotenv": "^5.6",
         "mata-sh/rate-limiter": "^2.0",
         "monolog/monolog": "^3.8"
@@ -38,7 +37,8 @@
         "phpunit/phpunit": "^12.1",
         "friendsofphp/php-cs-fixer": "^3.89",
         "phpstan/phpstan": "^2.1",
-        "cyclonedx/cyclonedx-php-composer": "^6.0"
+        "cyclonedx/cyclonedx-php-composer": "^6.0",
+        "guzzlehttp/guzzle": "^7.9"
     },
     "config": {
         "platform": {
