@@ -44,6 +44,9 @@ them. Non-Docker setups pick up changes immediately.
 | `RATE_LIMIT_API_MAX_REQUESTS`, `RATE_LIMIT_API_WINDOW_SECONDS` | `200`, `60` | Limit per client IP on authenticated routes. |
 | `RATE_LIMIT_AUTH_FAILED_MAX_REQUESTS`, `RATE_LIMIT_AUTH_FAILED_WINDOW_SECONDS` | `10`, `300` | Limit on failed authentication attempts. |
 
+Numeric keys take whole numbers: limits, windows and the clock skew window at least `1`, the
+Redis port `1`–`65535`. Any other value fails startup with `configuration_invalid`.
+
 ## Path base
 
 For `apps.json`, most app paths are resolved relative to the parent directory of this node repo, not relative to `config/`.

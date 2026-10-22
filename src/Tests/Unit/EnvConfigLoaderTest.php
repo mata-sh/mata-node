@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Mata\Tests\Unit;
 
+use InvalidArgumentException;
 use Mata\Config\Dto\AuthConfig;
 use Mata\Config\Dto\ComposerConfig;
 use Mata\Config\Dto\EnvConfig;
@@ -13,6 +14,7 @@ use Mata\Config\Dto\LoggingConfig;
 use Mata\Config\Dto\PhpConfig;
 use Mata\Config\Dto\RateLimitingConfig;
 use Mata\Config\EnvConfigLoader;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -47,6 +49,37 @@ class EnvConfigLoaderTest extends TestCase
         $config = $this->loadConfigEnv("RATE_LIMIT_ENABLED=0\n");
 
         $this->assertFalse($config->rateLimiting->enabled);
+    }
+
+    public function testIntegerValuesAreParsed(): void
+    {
+        $config = $this->loadConfigEnv("RATE_LIMIT_API_MAX_REQUESTS=250\nRATE_LIMIT_REDIS_DATABASE=0\n");
+
+        $this->assertSame(250, $config->rateLimiting->apiMaxRequests);
+        $this->assertSame(0, $config->rateLimiting->redisDatabase);
+    }
+
+    #[DataProvider('invalidIntegerProvider')]
+    public function testInvalidIntegerFailsLoading(string $line, string $message): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($message);
+
+        $this->loadConfigEnv($line . "\n");
+    }
+
+    /**
+     * @return iterable<string, array{string, string}>
+     */
+    public static function invalidIntegerProvider(): iterable
+    {
+        yield 'not a number' => ['RATE_LIMIT_API_MAX_REQUESTS=ten', 'RATE_LIMIT_API_MAX_REQUESTS must be an integer at least 1, got "ten"'];
+
+        yield 'zero request limit' => ['RATE_LIMIT_API_MAX_REQUESTS=0', 'RATE_LIMIT_API_MAX_REQUESTS must be an integer at least 1'];
+
+        yield 'decimal' => ['RATE_LIMIT_AUTH_FAILED_WINDOW_SECONDS=1.5', 'RATE_LIMIT_AUTH_FAILED_WINDOW_SECONDS must be an integer'];
+
+        yield 'port out of range' => ['RATE_LIMIT_REDIS_PORT=70000', 'RATE_LIMIT_REDIS_PORT must be an integer from 1 to 65535'];
     }
 
     public function testEmptyDashboardApiKeyIsCriticalConfigError(): void

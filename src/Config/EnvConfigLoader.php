@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Mata\Config;
 
 use Dotenv\Dotenv;
+use InvalidArgumentException;
 use Mata\Config\Dto\AuthConfig;
 use Mata\Config\Dto\ComposerConfig;
 use Mata\Config\Dto\EnvConfig;
@@ -108,17 +109,17 @@ final class EnvConfigLoader
             storageType: $storageType,
             filePath: $this->getEnv('RATE_LIMIT_FILE_PATH'),
             redisHost: $this->getEnv('RATE_LIMIT_REDIS_HOST', '127.0.0.1'),
-            redisPort: (int) $this->getEnv('RATE_LIMIT_REDIS_PORT', '6379'),
+            redisPort: $this->getEnvInt('RATE_LIMIT_REDIS_PORT', 6379, minimum: 1, maximum: 65535),
             redisPassword: $this->getEnv('RATE_LIMIT_REDIS_PASSWORD'),
-            redisDatabase: (int) $this->getEnv('RATE_LIMIT_REDIS_DATABASE', '0'),
-            loginMaxRequests: (int) $this->getEnv('RATE_LIMIT_LOGIN_MAX_REQUESTS', '10'),
-            loginWindowSeconds: (int) $this->getEnv('RATE_LIMIT_LOGIN_WINDOW_SECONDS', '60'),
-            dashboardMaxRequests: (int) $this->getEnv('RATE_LIMIT_DASHBOARD_MAX_REQUESTS', '100'),
-            dashboardWindowSeconds: (int) $this->getEnv('RATE_LIMIT_DASHBOARD_WINDOW_SECONDS', '60'),
-            apiMaxRequests: (int) $this->getEnv('RATE_LIMIT_API_MAX_REQUESTS', '200'),
-            apiWindowSeconds: (int) $this->getEnv('RATE_LIMIT_API_WINDOW_SECONDS', '60'),
-            authFailedMaxRequests: (int) $this->getEnv('RATE_LIMIT_AUTH_FAILED_MAX_REQUESTS', '10'),
-            authFailedWindowSeconds: (int) $this->getEnv('RATE_LIMIT_AUTH_FAILED_WINDOW_SECONDS', '300'),
+            redisDatabase: $this->getEnvInt('RATE_LIMIT_REDIS_DATABASE', 0, minimum: 0),
+            loginMaxRequests: $this->getEnvInt('RATE_LIMIT_LOGIN_MAX_REQUESTS', 10),
+            loginWindowSeconds: $this->getEnvInt('RATE_LIMIT_LOGIN_WINDOW_SECONDS', 60),
+            dashboardMaxRequests: $this->getEnvInt('RATE_LIMIT_DASHBOARD_MAX_REQUESTS', 100),
+            dashboardWindowSeconds: $this->getEnvInt('RATE_LIMIT_DASHBOARD_WINDOW_SECONDS', 60),
+            apiMaxRequests: $this->getEnvInt('RATE_LIMIT_API_MAX_REQUESTS', 200),
+            apiWindowSeconds: $this->getEnvInt('RATE_LIMIT_API_WINDOW_SECONDS', 60),
+            authFailedMaxRequests: $this->getEnvInt('RATE_LIMIT_AUTH_FAILED_MAX_REQUESTS', 10),
+            authFailedWindowSeconds: $this->getEnvInt('RATE_LIMIT_AUTH_FAILED_WINDOW_SECONDS', 300),
         );
     }
 
@@ -127,7 +128,7 @@ final class EnvConfigLoader
         return new AuthConfig(
             dashboardServerId: $this->getEnv('DASHBOARD_SERVER_ID', 'dashboard'),
             dashboardApiKey: $this->getEnv('DASHBOARD_API_KEY', ''),
-            clockSkewWindow: (int) $this->getEnv('DASHBOARD_CLOCK_SKEW_WINDOW', '120'),
+            clockSkewWindow: $this->getEnvInt('DASHBOARD_CLOCK_SKEW_WINDOW', 120),
         );
     }
 
@@ -154,6 +155,28 @@ final class EnvConfigLoader
         $value = $this->getEnv($key, $default ? 'ON' : 'OFF');
 
         return in_array(strtoupper($value), ['ON', 'TRUE', '1', 'YES'], true);
+    }
+
+    /**
+     * Get environment variable as an integer; anything else fails loading instead of becoming 0.
+     *
+     * @throws InvalidArgumentException When the value is not an integer within the bounds
+     */
+    private function getEnvInt(string $key, int $default, int $minimum = 1, int $maximum = PHP_INT_MAX): int
+    {
+        $value = $this->getEnv($key);
+        if ($value === null) {
+            return $default;
+        }
+
+        $parsed = filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => $minimum, 'max_range' => $maximum]]);
+        if ($parsed === false) {
+            $range = $maximum === PHP_INT_MAX ? "at least {$minimum}" : "from {$minimum} to {$maximum}";
+
+            throw new InvalidArgumentException("{$key} must be an integer {$range}, got \"{$value}\"");
+        }
+
+        return $parsed;
     }
 
     /**
