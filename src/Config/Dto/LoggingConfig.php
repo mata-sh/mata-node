@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Mata\Config\Dto;
 
+use Monolog\Level;
+
 /**
  * Immutable DTO representing logging configuration.
  *
@@ -13,6 +15,6 @@ final class LoggingConfig
 {
     public function __construct(
         public readonly string $path,
-        public readonly string $level,
+        public readonly Level $level,
     ) {}
 }

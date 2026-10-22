@@ -42,8 +42,13 @@ them. Non-Docker setups pick up changes immediately.
 | `RATE_LIMIT_API_MAX_REQUESTS`, `RATE_LIMIT_API_WINDOW_SECONDS` | `200`, `60` | Limit per client IP on authenticated routes. |
 | `RATE_LIMIT_AUTH_FAILED_MAX_REQUESTS`, `RATE_LIMIT_AUTH_FAILED_WINDOW_SECONDS` | `10`, `300` | Failed authentication attempts per client IP. Once reached, the IP gets `429` on authenticated routes, valid credentials included, until the window passes. |
 
-Numeric keys take whole numbers: limits, windows and the clock skew window at least `1`, the
-Redis port `1`–`65535`. Any other value fails startup with `configuration_invalid`.
+Values are checked at startup; anything else fails it with `configuration_invalid`:
+
+- On/off keys (`*_ENABLED`): `ON` or `OFF`; `TRUE`/`FALSE`, `YES`/`NO` and `1`/`0` also work, in any case.
+- Numeric keys: whole numbers; limits, windows and the clock skew window at least `1`, the Redis
+  port `1`–`65535`.
+- `RATE_LIMIT_STORAGE`: `file`, `redis` or `apcu`.
+- `MONOLOG_LEVEL`: `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert` or `emergency`.
 
 ## Path base
 

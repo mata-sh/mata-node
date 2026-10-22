@@ -10,7 +10,6 @@ use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\StreamHandler;
 use Monolog\Level;
 use Monolog\Logger;
-use UnhandledMatchError;
 
 final class LogConfigurator
 {
@@ -24,16 +23,7 @@ final class LogConfigurator
         PathResolver $paths,
         string $channel = 'app'
     ): Logger {
-        $level = $this->parseLogLevel($config->level);
-        $logger = $this->createLogger($channel, $paths->appLogPath, $level ?? Level::Debug);
-
-        if ($level === null) {
-            $logger->warning('Invalid monolog level configured, falling back to debug', [
-                'level' => $config->level,
-            ]);
-        }
-
-        return $logger;
+        return $this->createLogger($channel, $paths->appLogPath, $config->level);
     }
 
     private function createLogger(string $channel, string $path, Level $level): Logger
@@ -47,14 +37,5 @@ final class LogConfigurator
         ));
 
         return new Logger($channel, [$handler]);
-    }
-
-    private function parseLogLevel(string $level): ?Level
-    {
-        try {
-            return Level::fromName(trim($level));
-        } catch (UnhandledMatchError) {
-            return null;
-        }
     }
 }

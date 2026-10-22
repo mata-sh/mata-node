@@ -14,6 +14,7 @@ use Mata\Config\Dto\GeneralConfig;
 use Mata\Config\Dto\LoggingConfig;
 use Mata\Config\Dto\RateLimitingConfig;
 use Mata\Security\IpAllowlist;
+use Monolog\Level;
 
 /**
  * Configuration file loader supporting multiple .env formats.
@@ -78,23 +79,15 @@ final class EnvConfigLoader
     {
         return new LoggingConfig(
             path: $this->getEnv('APP_LOG_PATH', 'logs/app.log'),
-            level: $this->getEnv('MONOLOG_LEVEL', 'debug'),
+            level: Level::fromName($this->getEnvChoice('MONOLOG_LEVEL', 'debug', array_map('strtolower', Level::NAMES))),
         );
     }
 
     private function loadRateLimitingConfig(): RateLimitingConfig
     {
-        $enabled = $this->getEnvBool('RATE_LIMIT_ENABLED', true);
-        $storageType = strtolower($this->getEnv('RATE_LIMIT_STORAGE', 'file'));
-
-        // Validate storage type
-        if (!in_array($storageType, ['file', 'redis', 'apcu'], true)) {
-            $storageType = 'file';
-        }
-
         return new RateLimitingConfig(
-            enabled: $enabled,
-            storageType: $storageType,
+            enabled: $this->getEnvBool('RATE_LIMIT_ENABLED', true),
+            storageType: $this->getEnvChoice('RATE_LIMIT_STORAGE', 'file', ['file', 'redis', 'apcu']),
             filePath: $this->getEnv('RATE_LIMIT_FILE_PATH'),
             redisHost: $this->getEnv('RATE_LIMIT_REDIS_HOST', '127.0.0.1'),
             redisPort: $this->getEnvInt('RATE_LIMIT_REDIS_PORT', 6379, minimum: 1, maximum: 65535),
@@ -132,13 +125,22 @@ final class EnvConfigLoader
     }
 
     /**
-     * Get environment variable as boolean.
+     * Get environment variable as boolean; anything but ON/OFF, TRUE/FALSE, YES/NO or 1/0 fails loading.
+     *
+     * @throws InvalidArgumentException When the value is not an on/off value
      */
-    private function getEnvBool(string $key, bool $default = false): bool
+    private function getEnvBool(string $key, bool $default): bool
     {
-        $value = $this->getEnv($key, $default ? 'ON' : 'OFF');
+        $value = $this->getEnv($key);
+        if ($value === null) {
+            return $default;
+        }
 
-        return in_array(strtoupper($value), ['ON', 'TRUE', '1', 'YES'], true);
+        return match (strtoupper($value)) {
+            'ON', 'TRUE', 'YES', '1' => true,
+            'OFF', 'FALSE', 'NO', '0' => false,
+            default => throw new InvalidArgumentException("{$key} must be ON or OFF, got \"{$value}\""),
+        };
     }
 
     /**
@@ -161,6 +163,25 @@ final class EnvConfigLoader
         }
 
         return $parsed;
+    }
+
+    /**
+     * Get environment variable as one of the allowed values, compared case-insensitively.
+     *
+     * @param list<string> $allowed Lowercase allowed values
+     *
+     * @return string The value in lowercase
+     *
+     * @throws InvalidArgumentException When the value is not allowed
+     */
+    private function getEnvChoice(string $key, string $default, array $allowed): string
+    {
+        $value = $this->getEnv($key, $default);
+        if (!in_array(strtolower($value), $allowed, true)) {
+            throw new InvalidArgumentException("{$key} must be one of " . implode(', ', $allowed) . ", got \"{$value}\"");
+        }
+
+        return strtolower($value);
     }
 
     /**
@@ -238,13 +259,6 @@ final class EnvConfigLoader
             $warnings[] = [
                 'identifier' => 'config.logging.file.missing',
                 'message' => 'Log file path not configured - logs may not be written to file',
-            ];
-        }
-
-        if (empty($config->logging->level)) {
-            $warnings[] = [
-                'identifier' => 'config.logging.level.missing',
-                'message' => 'Monolog level not configured - default log level may be used',
             ];
         }
 

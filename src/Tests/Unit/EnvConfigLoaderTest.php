@@ -13,6 +13,7 @@ use Mata\Config\Dto\GeneralConfig;
 use Mata\Config\Dto\LoggingConfig;
 use Mata\Config\Dto\RateLimitingConfig;
 use Mata\Config\EnvConfigLoader;
+use Monolog\Level;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -36,11 +37,16 @@ class EnvConfigLoaderTest extends TestCase
         $this->assertNull($config->composer->phpBin);
     }
 
-    public function testSessionRateLimitStorageFallsBackToFile(): void
+    public function testOnOffAndChoiceValuesAreParsedCaseInsensitively(): void
     {
-        $config = $this->loadConfigEnv("RATE_LIMIT_STORAGE=session\n");
+        $config = $this->loadConfigEnv(
+            "MAINTENANCE_MODE_ENABLED=yes\nIP_WHITELIST_ENABLED=Off\nRATE_LIMIT_STORAGE=APCu\nMONOLOG_LEVEL=Warning\n"
+        );
 
-        $this->assertSame('file', $config->rateLimiting->storageType);
+        $this->assertTrue($config->general->maintenanceModeEnabled);
+        $this->assertFalse($config->general->ipWhitelistEnabled);
+        $this->assertSame('apcu', $config->rateLimiting->storageType);
+        $this->assertSame(Level::Warning, $config->logging->level);
     }
 
     public function testZeroIsAValueRatherThanUnset(): void
@@ -58,8 +64,8 @@ class EnvConfigLoaderTest extends TestCase
         $this->assertSame(0, $config->rateLimiting->redisDatabase);
     }
 
-    #[DataProvider('invalidIntegerProvider')]
-    public function testInvalidIntegerFailsLoading(string $line, string $message): void
+    #[DataProvider('invalidValueProvider')]
+    public function testInvalidValueFailsLoading(string $line, string $message): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage($message);
@@ -70,7 +76,7 @@ class EnvConfigLoaderTest extends TestCase
     /**
      * @return iterable<string, array{string, string}>
      */
-    public static function invalidIntegerProvider(): iterable
+    public static function invalidValueProvider(): iterable
     {
         yield 'not a number' => ['RATE_LIMIT_API_MAX_REQUESTS=ten', 'RATE_LIMIT_API_MAX_REQUESTS must be an integer at least 1, got "ten"'];
 
@@ -79,6 +85,12 @@ class EnvConfigLoaderTest extends TestCase
         yield 'decimal' => ['RATE_LIMIT_AUTH_FAILED_WINDOW_SECONDS=1.5', 'RATE_LIMIT_AUTH_FAILED_WINDOW_SECONDS must be an integer'];
 
         yield 'port out of range' => ['RATE_LIMIT_REDIS_PORT=70000', 'RATE_LIMIT_REDIS_PORT must be an integer from 1 to 65535'];
+
+        yield 'on/off typo' => ['IP_WHITELIST_ENABLED=enabled', 'IP_WHITELIST_ENABLED must be ON or OFF, got "enabled"'];
+
+        yield 'unknown storage' => ['RATE_LIMIT_STORAGE=session', 'RATE_LIMIT_STORAGE must be one of file, redis, apcu, got "session"'];
+
+        yield 'unknown log level' => ['MONOLOG_LEVEL=verbose', 'MONOLOG_LEVEL must be one of debug, info, notice, warning, error, critical, alert, emergency, got "verbose"'];
     }
 
     public function testEmptyDashboardApiKeyIsCriticalConfigError(): void
@@ -214,7 +226,7 @@ class EnvConfigLoaderTest extends TestCase
             ),
             logging: new LoggingConfig(
                 path: 'logs/app.log',
-                level: 'debug',
+                level: Level::Debug,
             ),
             rateLimiting: new RateLimitingConfig(
                 enabled: true,
