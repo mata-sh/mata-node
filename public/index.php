@@ -9,7 +9,6 @@ use Mata\Config\StartupConfigException;
 use Mata\Config\StartupConfigInventory;
 use Mata\Config\StartupConfigManager;
 use Mata\Config\StartupFailureReason;
-use Mata\Core\App;
 use Mata\Core\Auth;
 use Mata\Factory\NonceStoreFactory;
 use Mata\Factory\RateLimiterFactory;
@@ -62,8 +61,6 @@ try {
     $tools = new Tools();
     $auth = new Auth($envConfig->auth, NonceStoreFactory::create($paths->cachePath));
     $rateLimiter = RateLimiterFactory::create($envConfig->rateLimiting, $log);
-    $app = new App($auth, $envConfig, $paths, $rateLimiter);
-    $app->setBaseUrl($envConfig->environment->domain);
 
     $fileCache = new FileCache($paths->cachePath);
     $commandRunner = new NativeCommandRunner();

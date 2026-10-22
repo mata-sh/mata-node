@@ -114,43 +114,4 @@ class EnvConfigCreator
 
         return true;
     }
-
-    /**
-     * Check if all required config files exist and are readable.
-     *
-     * @param array<string> $requiredFiles List of required config file names
-     * @param string        $configDir     Configuration directory path
-     *
-     * @return bool True if all files exist and are readable
-     */
-    public function allConfigsExist(array $requiredFiles, string $configDir): bool
-    {
-        return $this->findFilesToCreate($requiredFiles, $configDir) === [];
-    }
-
-    /**
-     * Get information about missing config files and their templates.
-     *
-     * @param array<string> $missingFiles List of missing config file names
-     * @param string        $exampleDir   Template directory path
-     *
-     * @return array<string, array{file: string, template: string, template_exists: bool}>
-     */
-    public function getMissingFilesInfo(array $missingFiles, string $exampleDir): array
-    {
-        $info = [];
-
-        foreach ($missingFiles as $file) {
-            $templateName = $file . '.example';
-            $templatePath = $exampleDir . '/' . $templateName;
-
-            $info[$file] = [
-                'file' => $file,
-                'template' => $templateName,
-                'template_exists' => is_readable($templatePath),
-            ];
-        }
-
-        return $info;
-    }
 }
