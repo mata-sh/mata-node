@@ -76,6 +76,10 @@ RUN apt-get update && apt-get install -y \
     curl \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) pdo_mysql pdo_pgsql mbstring exif pcntl bcmath gd zip opcache \
+    # APCu for RATE_LIMIT_STORAGE=apcu
+    && pecl install apcu-5.1.28 \
+    && docker-php-ext-enable apcu \
+    && rm -rf /tmp/pear \
     && apt-get purge -y --auto-remove \
         libpng-dev \
         libjpeg62-turbo-dev \

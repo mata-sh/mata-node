@@ -38,7 +38,7 @@ them. Non-Docker setups pick up changes immediately.
 | `MONOLOG_LEVEL`, `APP_LOG_PATH` | `debug`, `logs/app.log` | Node application log. |
 | `TEMP_DIR` | `temp/` | Cache directory. |
 | `COMPOSER_BIN`, `COMPOSER_PHP_BIN` | `composer` from `PATH` | Node-wide defaults for Composer audits. |
-| `RATE_LIMIT_ENABLED`, `RATE_LIMIT_STORAGE` | `ON`, `file` | Rate limiting; storage `file`, `redis` (`RATE_LIMIT_REDIS_*`) or `apcu`. `redis` and `apcu` need their PHP extension, which the Docker images do not include. |
+| `RATE_LIMIT_ENABLED`, `RATE_LIMIT_STORAGE` | `ON`, `file` | Rate limiting; storage `file`, `redis` (`RATE_LIMIT_REDIS_*`) or `apcu`. `apcu` needs the apcu PHP extension, which the Docker images include; `redis` needs the redis extension, which they do not. |
 | `RATE_LIMIT_API_MAX_REQUESTS`, `RATE_LIMIT_API_WINDOW_SECONDS` | `200`, `60` | Limit per client IP on authenticated routes. |
 | `RATE_LIMIT_AUTH_FAILED_MAX_REQUESTS`, `RATE_LIMIT_AUTH_FAILED_WINDOW_SECONDS` | `10`, `300` | Failed authentication attempts per client IP. Once reached, the IP gets `429` on authenticated routes, valid credentials included, until the window passes. |
 

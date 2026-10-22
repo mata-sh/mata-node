@@ -30,6 +30,11 @@ RUN apt-get update && apt-get install -y \
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) pdo_mysql pdo_pgsql mbstring exif pcntl bcmath gd zip opcache
 
+# APCu for RATE_LIMIT_STORAGE=apcu
+RUN pecl install apcu-5.1.28 \
+    && docker-php-ext-enable apcu \
+    && rm -rf /tmp/pear
+
 # Install Xdebug (commented out by default - uncomment if needed)
 # RUN pecl install xdebug \
 #     && docker-php-ext-enable xdebug
