@@ -132,7 +132,7 @@ class PathResolver
             return $bootPath;
         }
 
-        return sys_get_temp_dir() . 'mata-boot.log';
+        return sys_get_temp_dir() . '/mata-boot.log';
     }
 
     private function getSystemEnv(string $key): ?string

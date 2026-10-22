@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Integer settings in `config.env` (rate limits and windows, Redis port and database, `DASHBOARD_CLOCK_SKEW_WINDOW`) must be whole numbers in range; anything else fails startup with `configuration_invalid` instead of silently becoming `0`
 
 ### Fixed
+- Without a writable `logs/`, the boot log went to `/tmpmata-boot.log` instead of `/tmp/mata-boot.log`
 - An invalid `MONOLOG_LEVEL` fell back to `debug` without logging why; the warning now reaches the application log
 - A `0` in `config.env` was treated as unset and replaced by the default, so `RATE_LIMIT_ENABLED=0` left rate limiting on
 - Responses containing invalid UTF-8, such as a Latin-1 README or log line, were sent as an empty body with status `200`; invalid bytes are now replaced with U+FFFD

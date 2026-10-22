@@ -52,6 +52,27 @@ class PathResolverTest extends TestCase
         }
     }
 
+    public function testBootLogFallsBackToSystemTempWithoutLogsDirectory(): void
+    {
+        $rootPath = $this->createAppRoot();
+        $previousEnv = $_ENV['APP_LOG_PATH'] ?? null;
+        $previousProcess = getenv('APP_LOG_PATH');
+        unset($_ENV['APP_LOG_PATH']);
+        putenv('APP_LOG_PATH');
+
+        try {
+            $paths = new PathResolver($rootPath . '/public/index.php');
+
+            $this->assertSame(sys_get_temp_dir() . '/mata-boot.log', $paths->bootLogPath);
+        } finally {
+            if ($previousEnv !== null) {
+                $_ENV['APP_LOG_PATH'] = $previousEnv;
+            }
+            putenv($previousProcess === false ? 'APP_LOG_PATH' : 'APP_LOG_PATH=' . $previousProcess);
+            $this->removeDirectory(dirname($rootPath));
+        }
+    }
+
     private function createAppRoot(): string
     {
         $basePath = sys_get_temp_dir() . '/mata-node-path-resolver-' . bin2hex(random_bytes(6));
