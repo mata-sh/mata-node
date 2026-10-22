@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A JSON config file whose top level is a list instead of an object fails startup with `configuration_invalid`, and the boot log now says why a file is not valid JSON
 - Integer settings in `config.env` (rate limits and windows, Redis port and database, `DASHBOARD_CLOCK_SKEW_WINDOW`) must be whole numbers in range; anything else fails startup with `configuration_invalid` instead of silently becoming `0`
 
+### Removed
+- `RATE_LIMIT_LOGIN_*` and `RATE_LIMIT_DASHBOARD_*`, which the node never applied; they are ignored and can be deleted from `config.env`
+
 ### Fixed
 - `RATE_LIMIT_AUTH_FAILED_*` only logged when the limit was exceeded; a client IP over the limit now gets `429` on authenticated routes, valid credentials included, until the window passes
 - Without a writable `logs/`, the boot log went to `/tmpmata-boot.log` instead of `/tmp/mata-boot.log`
