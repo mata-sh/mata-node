@@ -60,6 +60,7 @@ final class EnvConfigLoader
     private function loadEnvironmentConfig(): EnvironmentConfig
     {
         return new EnvironmentConfig(
+            // Docker setting from .env, passed into the container; the node does not act on it
             env: $this->getEnv('APP_ENV', 'prod'),
             tempDir: $this->getEnv('TEMP_DIR', ''),
         );
