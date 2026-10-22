@@ -50,55 +50,34 @@ class RouterSetup
     {
         $this->router->get('/health', function () {
             $ipResolution = $this->clientIpResolver->resolve($_SERVER, $this->generalConfig->trustedProxies);
-
-            $this->logger->debug('Health check HTTP request', [
-                'method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown',
-                'request_uri' => $_SERVER['REQUEST_URI'] ?? 'unknown',
-                'client_ip' => $ipResolution->clientIp,
-                'remote_addr' => $ipResolution->remoteAddr,
-                'trusted_proxy' => $ipResolution->usedTrustedProxy,
-                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
-            ]);
-
-            $healthy = true;
-            $checks = [];
-
-            $checks['logs_writable'] = is_writable($this->paths->logsPath);
-            if (!$checks['logs_writable']) {
-                $healthy = false;
-            }
-
-            $checks['cache_writable'] = is_writable($this->paths->cachePath);
-            if (!$checks['cache_writable']) {
-                $healthy = false;
-            }
+            $this->logger->debug('Health check HTTP request', $this->requestContext($ipResolution));
 
             $missingConfigFiles = StartupConfigInventory::findMissingFiles($this->paths->appPath . '/config');
-            $checks['config_files_present'] = $missingConfigFiles === [];
-            if (!$checks['config_files_present']) {
-                $healthy = false;
-            }
+            $checks = [
+                'logs_writable' => is_writable($this->paths->logsPath),
+                'cache_writable' => is_writable($this->paths->cachePath),
+                'config_files_present' => $missingConfigFiles === [],
+            ];
+            $healthy = !in_array(false, $checks, true);
 
-            $response = [
+            $this->sendJson([
                 'status' => $healthy ? 'healthy' : 'unhealthy',
                 'timestamp' => date('Y-m-d H:i:s'),
                 'maintenance_mode' => $this->generalConfig->maintenanceModeEnabled,
                 'checks' => $checks,
                 'missing_config_files' => $missingConfigFiles,
-            ];
-
-            $this->sendJson($response, $healthy ? 200 : 503);
+            ], $healthy ? 200 : 503);
         });
     }
 
     private function setupAuthAndRateLimiting(): void
     {
         $this->router->before('GET|POST', '/(?!health$).*', function () {
+            $ipResolution = $this->clientIpResolver->resolve($_SERVER, $this->generalConfig->trustedProxies);
+            $ip = $ipResolution->clientIp;
+
             if ($this->generalConfig->maintenanceModeEnabled) {
-                $this->logger->notice('Maintenance mode denied request', [
-                    'remote_addr' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-                    'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
-                ]);
+                $this->logger->notice('Maintenance mode denied request', $this->requestContext($ipResolution));
 
                 header('Retry-After: 300');
                 $this->sendJson([
@@ -109,16 +88,10 @@ class RouterSetup
                 exit;
             }
 
-            $ipResolution = $this->clientIpResolver->resolve($_SERVER, $this->generalConfig->trustedProxies);
-            $ip = $ipResolution->clientIp;
-
             if ($this->generalConfig->ipWhitelistEnabled && !$this->ipAllowlist->isAllowed($ip, $this->generalConfig->allowedIps)) {
                 $this->logger->warning('IP allowlist denied request', [
-                    'client_ip' => $ipResolution->clientIp,
-                    'remote_addr' => $ipResolution->remoteAddr,
+                    ...$this->requestContext($ipResolution),
                     'x_forwarded_for' => $ipResolution->forwardedFor,
-                    'trusted_proxy' => $ipResolution->usedTrustedProxy,
-                    'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
                 ]);
 
                 $this->sendJson([
@@ -134,10 +107,9 @@ class RouterSetup
                 $retryAt = $rateLimitResult->getRetryAt();
                 $this->logger->warning('Rate limit exceeded', [
                     'group' => 'api',
-                    'ip' => $ip,
                     'limit' => $limit,
                     'current' => $rateLimitResult->getCurrent(),
-                    'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
+                    ...$this->requestContext($ipResolution),
                 ]);
                 if ($retryAt !== null) {
                     header('Retry-After: ' . max(1, $retryAt - time()));
@@ -154,9 +126,8 @@ class RouterSetup
             // Checked before authenticating, so an IP over the limit cannot keep guessing.
             if ($this->rateLimiter?->isExhausted('auth_failed', $ip)) {
                 $this->logger->warning('Failed auth rate limit exceeded', [
-                    'ip' => $ip,
                     'limit' => $this->rateLimiter->getLimit('auth_failed'),
-                    'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
+                    ...$this->requestContext($ipResolution),
                 ]);
                 header('Retry-After: ' . $this->rateLimiter->getWindowSeconds('auth_failed'));
                 $this->sendJson([
@@ -174,10 +145,7 @@ class RouterSetup
 
                 $this->logger->warning('Authentication failed', [
                     'error' => $authResult['error'],
-                    'ip' => $ip,
-                    'remote_addr' => $ipResolution->remoteAddr,
-                    'trusted_proxy' => $ipResolution->usedTrustedProxy,
-                    'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
+                    ...$this->requestContext($ipResolution),
                 ]);
 
                 $this->sendJson([
@@ -192,12 +160,7 @@ class RouterSetup
 
             $this->logger->debug('Authorized HTTP request', [
                 'server_id' => $authResult['serverId'],
-                'method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown',
-                'request_uri' => $_SERVER['REQUEST_URI'] ?? 'unknown',
-                'client_ip' => $ipResolution->clientIp,
-                'remote_addr' => $ipResolution->remoteAddr,
-                'trusted_proxy' => $ipResolution->usedTrustedProxy,
-                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
+                ...$this->requestContext($ipResolution),
             ]);
         });
     }
@@ -275,6 +238,23 @@ class RouterSetup
                 'message' => 'Internal error',
             ], 500);
         }
+    }
+
+    /**
+     * Request fields shared by the access log lines.
+     *
+     * @return array<string, mixed>
+     */
+    private function requestContext(ClientIpResolution $ipResolution): array
+    {
+        return [
+            'method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown',
+            'request_uri' => $_SERVER['REQUEST_URI'] ?? 'unknown',
+            'client_ip' => $ipResolution->clientIp,
+            'remote_addr' => $ipResolution->remoteAddr,
+            'trusted_proxy' => $ipResolution->usedTrustedProxy,
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
+        ];
     }
 
     private function sendJson(mixed $payload, int $status = 200): void
