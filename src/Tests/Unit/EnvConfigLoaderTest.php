@@ -11,7 +11,6 @@ use Mata\Config\Dto\EnvConfig;
 use Mata\Config\Dto\EnvironmentConfig;
 use Mata\Config\Dto\GeneralConfig;
 use Mata\Config\Dto\LoggingConfig;
-use Mata\Config\Dto\PhpConfig;
 use Mata\Config\Dto\RateLimitingConfig;
 use Mata\Config\EnvConfigLoader;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -214,10 +213,6 @@ class EnvConfigLoaderTest extends TestCase
                 ipWhitelistEnabled: $ipWhitelistEnabled,
                 allowedIps: $allowedIps,
                 trustedProxies: $trustedProxies,
-            ),
-            php: new PhpConfig(
-                displayErrors: 0,
-                logLevel: 'notices',
             ),
             logging: new LoggingConfig(
                 path: 'logs/app.log',

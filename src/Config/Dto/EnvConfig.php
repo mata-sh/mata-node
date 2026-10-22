@@ -15,7 +15,6 @@ final class EnvConfig
     public function __construct(
         public readonly EnvironmentConfig $environment,
         public readonly GeneralConfig $general,
-        public readonly PhpConfig $php,
         public readonly LoggingConfig $logging,
         public readonly RateLimitingConfig $rateLimiting,
         public readonly AuthConfig $auth,

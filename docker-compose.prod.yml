@@ -21,8 +21,6 @@ services:
     # Production environment variables
     environment:
       - APP_ENV=prod
-      - DISPLAY_ERRORS=0
-      - LOG_LEVEL=errors
       - MONOLOG_LEVEL=error
 
     # Security options

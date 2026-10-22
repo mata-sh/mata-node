@@ -12,7 +12,6 @@ use Mata\Config\Dto\EnvConfig;
 use Mata\Config\Dto\EnvironmentConfig;
 use Mata\Config\Dto\GeneralConfig;
 use Mata\Config\Dto\LoggingConfig;
-use Mata\Config\Dto\PhpConfig;
 use Mata\Config\Dto\RateLimitingConfig;
 use Mata\Security\IpAllowlist;
 
@@ -50,7 +49,6 @@ final class EnvConfigLoader
         return new EnvConfig(
             environment: $this->loadEnvironmentConfig(),
             general: $this->loadGeneralConfig(),
-            php: $this->loadPhpConfig(),
             logging: $this->loadLoggingConfig(),
             rateLimiting: $this->loadRateLimitingConfig(),
             auth: $this->loadAuthConfig(),
@@ -75,14 +73,6 @@ final class EnvConfigLoader
             ipWhitelistEnabled: $this->getEnvBool('IP_WHITELIST_ENABLED', false),
             allowedIps: $this->parseCommaSeparated($this->getEnv('ALLOWED_IPS', '')),
             trustedProxies: $this->parseCommaSeparated($this->getEnv('TRUSTED_PROXIES', '')),
-        );
-    }
-
-    private function loadPhpConfig(): PhpConfig
-    {
-        return new PhpConfig(
-            displayErrors: (int) $this->getEnv('DISPLAY_ERRORS', '0'),
-            logLevel: $this->getEnv('LOG_LEVEL', 'notices'),
         );
     }
 
