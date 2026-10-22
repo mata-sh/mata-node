@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- A `0` in `config.env` was treated as unset and replaced by the default, so `RATE_LIMIT_ENABLED=0` left rate limiting on
 - Responses containing invalid UTF-8, such as a Latin-1 README or log line, were sent as an empty body with status `200`; invalid bytes are now replaced with U+FFFD
 
 ## [0.4.0] - 2026-10-10

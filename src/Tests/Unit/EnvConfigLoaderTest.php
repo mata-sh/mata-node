@@ -24,90 +24,29 @@ class EnvConfigLoaderTest extends TestCase
 {
     public function testLoadsOptionalComposerCommandDefaults(): void
     {
-        $configDir = sys_get_temp_dir() . '/mata-node-env-' . bin2hex(random_bytes(6));
-        mkdir($configDir, 0777, true);
-        file_put_contents(
-            $configDir . '/config.env',
-            <<<'ENV'
-COMPOSER_BIN=tools/composer.phar
-COMPOSER_PHP_BIN=/usr/bin/php8.3-cli
-ENV
-        );
+        $config = $this->loadConfigEnv("COMPOSER_BIN=tools/composer.phar\nCOMPOSER_PHP_BIN=/usr/bin/php8.3-cli\n");
 
-        $keys = ['COMPOSER_BIN', 'COMPOSER_PHP_BIN'];
-        $previousEnv = array_intersect_key($_ENV, array_flip($keys));
-        $previousServer = array_intersect_key($_SERVER, array_flip($keys));
-        $previousProcess = [];
-        foreach ($keys as $key) {
-            $previousProcess[$key] = getenv($key);
-            unset($_ENV[$key], $_SERVER[$key]);
-            putenv($key);
-        }
+        $this->assertSame('tools/composer.phar', $config->composer->bin);
+        $this->assertSame('/usr/bin/php8.3-cli', $config->composer->phpBin);
 
-        try {
-            $config = (new EnvConfigLoader())->load(['config.env'], $configDir);
+        $config = $this->loadConfigEnv("COMPOSER_BIN=\nCOMPOSER_PHP_BIN=\n");
 
-            $this->assertSame('tools/composer.phar', $config->composer->bin);
-            $this->assertSame('/usr/bin/php8.3-cli', $config->composer->phpBin);
-
-            foreach ($keys as $key) {
-                unset($_ENV[$key], $_SERVER[$key]);
-                putenv($key);
-            }
-            file_put_contents($configDir . '/config.env', "COMPOSER_BIN=\nCOMPOSER_PHP_BIN=\n");
-
-            $config = (new EnvConfigLoader())->load(['config.env'], $configDir);
-
-            $this->assertNull($config->composer->bin);
-            $this->assertNull($config->composer->phpBin);
-        } finally {
-            foreach ($keys as $key) {
-                unset($_ENV[$key], $_SERVER[$key]);
-                if (array_key_exists($key, $previousEnv)) {
-                    $_ENV[$key] = $previousEnv[$key];
-                }
-                if (array_key_exists($key, $previousServer)) {
-                    $_SERVER[$key] = $previousServer[$key];
-                }
-                if ($previousProcess[$key] === false) {
-                    putenv($key);
-                } else {
-                    putenv($key . '=' . $previousProcess[$key]);
-                }
-            }
-
-            unlink($configDir . '/config.env');
-            rmdir($configDir);
-        }
+        $this->assertNull($config->composer->bin);
+        $this->assertNull($config->composer->phpBin);
     }
 
     public function testSessionRateLimitStorageFallsBackToFile(): void
     {
-        $configDir = sys_get_temp_dir() . '/mata-node-rate-limit-env-' . bin2hex(random_bytes(6));
-        mkdir($configDir, 0777, true);
-        file_put_contents($configDir . '/config.env', "RATE_LIMIT_STORAGE=session\n");
-        $previousEnv = $_ENV['RATE_LIMIT_STORAGE'] ?? null;
-        $previousServer = $_SERVER['RATE_LIMIT_STORAGE'] ?? null;
-        $previousProcess = getenv('RATE_LIMIT_STORAGE');
-        unset($_ENV['RATE_LIMIT_STORAGE'], $_SERVER['RATE_LIMIT_STORAGE']);
-        putenv('RATE_LIMIT_STORAGE');
+        $config = $this->loadConfigEnv("RATE_LIMIT_STORAGE=session\n");
 
-        try {
-            $config = (new EnvConfigLoader())->load(['config.env'], $configDir);
+        $this->assertSame('file', $config->rateLimiting->storageType);
+    }
 
-            $this->assertSame('file', $config->rateLimiting->storageType);
-        } finally {
-            unset($_ENV['RATE_LIMIT_STORAGE'], $_SERVER['RATE_LIMIT_STORAGE']);
-            if ($previousEnv !== null) {
-                $_ENV['RATE_LIMIT_STORAGE'] = $previousEnv;
-            }
-            if ($previousServer !== null) {
-                $_SERVER['RATE_LIMIT_STORAGE'] = $previousServer;
-            }
-            putenv($previousProcess === false ? 'RATE_LIMIT_STORAGE' : 'RATE_LIMIT_STORAGE=' . $previousProcess);
-            unlink($configDir . '/config.env');
-            rmdir($configDir);
-        }
+    public function testZeroIsAValueRatherThanUnset(): void
+    {
+        $config = $this->loadConfigEnv("RATE_LIMIT_ENABLED=0\n");
+
+        $this->assertFalse($config->rateLimiting->enabled);
     }
 
     public function testEmptyDashboardApiKeyIsCriticalConfigError(): void
@@ -181,6 +120,42 @@ ENV
             'config.ip_whitelist.trusted_proxies.invalid',
             array_column($result['critical_errors'], 'identifier')
         );
+    }
+
+    /**
+     * Load a config.env with these contents; its variables are unset before and restored after.
+     */
+    private function loadConfigEnv(string $contents): EnvConfig
+    {
+        $configDir = sys_get_temp_dir() . '/mata-node-env-' . bin2hex(random_bytes(6));
+        mkdir($configDir, 0777, true);
+        file_put_contents($configDir . '/config.env', $contents);
+
+        preg_match_all('/^([A-Z0-9_]+)=/m', $contents, $matches);
+        $previous = [];
+        foreach ($matches[1] as $key) {
+            $previous[$key] = [$_ENV[$key] ?? null, $_SERVER[$key] ?? null, getenv($key)];
+            unset($_ENV[$key], $_SERVER[$key]);
+            putenv($key);
+        }
+
+        try {
+            return (new EnvConfigLoader())->load(['config.env'], $configDir);
+        } finally {
+            foreach ($previous as $key => [$env, $server, $process]) {
+                unset($_ENV[$key], $_SERVER[$key]);
+                if ($env !== null) {
+                    $_ENV[$key] = $env;
+                }
+                if ($server !== null) {
+                    $_SERVER[$key] = $server;
+                }
+                putenv($process === false ? $key : "{$key}={$process}");
+            }
+
+            unlink($configDir . '/config.env');
+            rmdir($configDir);
+        }
     }
 
     /**

@@ -167,11 +167,13 @@ final class EnvConfigLoader
     }
 
     /**
-     * Get environment variable with optional default.
+     * Get environment variable; unset and empty values fall back to the default.
      */
     private function getEnv(string $key, ?string $default = null): ?string
     {
-        return $_ENV[$key] ?? getenv($key) ?: $default;
+        $value = $_ENV[$key] ?? getenv($key);
+
+        return is_string($value) && $value !== '' ? $value : $default;
     }
 
     /**
