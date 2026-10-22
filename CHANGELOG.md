@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- A JSON config file whose top level is a list instead of an object fails startup with `configuration_invalid`, and the boot log now says why a file is not valid JSON
 - Integer settings in `config.env` (rate limits and windows, Redis port and database, `DASHBOARD_CLOCK_SKEW_WINDOW`) must be whole numbers in range; anything else fails startup with `configuration_invalid` instead of silently becoming `0`
 
 ### Fixed

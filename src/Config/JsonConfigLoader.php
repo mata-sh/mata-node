@@ -9,7 +9,7 @@ use JsonException;
 final class JsonConfigLoader
 {
     /**
-     * @return array<mixed>
+     * @return array<string, mixed>
      *
      * @throws StartupConfigException
      */
@@ -31,11 +31,12 @@ final class JsonConfigLoader
         try {
             $config = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException $e) {
-            throw StartupConfigException::invalid("JSON configuration file is invalid: {$path}", previous: $e);
+            throw StartupConfigException::invalid("JSON configuration file is invalid: {$path} ({$e->getMessage()})", previous: $e);
         }
 
-        if (!is_array($config)) {
-            throw StartupConfigException::invalid("JSON configuration file must contain an array: {$path}");
+        // An empty object decodes to the same [] as an empty list.
+        if (!is_array($config) || ($config !== [] && array_is_list($config))) {
+            throw StartupConfigException::invalid("JSON configuration file must contain an object: {$path}");
         }
 
         return $config;

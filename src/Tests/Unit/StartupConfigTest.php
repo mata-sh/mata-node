@@ -8,6 +8,7 @@ use Mata\Config\JsonConfigLoader;
 use Mata\Config\StartupConfigException;
 use Mata\Config\StartupConfigInventory;
 use Mata\Config\StartupFailureReason;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -59,10 +60,11 @@ final class StartupConfigTest extends TestCase
 
         file_put_contents($this->configDir . '/apps.json', '{invalid');
         $this->expectException(StartupConfigException::class);
+        $this->expectExceptionMessage('apps.json (Syntax error)');
         $loader->loadArray($this->configDir . '/apps.json');
     }
 
-    public function testJsonLoaderAcceptsArrayAndRejectsScalarTopLevelValue(): void
+    public function testJsonLoaderAcceptsObjects(): void
     {
         $loader = new JsonConfigLoader();
         $path = $this->configDir . '/apps.json';
@@ -70,8 +72,28 @@ final class StartupConfigTest extends TestCase
         file_put_contents($path, '{"app": {"enabled": true}}');
         $this->assertSame(['app' => ['enabled' => true]], $loader->loadArray($path));
 
-        file_put_contents($path, '"not an array"');
+        file_put_contents($path, '{}');
+        $this->assertSame([], $loader->loadArray($path));
+    }
+
+    #[DataProvider('nonObjectJsonProvider')]
+    public function testJsonLoaderRejectsNonObjectTopLevelValue(string $json): void
+    {
+        $path = $this->configDir . '/apps.json';
+        file_put_contents($path, $json);
+
         $this->expectException(StartupConfigException::class);
-        $loader->loadArray($path);
+        $this->expectExceptionMessage('must contain an object');
+        (new JsonConfigLoader())->loadArray($path);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function nonObjectJsonProvider(): iterable
+    {
+        yield 'string' => ['"not an object"'];
+
+        yield 'list' => ['[{"title": "App"}]'];
     }
 }
