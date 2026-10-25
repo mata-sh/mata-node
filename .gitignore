@@ -20,6 +20,7 @@ vendor/
 temp/
 trash/
 logs/
+reports/
 
 # allow test fixtures
 !src/Tests/Fixtures/logs/

@@ -44,6 +44,45 @@ The image contains the code and production dependencies only. `config/` is mount
 `logs/` and `temp/` are mounted writable. Terminate TLS at a reverse proxy in front of the
 container.
 
+## Monitoring the host from a container
+
+The node reports what it can see from inside its container, which by default is less than a
+native install sees:
+
+| Data | Seen by default | To see the host |
+| --- | --- | --- |
+| CPU, memory | Host values (`/proc` is shared with the host) | Nothing to do |
+| Disk | The container's filesystem at `check_disk_space_path` | Mount the host path and point `check_disk_space_path` at it |
+| Process count, PHP processes | The container's own processes only | `pid: host` |
+| Logs, sessions, README, Composer files, cron heartbeats | Nothing outside the node | Read-only bind mounts |
+
+App paths in `apps.json` resolve against the node's parent directory, which is `/var/www` in the
+image. Mount each app below it and keep the relative paths:
+
+```yaml
+services:
+  mata-web:
+    pid: host
+    volumes:
+      - /srv/shop:/var/www/shop:ro    # apps.json: "path": "shop", "logs": ["shop/var/log/prod.log"]
+      - /srv:/host/srv:ro             # transmit.json: "check_disk_space_path": "/host/srv"
+```
+
+- `make prod-start` names its Compose files explicitly, so a `docker-compose.override.yml` is not
+  read. Add the lines to `docker-compose.prod.yml`.
+- Mounted files must be readable by `www-data` (UID 33) inside the container. Check with
+  `make shell-www`.
+- `pid: host` shows the node every host process with its command line, as a native install sees
+  them.
+
+Applications that run in their own containers are visible only through files they write to the
+host. Point their log directory (`storage/logs`, `var/log`) at a host directory and mount that
+into the node. Output that goes only to stdout/stderr (`docker logs`), and Composer files baked
+into an image, are not visible to the node.
+
+If the mounts get unwieldy, run the node natively on the host instead; it then reads everything
+its user can read.
+
 ## Commands
 
 | Command | Action |
