@@ -11,7 +11,7 @@ make bootstrap-config
 | --- | --- |
 | [`config.env`](#configconfigenv) | Dashboard credentials, access control, logging, rate limiting |
 | [`apps.json`](#configappsjson) | Watched applications: logs, sessions, Composer, monitoring switches |
-| [`databases.json`](#configdatabasesjson) | Database server login and monitored databases for `/databases/*` |
+| [`databases.json`](#configdatabasesjson) | Named database connections and monitored databases for `/databases/*` |
 | [`transmit.json`](#configtransmitjson) | Node limits, disk check, cron heartbeats |
 
 JSON files must be strict JSON (no comments, no trailing commas).
@@ -486,33 +486,60 @@ Object fields (all optional):
 
 ## `config/databases.json`
 
-Lets the node watch one MariaDB, MySQL or PostgreSQL server for the `/databases/*` routes: which server,
-how to log in, and which of its databases to report on.
+Lets the node watch MariaDB, MySQL or PostgreSQL servers for the `/databases/*` routes. Each
+named connection says which server, how to log in, and which of its databases to report on.
 
 ```json
 {
-  "engine": "mariadb",
-  "connection": {
-    "host": "localhost",
-    "port": "3306",
-    "username": "mata_monitor",
-    "password": "secret"
-  },
-  "databases": {
-    "app_db": "Main application",
-    "analytics_db": "Reporting"
+  "connections": {
+    "shop": {
+      "engine": "mariadb",
+      "connection": {
+        "host": "localhost",
+        "port": "3306",
+        "username": "mata_monitor",
+        "password": "secret"
+      },
+      "databases": {
+        "app_db": "Main application",
+        "analytics_db": "Reporting"
+      }
+    },
+    "reporting": {
+      "engine": "pgsql",
+      "connection": {
+        "host": "10.0.0.5",
+        "port": 5432,
+        "username": "mata_monitor",
+        "password": "secret"
+      },
+      "databases": {
+        "warehouse": "Data warehouse"
+      }
+    }
   }
 }
 ```
 
-The node logs in once with `connection`. `/databases/overview` reports server-wide numbers
-(connections, limits, uptime). `/databases/processes` lists only sessions on `app_db` and
-`analytics_db`; sessions on any other database of that server are never returned.
+The connection name (`shop`, `reporting`) is shown in the dashboard and identifies the
+connection in the API and in dashboard URLs, so it may only contain letters, digits, `.`, `_`
+and `-`; it is never derived from host or credentials. Use one connection per
+login, so databases that need different accounts or servers get their own connection. The same
+database name may appear under several connections.
+
+`/databases/overview` returns one entry per connection in `connections`, each with
+`connection`, `engine`, `collected_at`, the server-wide `status` (connections, limits, uptime),
+its `databases` and `error`. A connection that fails has `status: null` and
+`error: {"status_code": 503, ...}`; the others are still reported, and the reason is logged as a
+warning in the node log. `/databases/processes` requires `connection=NAME` and lists only
+sessions on that connection's databases; sessions on any other database of that server are
+never returned.
 
 `{}` turns database monitoring off; the `/databases/*` routes then return `404`.
 
 | Field | Meaning |
 | --- | --- |
+| `connections` | Name => connection settings; at least one |
 | `engine` | Database type; selects the driver. `mariadb` (also for MySQL) or `pgsql` |
 | `connection` | `host`, `port` (string or number), `username`, `password`; use a read-only account |
 | `databases` | Database name => description shown in the dashboard; at least one |

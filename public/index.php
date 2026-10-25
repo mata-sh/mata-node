@@ -77,7 +77,7 @@ try {
         composerPhpBin: $envConfig->composer->phpBin,
     );
     $serverWatcher = new ServerWatcher($paths->rootPath, $fileCache, $transmitConfig, $commandRunner);
-    $databaseWatcher = new DatabaseWatcher($databaseMonitoring);
+    $databaseWatcher = new DatabaseWatcher($databaseMonitoring, logger: $log);
 
     $router = new Router();
     $routerSetup = new RouterSetup(

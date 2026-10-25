@@ -42,7 +42,7 @@ X-Mata-Auth: <server_id>|<unix_timestamp>|<nonce>|<hex HMAC-SHA256(server_id|tim
 | Server | `/server/data`, `/server/info`, `/server/php`, `/server/cronjobs` |
 | Apps | `/apps`, `/apps/libraries`, `/apps/composer-audit` |
 | Per app | `/{app}/readme`, `/{app}/sessions`, `/{app}/logs`, `/{app}/logs-status`, `/{app}/libraries`, `/{app}/composer-audit` |
-| Databases | `/databases/overview`, `/databases/processes?database=&active_only=&limit=` |
+| Databases | `/databases/overview`, `/databases/processes?connection=&database=&active_only=&limit=` |
 
 All routes are `GET`. `/apps` responses depend on each app's `monitoring` switches; see
 [app metadata responses](docs/configuration.md#app-metadata-responses).

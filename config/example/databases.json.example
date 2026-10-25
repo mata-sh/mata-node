@@ -1,13 +1,17 @@
 {
-    "engine": "mariadb",
-    "connection": {
-        "host": "localhost",
-        "port": "3306",
-        "username": "mata_monitor",
-        "password": ""
-    },
-    "databases": {
-        "mata_primary": "example description",
-        "mata_analytics": "example description"
+    "connections": {
+        "primary": {
+            "engine": "mariadb",
+            "connection": {
+                "host": "localhost",
+                "port": "3306",
+                "username": "mata_monitor",
+                "password": ""
+            },
+            "databases": {
+                "mata_primary": "example description",
+                "mata_analytics": "example description"
+            }
+        }
     }
 }

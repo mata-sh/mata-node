@@ -8,26 +8,28 @@ use Closure;
 use DateTimeImmutable;
 use DateTimeZone;
 use Mata\Config\Dto\DatabaseConfig;
+use Mata\Config\Dto\DatabaseConnectionConfig;
 use Mata\Config\Dto\DatabaseMonitoringConfig;
 use Mata\Core\Database;
 use Mata\Core\DatabaseInterface;
 use Mata\Watchers\Database\DatabaseDriverFactory;
 use Mata\Watchers\Database\DatabaseDriverInterface;
 use Mata\Watchers\Database\ProcessList;
+use Mata\Watchers\Database\ProcessRequest;
 use Mata\Watchers\Exceptions\DatabaseWatcherException;
 use PDOException;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use UnexpectedValueException;
 
 /**
  * Serves `/databases/overview` and `/databases/processes` for the configured
- * monitoring connection.
+ * monitoring connections.
  */
 class DatabaseWatcher
 {
-    private const DEFAULT_LIMIT = 50;
-    private const MAX_LIMIT = 100;
-
-    private ?DatabaseInterface $connection = null;
+    /** @var array<array-key, DatabaseInterface> */
+    private array $connections = [];
 
     /** @var Closure(string, DatabaseConfig): DatabaseInterface */
     private Closure $connector;
@@ -39,6 +41,7 @@ class DatabaseWatcher
         private readonly ?DatabaseMonitoringConfig $config,
         private readonly DatabaseDriverFactory $drivers = new DatabaseDriverFactory(),
         ?Closure $connector = null,
+        private readonly LoggerInterface $logger = new NullLogger(),
     ) {
         $this->connector = $connector
             ?? static fn (string $dsn, DatabaseConfig $config): DatabaseInterface => new Database($dsn, $config->username, $config->password);
@@ -49,40 +52,51 @@ class DatabaseWatcher
      */
     public function getOverview(): array
     {
-        $config = $this->requireConfig();
-        $driver = $this->driver($config);
-        $status = $this->query($config, fn (DatabaseInterface $db) => $driver->overview($db));
+        $connections = [];
+        foreach ($this->requireConfig()->connections as $name => $config) {
+            $name = (string) $name;
+            $driver = $this->driver($config);
+            $status = null;
+            $error = null;
 
-        return [
-            ...$this->envelope($driver),
-            'status' => $status->toArray(),
-            'databases' => array_map(
-                static fn (string $name): array => ['name' => $name, 'description' => $config->databases[$name]],
-                $config->databaseNames(),
-            ),
-        ];
+            try {
+                $status = $this->query($name, $config, fn (DatabaseInterface $db) => $driver->overview($db))->toArray();
+            } catch (DatabaseWatcherException) {
+                $error = ['status_code' => 503, 'message' => 'Database connection failed'];
+            }
+            $connections[] = [
+                'connection' => $name,
+                ...$this->envelope($driver),
+                'status' => $status,
+                'databases' => $this->databaseList($config),
+                'error' => $error,
+            ];
+        }
+
+        return ['connections' => $connections];
     }
 
     /**
-     * @param array<array-key, mixed> $query Request query parameters
+     * @param array<array-key, mixed> $params Query parameters, see {@see ProcessRequest::fromQuery()}
      *
      * @return array<string, mixed>
      */
-    public function getProcesses(array $query): array
+    public function getProcesses(array $params): array
     {
-        $config = $this->requireConfig();
-        [$database, $activeOnly, $limit] = $this->parseProcessQuery($query, $config->databaseNames());
+        $request = ProcessRequest::fromQuery($params, $this->requireConfig());
 
-        $driver = $this->driver($config);
+        $driver = $this->driver($request->config);
         [$rows, $visibility] = $this->query(
-            $config,
+            $request->connection,
+            $request->config,
             fn (DatabaseInterface $db) => [$driver->processes($db), $driver->visibility($db)],
         );
 
         return [
+            'connection' => $request->connection,
             ...$this->envelope($driver),
             'visibility' => $visibility->value,
-            ...ProcessList::build($rows, $config->databaseNames(), $database, $activeOnly, $limit),
+            ...ProcessList::build($rows, $request->config->databaseNames(), $request->database, $request->activeOnly, $request->limit),
         ];
     }
 
@@ -91,7 +105,7 @@ class DatabaseWatcher
         return $this->config ?? throw DatabaseWatcherException::notConfigured();
     }
 
-    private function driver(DatabaseMonitoringConfig $config): DatabaseDriverInterface
+    private function driver(DatabaseConnectionConfig $config): DatabaseDriverInterface
     {
         return $this->drivers->create($config->connection->engine);
     }
@@ -103,22 +117,24 @@ class DatabaseWatcher
      *
      * @return T
      */
-    private function query(DatabaseMonitoringConfig $config, Closure $read): mixed
+    private function query(string $name, DatabaseConnectionConfig $config, Closure $read): mixed
     {
         $connection = $config->connection;
 
-        if ($this->connection === null) {
-            try {
-                $this->connection = ($this->connector)($this->driver($config)->dsn($connection), $connection);
-            } catch (PDOException $error) {
-                throw DatabaseWatcherException::connectionFailed($connection->host, $connection->port, $error->getMessage());
-            }
-        }
-
         try {
-            return $read($this->connection);
+            $this->connections[$name] ??= ($this->connector)($this->driver($config)->dsn($connection), $connection);
+
+            return $read($this->connections[$name]);
         } catch (PDOException|UnexpectedValueException $error) {
-            throw DatabaseWatcherException::queryFailed($error->getMessage());
+            // The response stays generic; the reason (refused login, host down) only goes to the node log.
+            $this->logger->warning('Database connection failed', [
+                'connection' => $name,
+                'host' => $connection->host,
+                'port' => $connection->port,
+                'reason' => $error->getMessage(),
+            ]);
+
+            throw DatabaseWatcherException::connectionFailed();
         }
     }
 
@@ -134,31 +150,16 @@ class DatabaseWatcher
     }
 
     /**
-     * @param array<array-key, mixed> $query
-     * @param list<string>            $databases
-     *
-     * @return array{0: null|string, 1: bool, 2: int}
+     * @return list<array{name: string, description: string}>
      */
-    private function parseProcessQuery(array $query, array $databases): array
+    private function databaseList(DatabaseConnectionConfig $config): array
     {
-        $database = $query['database'] ?? null;
-        if ($database !== null && !is_string($database)) {
-            throw DatabaseWatcherException::invalidParameter('database', 'must be a single value');
-        }
-        if ($database !== null && !in_array($database, $databases, true)) {
-            throw DatabaseWatcherException::unknownDatabase($database, $databases);
+        $list = [];
+        foreach ($config->databases as $name => $description) {
+            // Numeric names become integer keys when JSON is decoded to PHP arrays.
+            $list[] = ['name' => (string) $name, 'description' => $description];
         }
 
-        $activeOnly = $query['active_only'] ?? '1';
-        if ($activeOnly !== '0' && $activeOnly !== '1') {
-            throw DatabaseWatcherException::invalidParameter('active_only', 'must be 0 or 1');
-        }
-
-        $limit = $query['limit'] ?? (string) self::DEFAULT_LIMIT;
-        if (!is_string($limit) || !ctype_digit($limit) || (int) $limit < 1 || (int) $limit > self::MAX_LIMIT) {
-            throw DatabaseWatcherException::invalidParameter('limit', 'must be an integer from 1 to ' . self::MAX_LIMIT);
-        }
-
-        return [$database, $activeOnly === '1', (int) $limit];
+        return $list;
     }
 }

@@ -43,24 +43,21 @@ class DatabaseWatcherException extends HttpException
         );
     }
 
-    public static function connectionFailed(string $host, string $port, string $details): self
+    public static function unknownConnection(string $name): self
     {
         return new self(
-            message: "Failed to connect to the database server on {$host}:{$port}: {$details}",
-            error: 'Database connection failed',
-            httpStatus: 503,
-            context: [
-                'host' => $host,
-                'port' => $port,
-            ]
+            message: "Connection '{$name}' is not monitored.",
+            error: 'Unknown connection',
+            httpStatus: 404,
+            context: ['connection' => $name],
         );
     }
 
-    public static function queryFailed(string $details): self
+    public static function connectionFailed(): self
     {
         return new self(
-            message: "Database query failed: {$details}",
-            error: 'Database query failed',
+            message: 'Database connection failed',
+            error: 'Database connection failed',
             httpStatus: 503,
         );
     }

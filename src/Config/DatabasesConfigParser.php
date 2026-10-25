@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Mata\Config;
 
 use Mata\Config\Dto\DatabaseConfig;
+use Mata\Config\Dto\DatabaseConnectionConfig;
 use Mata\Config\Dto\DatabaseMonitoringConfig;
 use Mata\Watchers\Database\DatabaseDriverFactory;
 
@@ -18,6 +19,8 @@ final class DatabasesConfigParser
 {
     private const TOP_LEVEL_KEYS = ['engine', 'connection', 'databases'];
     private const CONNECTION_KEYS = ['host', 'port', 'username', 'password'];
+    // Names are URL path segments in the dashboard, so they follow its route parameter rule.
+    private const NAME_PATTERN = '/^[a-zA-Z0-9_\-.]+$/';
 
     /**
      * @param array<mixed> $config Decoded `databases.json`
@@ -33,33 +36,58 @@ final class DatabasesConfigParser
         }
 
         $this->assertObject($config, '');
-        $this->assertKeys($config, self::TOP_LEVEL_KEYS, '');
+        $this->assertKeys($config, ['connections'], '');
+        $connections = $config['connections'];
+        // Numeric names become integer keys when JSON is decoded to PHP arrays.
+        if (!is_array($connections) || $connections === []) {
+            $this->fail('connections', 'must be a non-empty object of name => connection settings');
+        }
 
-        $engine = $this->stringValue($config['engine'], 'engine');
+        $parsed = [];
+        foreach ($connections as $name => $settings) {
+            if (preg_match(self::NAME_PATTERN, (string) $name) !== 1) {
+                $this->fail('connections', 'names may only contain letters, digits, ".", "_" and "-"');
+            }
+            $field = "connections.{$name}";
+            $this->assertObject($settings, $field);
+            $parsed[$name] = $this->parseConnection($settings, $field . '.');
+        }
+
+        return new DatabaseMonitoringConfig($parsed);
+    }
+
+    /**
+     * @param array<mixed> $config
+     */
+    private function parseConnection(array $config, string $prefix): DatabaseConnectionConfig
+    {
+        $this->assertKeys($config, self::TOP_LEVEL_KEYS, rtrim($prefix, '.'));
+
+        $engine = $this->stringValue($config['engine'], $prefix . 'engine');
         if (!DatabaseDriverFactory::supports($engine)) {
-            $this->fail('engine', 'must be one of: ' . implode(', ', DatabaseDriverFactory::ENGINES));
+            $this->fail($prefix . 'engine', 'must be one of: ' . implode(', ', DatabaseDriverFactory::ENGINES));
         }
 
         $connection = $config['connection'];
-        $this->assertObject($connection, 'connection');
-        $this->assertKeys($connection, self::CONNECTION_KEYS, 'connection');
+        $this->assertObject($connection, $prefix . 'connection');
+        $this->assertKeys($connection, self::CONNECTION_KEYS, $prefix . 'connection');
 
         $databases = $config['databases'];
         if (!is_array($databases) || $databases === [] || array_is_list($databases)) {
-            $this->fail('databases', 'must be a non-empty object of database name => description');
+            $this->fail($prefix . 'databases', 'must be a non-empty object of database name => description');
         }
         $descriptions = [];
         foreach ($databases as $name => $description) {
-            $descriptions[$name] = $this->stringValue($description, "databases.{$name}");
+            $descriptions[$name] = $this->stringValue($description, "{$prefix}databases.{$name}");
         }
 
-        return new DatabaseMonitoringConfig(
+        return new DatabaseConnectionConfig(
             new DatabaseConfig(
                 engine: $engine,
-                host: $this->stringValue($connection['host'], 'connection.host'),
-                port: $this->stringValue($connection['port'], 'connection.port', allowInt: true),
-                username: $this->stringValue($connection['username'], 'connection.username'),
-                password: $this->stringValue($connection['password'], 'connection.password'),
+                host: $this->stringValue($connection['host'], $prefix . 'connection.host'),
+                port: $this->stringValue($connection['port'], $prefix . 'connection.port', allowInt: true),
+                username: $this->stringValue($connection['username'], $prefix . 'connection.username'),
+                password: $this->stringValue($connection['password'], $prefix . 'connection.password'),
             ),
             $descriptions,
         );
