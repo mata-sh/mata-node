@@ -23,7 +23,7 @@ use Throwable;
  * Results are cached per app with a fingerprint of every file that could change them, so
  * `/apps` only stats those files and parses Composer data again after a deploy.
  *
- * @phpstan-type Layout array{manifest_file: string, installed_file: string, lock_file: string, vendor_dir: string, wordpress_dir: ?string, roots: list<string>}
+ * @phpstan-type Layout array{manifest_file: string, installed_file: string, lock_file: string, vendor_dir: string, wordpress_dir: ?string, root_package: ?string, roots: list<string>}
  * @phpstan-type Packages array{installed: array<string, string>, locked: array<string, string>}
  */
 final class FrameworkDetector
@@ -40,6 +40,7 @@ final class FrameworkDetector
     private const VERSION_PATTERN = '/^v?(\d+\.\d+(?:\.\d+){0,2}(?:-[0-9A-Za-z.-]+)?)$/';
     private const VERSION_CONSTANT_PATTERN = '/\bconst\s+VERSION\s*=\s*[\'"]([^\'"]+)[\'"]/';
     private const WORDPRESS_VERSION_PATTERN = '/\$wp_version\s*=\s*[\'"]([^\'"]+)[\'"]/';
+    private const JOOMLA_VERSION_PATTERN = '/<version>\s*([^<]+?)\s*<\/version>/';
     private const CACHE_KEY_PREFIX = 'frameworks/';
 
     /**
@@ -68,23 +69,25 @@ final class FrameworkDetector
     public function forApp(string $app, array $config): ?FrameworkInstallation
     {
         $declared = $config['framework'] ?? null;
+        if ($declared !== null && !is_string($declared)) {
+            $this->logger->warning('Invalid framework declared for app', ['app' => $app, 'field' => 'framework']);
+
+            return null;
+        }
+
+        // Blank, like unset, means detect.
+        $declared = trim($declared ?? '');
         if ($declared === self::NONE) {
             return null;
         }
 
-        $framework = is_string($declared) ? Framework::tryFrom($declared) : null;
-        if ($declared !== null && $framework === null) {
-            $this->logger->warning('Unknown framework declared for app', [
-                'app' => $app,
-                'field' => 'framework',
-                'supported' => array_merge(array_column(Framework::cases(), 'value'), [self::NONE]),
-            ]);
-
-            return null;
+        $framework = $declared === '' ? null : Framework::tryFrom($declared);
+        if ($declared !== '' && $framework === null) {
+            return new FrameworkInstallation($declared, null);
         }
 
-        // A declared framework is still reported, without version, when its files cannot be read.
-        $fallback = $framework === null ? null : new FrameworkInstallation($framework, null);
+        // A declaration still wins when its files cannot be read.
+        $fallback = $framework === null ? null : new FrameworkInstallation($framework->value, null);
 
         try {
             $layout = $this->layout($app, $config);
@@ -103,7 +106,7 @@ final class FrameworkDetector
             $framework ??= $this->detect($layout, $packages);
             $installation = $framework === null
                 ? null
-                : new FrameworkInstallation($framework, $this->version($framework, $layout, $packages));
+                : new FrameworkInstallation($framework->value, $this->version($framework, $layout, $packages));
             $this->cache?->set($cacheKey, ['fingerprint' => $fingerprint, 'framework' => $installation?->toArray()]);
 
             return $installation;
@@ -151,6 +154,7 @@ final class FrameworkDetector
             'lock_file' => $configuredLock ?? $composerRoot . '/composer.lock',
             'vendor_dir' => $vendorDir,
             'wordpress_dir' => $this->resolvePath($manifest['extra']['wordpress-install-dir'] ?? null, $composerRoot),
+            'root_package' => is_string($manifest['name'] ?? null) ? strtolower($manifest['name']) : null,
             'roots' => array_values(array_unique([$base, $composerRoot])),
         ];
     }
@@ -207,13 +211,12 @@ final class FrameworkDetector
             return false;
         }
 
-        $framework = Framework::tryFrom($stored['name']);
         $version = $stored['version'] ?? null;
-        if ($framework === null || ($version !== null && !is_string($version))) {
+        if (Framework::tryFrom($stored['name']) === null || ($version !== null && !is_string($version))) {
             return false;
         }
 
-        return new FrameworkInstallation($framework, $version);
+        return new FrameworkInstallation($stored['name'], $version);
     }
 
     /**
@@ -285,9 +288,9 @@ final class FrameworkDetector
      */
     private function detect(array $layout, array $packages): ?Framework
     {
-        foreach (Framework::DETECTION_ORDER as $framework) {
+        foreach (Framework::cases() as $framework) {
             foreach ($framework->identifyingPackages() as $package) {
-                if (isset($packages['installed'][$package]) || isset($packages['locked'][$package])) {
+                if ($layout['root_package'] === $package || isset($packages['installed'][$package]) || isset($packages['locked'][$package])) {
                     return $framework;
                 }
             }
@@ -341,7 +344,11 @@ final class FrameworkDetector
      */
     private function sourceVersion(Framework $framework, array $layout): ?string
     {
-        $pattern = $framework === Framework::WordPress ? self::WORDPRESS_VERSION_PATTERN : self::VERSION_CONSTANT_PATTERN;
+        $pattern = match ($framework) {
+            Framework::WordPress => self::WORDPRESS_VERSION_PATTERN,
+            Framework::Joomla => self::JOOMLA_VERSION_PATTERN,
+            default => self::VERSION_CONSTANT_PATTERN,
+        };
 
         foreach ($this->versionFiles($framework, $layout) as $file) {
             if (!is_file($file) || !is_readable($file)) {
@@ -361,7 +368,7 @@ final class FrameworkDetector
     }
 
     /**
-     * Source files that hold the framework's version constant, in the classic and Composer layouts.
+     * Source files that hold the framework's version, in the classic and Composer layouts.
      *
      * @param Layout $layout
      *
@@ -374,6 +381,7 @@ final class FrameworkDetector
         $roots = $layout['roots'];
 
         $files = match ($framework) {
+            Framework::Joomla => $this->inRoots($roots, ['administrator/manifests/files/joomla.xml']),
             Framework::Laravel => [$vendorDir . '/laravel/framework/src/Illuminate/Foundation/Application.php'],
             Framework::Symfony => [$vendorDir . '/symfony/http-kernel/Kernel.php'],
             Framework::Drupal => $this->inRoots($roots, [
@@ -397,6 +405,7 @@ final class FrameworkDetector
                     'web/wp/wp-includes/version.php',
                 ]),
             ],
+            default => [],
         };
 
         return array_values(array_unique($files));

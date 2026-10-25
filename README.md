@@ -91,6 +91,7 @@ it as `api_key` in the `servers.json` entry instead.
 Then describe the watched apps in `config/apps.json`. Everything else, including IP allowlisting,
 maintenance mode and databases, is in the [configuration reference](docs/configuration.md).
 Other log formats can be added with a [custom log parser](docs/log-parsers.md).
+[Framework detection](docs/frameworks.md) lists the frameworks and CMSs `/apps` recognises.
 
 `/health` returns `200` when healthy and `503` otherwise. On a startup failure every route returns
 `503` with `reason` `configuration_missing`, `configuration_invalid` or `initialization_failed`.

@@ -63,6 +63,9 @@ final class FrameworkDetectorTest extends TestCase
         yield 'wordpress classic' => ['wordpress-classic', 'wordpress', '6.8.3'];
 
         yield 'wordpress via composer (bedrock)' => ['wordpress-bedrock', 'wordpress', '6.8.3'];
+
+        // No Composer files, only the manifest.
+        yield 'joomla' => ['joomla', 'joomla', '5.4.0'];
     }
 
     public function testAppBuiltFromSymfonyComponentsHasNoFramework(): void
@@ -70,17 +73,36 @@ final class FrameworkDetectorTest extends TestCase
         $this->assertNull($this->detector()->forApp('app', ['path' => 'plain']));
     }
 
-    public function testDeclaredFrameworkOverridesDetection(): void
+    /**
+     * @param null|array{name: string, version: ?string} $expected
+     */
+    #[DataProvider('declarationProvider')]
+    public function testDeclaredFrameworkOverridesDetection(?string $declared, ?array $expected): void
     {
         $this->assertSame(
-            ['name' => 'symfony', 'version' => '7.1.9'],
-            $this->detector()->forApp('app', ['path' => 'laravel', 'framework' => 'symfony'])?->toArray()
+            $expected,
+            $this->detector()->forApp('app', ['path' => 'laravel', 'framework' => $declared])?->toArray()
         );
     }
 
-    public function testDeclaredNoneSkipsDetection(): void
+    /**
+     * @return iterable<string, array{?string, null|array{name: string, version: ?string}}>
+     */
+    public static function declarationProvider(): iterable
     {
-        $this->assertNull($this->detector()->forApp('app', ['path' => 'laravel', 'framework' => 'none']));
+        yield 'known, with its own version' => ['symfony', ['name' => 'symfony', 'version' => '7.1.9']];
+
+        yield 'custom' => ['Legacy Shop', ['name' => 'Legacy Shop', 'version' => null]];
+
+        yield 'case-sensitive' => ['Laravel', ['name' => 'Laravel', 'version' => null]];
+
+        yield 'trimmed' => [' symfony ', ['name' => 'symfony', 'version' => '7.1.9']];
+
+        yield 'none' => ['none', null];
+
+        yield 'null detects' => [null, ['name' => 'laravel', 'version' => '11.34.2']];
+
+        yield 'blank detects' => [' ', ['name' => 'laravel', 'version' => '11.34.2']];
     }
 
     public function testDeclaredFrameworkWithoutInstalledFilesHasNoVersion(): void
@@ -91,25 +113,23 @@ final class FrameworkDetectorTest extends TestCase
         );
     }
 
-    #[DataProvider('unknownDeclarationProvider')]
-    public function testUnknownDeclaredFrameworkIsLoggedAndMeansNone(mixed $declared): void
+    #[DataProvider('invalidDeclarationProvider')]
+    public function testInvalidDeclaredFrameworkIsLoggedAndMeansNone(mixed $declared): void
     {
         $handler = new TestHandler();
 
         $this->assertNull($this->detector($handler)->forApp('app', ['path' => 'laravel', 'framework' => $declared]));
-        $this->assertTrue($handler->hasWarningThatContains('Unknown framework declared for app'));
+        $this->assertTrue($handler->hasWarningThatContains('Invalid framework declared for app'));
     }
 
     /**
      * @return iterable<string, array{mixed}>
      */
-    public static function unknownDeclarationProvider(): iterable
+    public static function invalidDeclarationProvider(): iterable
     {
-        yield 'unsupported name' => ['joomla'];
+        yield 'boolean' => [true];
 
-        yield 'wrong case' => ['WordPress'];
-
-        yield 'not a string' => [true];
+        yield 'array' => [[]];
     }
 
     public function testInvalidComposerLockIsLoggedAndSkipped(): void
@@ -125,19 +145,19 @@ final class FrameworkDetectorTest extends TestCase
         $this->assertTrue($handler->hasWarningThatContains('Framework detection skipped invalid JSON'));
     }
 
-    public function testAppsPayloadReportsFrameworkOnlyWhenKnown(): void
+    public function testAppsPayloadReportsDeclaredOrDetectedFramework(): void
     {
         $watcher = new AppWatcher(new Tools(), new NullLogger(), self::FIXTURES, [
             'shop' => $this->appConfig('wordpress-bedrock'),
             'tool' => $this->appConfig('plain'),
-            'typo' => $this->appConfig('laravel', ['framework' => 'lavarel']),
+            'custom' => $this->appConfig('laravel', ['framework' => 'Legacy Shop']),
         ], ['errorlog_readout_limit' => 50]);
 
         $apps = $watcher->getApps();
 
         $this->assertSame(['name' => 'wordpress', 'version' => '6.8.3'], $apps['shop']['framework']);
         $this->assertArrayNotHasKey('framework', $apps['tool']);
-        $this->assertArrayNotHasKey('framework', $apps['typo']);
+        $this->assertSame(['name' => 'Legacy Shop', 'version' => null], $apps['custom']['framework']);
     }
 
     public function testCachedResultFollowsADeploy(): void
@@ -163,7 +183,7 @@ final class FrameworkDetectorTest extends TestCase
 
         rename($root . '/version.php', $root . '/wordpress-classic/wp-includes/version.php');
 
-        $this->assertSame('wordpress', $detector->forApp('app', ['path' => 'wordpress-classic'])?->framework->value);
+        $this->assertSame('wordpress', $detector->forApp('app', ['path' => 'wordpress-classic'])?->name);
     }
 
     public function testChangedDeclarationBypassesTheCache(): void
@@ -195,11 +215,95 @@ final class FrameworkDetectorTest extends TestCase
         ));
     }
 
-    private function detector(?TestHandler $handler = null): FrameworkDetector
+    /**
+     * @param array<string, string>                 $installed
+     * @param array{name: string, version: ?string} $expected
+     */
+    #[DataProvider('productProvider')]
+    public function testProductsWinOverTheFrameworksTheyBuildOn(array $installed, array $expected): void
+    {
+        $root = $this->tempApp(['vendor/composer/installed.json' => $this->packagesJson($installed + [
+            'laravel/framework' => '11.34.2',
+            'symfony/framework-bundle' => '7.1.9',
+        ])]);
+
+        $this->assertSame($expected, $this->detector(root: $root)->forApp('app', ['path' => 'app'])?->toArray());
+    }
+
+    /**
+     * @return iterable<string, array{array<string, string>, array{name: string, version: ?string}}>
+     */
+    public static function productProvider(): iterable
+    {
+        yield 'statamic on laravel' => [['statamic/cms' => 'v6.38.0'], ['name' => 'statamic', 'version' => '6.38.0']];
+
+        yield 'shopware on symfony' => [['shopware/core' => '6.7.15.1'], ['name' => 'shopware', 'version' => '6.7.15.1']];
+
+        yield 'magento enterprise over community' => [
+            ['magento/product-community-edition' => '2.4.7', 'magento/product-enterprise-edition' => '2.4.8-p3'],
+            ['name' => 'magento', 'version' => '2.4.8-p3'],
+        ];
+
+        // The Rain library version is not the CMS version.
+        yield 'october, without version' => [['october/rain' => 'v4.4.11'], ['name' => 'october', 'version' => null]];
+    }
+
+    public function testRootProjectIsIdentifiedButNotVersionedByItsManifest(): void
+    {
+        $root = $this->tempApp(['composer.json' => '{"name": "sylius/sylius", "version": "2.3.2"}']);
+
+        $this->assertSame(
+            ['name' => 'sylius', 'version' => null],
+            $this->detector(root: $root)->forApp('app', ['path' => 'app'])?->toArray()
+        );
+    }
+
+    public function testDevOnlyPackagesDoNotIdentify(): void
+    {
+        $root = $this->tempApp([
+            'vendor/composer/installed.json' => '{"packages": [{"name": "laravel/framework", "version": "11.34.2"}], "dev-package-names": ["laravel/framework"]}',
+            'composer.lock' => '{"packages": [], "packages-dev": [{"name": "laravel/framework", "version": "11.34.2"}]}',
+        ]);
+
+        $this->assertNull($this->detector(root: $root)->forApp('app', ['path' => 'app']));
+    }
+
+    public function testConfiguredVendorDirIsHonoured(): void
+    {
+        $root = $this->tempApp([
+            'composer.json' => '{"config": {"vendor-dir": "deps"}}',
+            'deps/composer/installed.json' => $this->packagesJson(['laravel/framework' => '11.34.2']),
+        ]);
+
+        $this->assertSame(
+            ['name' => 'laravel', 'version' => '11.34.2'],
+            $this->detector(root: $root)->forApp('app', ['path' => 'app'])?->toArray()
+        );
+    }
+
+    public function testVersionComesFromInstalledThenSourceThenLock(): void
+    {
+        $root = $this->tempApp([
+            'vendor/composer/installed.json' => $this->packagesJson(['joomla/joomla-cms' => '5.4.1']),
+            'administrator/manifests/files/joomla.xml' => '<extension><version>5.4.2</version></extension>',
+            'composer.lock' => $this->packagesJson(['joomla/joomla-cms' => '5.4.3']),
+        ]);
+        $detector = $this->detector(root: $root);
+
+        $this->assertSame('5.4.1', $detector->forApp('app', ['path' => 'app'])?->version);
+
+        unlink($root . '/app/vendor/composer/installed.json');
+        $this->assertSame('5.4.2', $detector->forApp('app', ['path' => 'app'])?->version);
+
+        unlink($root . '/app/administrator/manifests/files/joomla.xml');
+        $this->assertSame('5.4.3', $detector->forApp('app', ['path' => 'app'])?->version);
+    }
+
+    private function detector(?TestHandler $handler = null, string $root = self::FIXTURES): FrameworkDetector
     {
         $logger = $handler === null ? new NullLogger() : new Logger('test', [$handler]);
 
-        return new FrameworkDetector(new Tools(), $logger, self::FIXTURES);
+        return new FrameworkDetector(new Tools(), $logger, $root);
     }
 
     private function cachingDetector(string $root, ?TestHandler $handler = null): FrameworkDetector
@@ -226,6 +330,38 @@ final class FrameworkDetectorTest extends TestCase
         }
 
         return $this->tempRoot;
+    }
+
+    /**
+     * A writable app at `<root>/app` holding the given files.
+     *
+     * @param array<string, string> $files contents by path relative to the app
+     */
+    private function tempApp(array $files): string
+    {
+        $this->tempRoot = sys_get_temp_dir() . '/mata-node-frameworks-' . bin2hex(random_bytes(6));
+        foreach ($files as $path => $contents) {
+            $file = $this->tempRoot . '/app/' . $path;
+            @mkdir(dirname($file), 0777, true);
+            file_put_contents($file, $contents);
+        }
+
+        return $this->tempRoot;
+    }
+
+    /**
+     * `installed.json` / `composer.lock` contents.
+     *
+     * @param array<string, string> $versions version by package name
+     */
+    private function packagesJson(array $versions): string
+    {
+        $packages = [];
+        foreach ($versions as $name => $version) {
+            $packages[] = ['name' => $name, 'version' => $version];
+        }
+
+        return json_encode(['packages' => $packages], JSON_THROW_ON_ERROR);
     }
 
     private function removeDirectory(string $path): void

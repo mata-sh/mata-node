@@ -169,7 +169,7 @@ Use lowercase `app-id` values. Route lookups lowercase the requested app name be
 | `logs` | Yes for clean `/apps`; optional for `/logs` and `/logs-status` | `[]` for `/logs` and `/logs-status` | Log paths/groups read for recent lines and status counts. See log formats below. |
 | `description` | No | empty string | Returned by `/apps`. |
 | `readme` | No | `<path>/README.md` | Path used by `/{app}/readme`. |
-| `framework` | No | detected | Framework or CMS reported by `/apps`: `laravel`, `symfony`, `wordpress`, `drupal`, `typo3`, or `none` to report none. See framework below. |
+| `framework` | No | detected | Framework or CMS reported by `/apps`: a known identifier, any other name, or `none` to report none. See framework below. |
 | `composer` | No | disabled | Composer library/audit config. See composer fields below. |
 
 ### Monitoring settings
@@ -257,28 +257,20 @@ need no migration, since every `monitoring` switch defaults to `true`.
 
 ### Framework
 
-`/apps` reports each app's framework and deployed version. A declared `framework` wins;
-otherwise the node detects it by reading files only (never `wp-cli`, `artisan` or other app
-code), checking in this order:
+`/apps` reports `framework` as `{"name": "laravel", "version": "11.34.2"}` when a framework is
+declared or detected.
 
-| Framework | Package | Version file |
-| --- | --- | --- |
-| Laravel | `laravel/framework` | `vendor/laravel/framework/src/Illuminate/Foundation/Application.php` |
-| Drupal | `drupal/core` | `core/lib/Drupal.php` in `<path>`, `web/` or `docroot/` |
-| TYPO3 | `typo3/cms-core` | `Typo3Version.php` in `vendor/typo3/cms-core/` or `typo3/sysext/core/` |
-| WordPress | `roots/wordpress-no-content`, `roots/wordpress`, `johnpbloch/wordpress-core`, `johnpbloch/wordpress` | `wp-includes/version.php` in `<path>`, `wp/`, `wordpress/`, `web/wp/` or `extra.wordpress-install-dir` |
-| Symfony | `symfony/framework-bundle` | `vendor/symfony/http-kernel/Kernel.php` |
+| `framework` config | Result |
+| --- | --- |
+| absent, `null` or blank | Detect it from Composer packages and version files; omit `framework` if nothing matches. |
+| `"none"` | Omit `framework`, without detection. |
+| known identifier, such as `"laravel"` | Report that name, with the version read from its own files only, or `null`. |
+| any other string | Report it as `name` with `version: null`, without detection. |
+| anything else | Log a warning and omit `framework`. |
 
-A match is a package in `vendor/composer/installed.json` or `composer.lock` (next to the
-configured `composer` file, else in `<path>`), or an existing version file. Symfony is matched by
-package only, since the others ship Symfony components.
-
-The version comes from `installed.json`, then the version file, then `composer.lock`; branch
-versions such as `dev-main` are skipped, and `null` is reported if none yields one.
-
-Framework reporting never fails `/apps`: unknown declared values and unreadable Composer files are
-logged as warnings and skipped. Results are cached per app until a file they depend on changes,
-`framework`, `path` or `composer` change, or 24 hours pass.
+Values are trimmed and case-sensitive: `"Laravel"` is reported as a custom name without a
+version. [Framework detection](frameworks.md) lists the known identifiers and the files they
+are read from.
 
 ### App metadata responses
 
@@ -300,8 +292,8 @@ A fully monitored app returns these keys, in this order:
 }
 ```
 
-`framework` is present iff a framework was declared or detected; `version` may be `null`.
-Consumers should ignore unknown `name` values, as later nodes may add frameworks.
+`framework` is present iff a framework was declared or detected;
+`version` may be `null`. Consumers must accept custom and future `name` values.
 
 The rest of the response is shaped by the app's `monitoring` block:
 

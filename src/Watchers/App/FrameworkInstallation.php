@@ -12,7 +12,7 @@ namespace Mata\Watchers\App;
 final readonly class FrameworkInstallation
 {
     public function __construct(
-        public Framework $framework,
+        public string $name,
         public ?string $version,
     ) {}
 
@@ -21,6 +21,6 @@ final readonly class FrameworkInstallation
      */
     public function toArray(): array
     {
-        return ['name' => $this->framework->value, 'version' => $this->version];
+        return ['name' => $this->name, 'version' => $this->version];
     }
 }
