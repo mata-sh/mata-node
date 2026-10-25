@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - The Docker images include the APCu extension, needed for `RATE_LIMIT_STORAGE=apcu`
+- `/apps` reports each app's framework or CMS (Laravel, Symfony, WordPress, Drupal, TYPO3) and its installed version as `framework: {name, version}`, read from the app's Composer and version files without running any code and cached until those files change. A new optional `apps.json` `framework` key declares it instead of detection, or switches it off with `"none"`; an unknown value is logged and ignored. Older dashboards ignore the new key. Pairs with the dashboard release that shows it
 
 ### Changed
 - `config/databases.json` takes named `connections`, each with its own `engine`, login and databases, so one node can watch several database servers or accounts. `/databases/overview` returns a `connections` list with a per-connection `error`, and `/databases/processes` takes `connection=`, which is required. The single-connection format of 0.3.0 fails startup with `configuration_invalid`. **Action:** wrap the file in `"connections": {"<name>": …}`, or convert a pre-0.3.0 file with `scripts/migrate-databases-config.php`, and update the dashboard at the same time

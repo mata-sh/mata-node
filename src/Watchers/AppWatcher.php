@@ -12,6 +12,7 @@ use Mata\Services\FileCache;
 use Mata\Utils\Tools;
 use Mata\Watchers\App\AppMonitoringSettings;
 use Mata\Watchers\App\ComposerInspector;
+use Mata\Watchers\App\FrameworkDetector;
 use Mata\Watchers\App\LogInspector;
 use Mata\Watchers\App\ReadmeReader;
 use Mata\Watchers\Exceptions\AppWatcherException;
@@ -28,6 +29,7 @@ class AppWatcher
     private LogInspector $logInspector;
     private ComposerInspector $composerInspector;
     private ReadmeReader $readmeReader;
+    private FrameworkDetector $frameworkDetector;
 
     /**
      * Per-request memo, so each app's `monitoring` block is parsed once even
@@ -70,6 +72,7 @@ class AppWatcher
             $composerPhpBin,
         );
         $this->readmeReader = new ReadmeReader($rootPath);
+        $this->frameworkDetector = new FrameworkDetector($tools, $logger, $rootPath, $fileCache);
     }
 
     public function getApps(): array
@@ -193,6 +196,11 @@ class AppWatcher
             'description' => $appConfig['description'] ?? '',
             'composer' => $this->composerInspector->isEnabled($appConfig['composer'] ?? null),
         ];
+
+        $framework = $this->frameworkDetector->forApp($app, $appConfig);
+        if ($framework !== null) {
+            $info['framework'] = $framework->toArray();
+        }
 
         // A disabled setting must skip the work, not just hide the result. These
         // three calls are the expensive part of `/apps`.

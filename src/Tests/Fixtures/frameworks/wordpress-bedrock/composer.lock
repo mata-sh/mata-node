@@ -1,0 +1,93 @@
+{
+    "_readme": [
+        "This file locks the dependencies of your project to a known state",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
+        "This file is @generated automatically"
+    ],
+    "content-hash": "3f1c2b0e6d9a4c7f8e5b1a2d3c4e5f60",
+    "packages": [
+        {
+            "name": "roots/wordpress",
+            "version": "6.8.3",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/roots/wordpress.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "metapackage",
+            "description": ""
+        },
+        {
+            "name": "roots/wordpress-core-installer",
+            "version": "1.100.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/roots/wordpress-core-installer.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "composer-plugin",
+            "description": ""
+        },
+        {
+            "name": "roots/wordpress-no-content",
+            "version": "6.8.3",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/roots/wordpress-no-content.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "wordpress-core",
+            "description": ""
+        },
+        {
+            "name": "roots/wp-config",
+            "version": "1.0.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/roots/wp-config.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "library",
+            "description": ""
+        },
+        {
+            "name": "symfony/polyfill-ctype",
+            "version": "v1.31.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/polyfill-ctype.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "library",
+            "description": ""
+        },
+        {
+            "name": "vlucas/phpdotenv",
+            "version": "v5.6.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/vlucas/phpdotenv.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "library",
+            "description": ""
+        }
+    ],
+    "packages-dev": [],
+    "aliases": [],
+    "minimum-stability": "stable",
+    "stability-flags": {},
+    "prefer-stable": true,
+    "prefer-lowest": false,
+    "platform": {
+        "php": "^8.2"
+    },
+    "platform-dev": {},
+    "plugin-api-version": "2.6.0"
+}

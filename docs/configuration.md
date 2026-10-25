@@ -10,7 +10,7 @@ make bootstrap-config
 | File | Contents |
 | --- | --- |
 | [`config.env`](#configconfigenv) | Dashboard credentials, access control, logging, rate limiting |
-| [`apps.json`](#configappsjson) | Watched applications: logs, sessions, Composer, monitoring switches |
+| [`apps.json`](#configappsjson) | Watched applications: logs, sessions, Composer, framework, monitoring switches |
 | [`databases.json`](#configdatabasesjson) | Named database connections and monitored databases for `/databases/*` |
 | [`transmit.json`](#configtransmitjson) | Node limits, disk check, cron heartbeats |
 
@@ -81,6 +81,7 @@ Use lowercase `app-id` values. Route lookups lowercase the requested app name be
     "path": "example-app",
     "disabled": "false",
     "env": "prod",
+    "framework": "laravel",
     "status_endpoint": "https://example.com/app/health/",
     "monitoring": {
       "loganalysis": true,
@@ -168,6 +169,7 @@ Use lowercase `app-id` values. Route lookups lowercase the requested app name be
 | `logs` | Yes for clean `/apps`; optional for `/logs` and `/logs-status` | `[]` for `/logs` and `/logs-status` | Log paths/groups read for recent lines and status counts. See log formats below. |
 | `description` | No | empty string | Returned by `/apps`. |
 | `readme` | No | `<path>/README.md` | Path used by `/{app}/readme`. |
+| `framework` | No | detected | Framework or CMS reported by `/apps`: `laravel`, `symfony`, `wordpress`, `drupal`, `typo3`, or `none` to report none. See framework below. |
 | `composer` | No | disabled | Composer library/audit config. See composer fields below. |
 
 ### Monitoring settings
@@ -253,6 +255,31 @@ they are neither validated nor returned by `/apps`.
 `"monitoring": {"reachability": false}`; otherwise the feature turns back on. Enabled settings
 need no migration, since every `monitoring` switch defaults to `true`.
 
+### Framework
+
+`/apps` reports each app's framework and deployed version. A declared `framework` wins;
+otherwise the node detects it by reading files only (never `wp-cli`, `artisan` or other app
+code), checking in this order:
+
+| Framework | Package | Version file |
+| --- | --- | --- |
+| Laravel | `laravel/framework` | `vendor/laravel/framework/src/Illuminate/Foundation/Application.php` |
+| Drupal | `drupal/core` | `core/lib/Drupal.php` in `<path>`, `web/` or `docroot/` |
+| TYPO3 | `typo3/cms-core` | `Typo3Version.php` in `vendor/typo3/cms-core/` or `typo3/sysext/core/` |
+| WordPress | `roots/wordpress-no-content`, `roots/wordpress`, `johnpbloch/wordpress-core`, `johnpbloch/wordpress` | `wp-includes/version.php` in `<path>`, `wp/`, `wordpress/`, `web/wp/` or `extra.wordpress-install-dir` |
+| Symfony | `symfony/framework-bundle` | `vendor/symfony/http-kernel/Kernel.php` |
+
+A match is a package in `vendor/composer/installed.json` or `composer.lock` (next to the
+configured `composer` file, else in `<path>`), or an existing version file. Symfony is matched by
+package only, since the others ship Symfony components.
+
+The version comes from `installed.json`, then the version file, then `composer.lock`; branch
+versions such as `dev-main` are skipped, and `null` is reported if none yields one.
+
+Framework reporting never fails `/apps`: unknown declared values and unreadable Composer files are
+logged as warnings and skipped. Results are cached per app until a file they depend on changes,
+`framework`, `path` or `composer` change, or 24 hours pass.
+
 ### App metadata responses
 
 A fully monitored app returns these keys, in this order:
@@ -266,13 +293,17 @@ A fully monitored app returns these keys, in this order:
   "status_url": "https://example.com/app/health/",
   "description": "Example app",
   "composer": true,
+  "framework": { "name": "laravel", "version": "11.34.2" },
   "status": { "fatal": 7, "warnings": 12, "total": 4231, "fatal_cursor": "v1:98cc…9ab" },
   "session": { "type": "file", "status": "ok", "count_last_hour": 1, "count_last_day": 2, "count_total": 2, "path": "example-app/temp/sessions", "size_kb": 12.34 },
   "logs": { "example-app/logs/error.log": 128.5 }
 }
 ```
 
-The response is shaped by the app's `monitoring` block:
+`framework` is present iff a framework was declared or detected; `version` may be `null`.
+Consumers should ignore unknown `name` values, as later nodes may add frameworks.
+
+The rest of the response is shaped by the app's `monitoring` block:
 
 - `status` is present iff `loganalysis` is enabled.
 - `logs` is present iff `logsize` is enabled.
