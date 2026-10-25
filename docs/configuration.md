@@ -14,7 +14,9 @@ make bootstrap-config
 | [`databases.json`](#configdatabasesjson) | Named database connections and monitored databases for `/databases/*` |
 | [`transmit.json`](#configtransmitjson) | Node limits, disk check, cron heartbeats |
 
-JSON files must be strict JSON (no comments, no trailing commas).
+JSON files must be strict JSON (no comments, no trailing commas). After editing, check them with
+`make mata ARGS="config validate"`, which reports every problem the node would fail on or skip;
+see [Command line](cli.md).
 
 `/health` reports `checks.config_files_present` and lists `missing_config_files`. If startup
 fails, every route returns `503` (`Retry-After: 300`, `Cache-Control: no-store`) with
@@ -79,7 +81,7 @@ Use lowercase `app-id` values. Route lookups lowercase the requested app name be
     "title": "Example Application",
     "url": "https://example.com/app",
     "path": "example-app",
-    "disabled": "false",
+    "disabled": false,
     "env": "prod",
     "status_endpoint": "https://example.com/app/health/",
     "monitoring": {
@@ -151,7 +153,7 @@ Use lowercase `app-id` values. Route lookups lowercase the requested app name be
 | `url` | Yes for `/apps` | none | Returned as app URL. |
 | `path` | Yes for `/apps`, `/readme`, composer auto-detect | none | App base path. Used for default README path and composer auto-detect. |
 | `env` | Yes for `/apps` | none | Static application environment. Must be exactly `dev`, `test`, `stg`, or `prod`. |
-| `disabled` | No | `"false"` | Set to `"true"` to hide the app and make its app-specific endpoints unavailable. |
+| `disabled` | No | `false` | Set to `true` to hide the app and make its app-specific endpoints unavailable. The string `"true"` works too. |
 | `status_endpoint` | No | none | Complete absolute `http` or `https` URL. The dashboard calls it directly; the node never calls it. |
 | `monitoring` | No | all settings enabled | JSON object of per-app monitoring switches. See monitoring settings below. |
 | `sessions` | No | unconfigured | Session metadata config returned by `/apps` and `/{app}/sessions`. |
@@ -423,7 +425,9 @@ Log group fields:
 
 If `type` is omitted, the node auto-detects the parser per file from the first 10 lines. It picks a parser when at least 50% of sampled lines match that parser. If none match, it falls back to `php_error_log`.
 
-If `type` is set to an unknown value, the node logs an error and falls back to `php_error_log`.
+If `type` is set to an unknown value, the node logs a warning and auto-detects the format.
+
+To see which parser a log gets and what it parses, run `make mata ARGS="log test <app>"`.
 
 App-level parser format settings are unsupported. Use structured log group `type` or omit `type` for auto-detection.
 

@@ -30,14 +30,15 @@ final class StartupConfigManager
     private readonly JsonConfigLoader $jsonLoader;
 
     /**
-     * @param string                $configDir  Configuration directory path
-     * @param string                $exampleDir Template directory path
-     * @param array<string>         $envFiles   Dotenv files loaded into the application config
-     * @param array<string>         $jsonFiles  JSON files parsed into the result
-     * @param LoggerInterface       $logger     Logger for diagnostics
-     * @param null|EnvConfigCreator $creator    Optional creator instance (creates internally if null)
-     * @param null|EnvConfigLoader  $envLoader  Optional env loader instance (creates internally if null)
-     * @param null|JsonConfigLoader $jsonLoader Optional JSON loader instance (creates internally if null)
+     * @param string                $configDir     Configuration directory path
+     * @param string                $exampleDir    Template directory path
+     * @param array<string>         $envFiles      Dotenv files loaded into the application config
+     * @param array<string>         $jsonFiles     JSON files parsed into the result
+     * @param LoggerInterface       $logger        Logger for diagnostics
+     * @param null|EnvConfigCreator $creator       Optional creator instance (creates internally if null)
+     * @param null|EnvConfigLoader  $envLoader     Optional env loader instance (creates internally if null)
+     * @param null|JsonConfigLoader $jsonLoader    Optional JSON loader instance (creates internally if null)
+     * @param bool                  $createMissing Create missing files from templates; false only reports them
      */
     public function __construct(
         private readonly string $configDir,
@@ -47,7 +48,8 @@ final class StartupConfigManager
         private readonly LoggerInterface $logger,
         ?EnvConfigCreator $creator = null,
         ?EnvConfigLoader $envLoader = null,
-        ?JsonConfigLoader $jsonLoader = null
+        ?JsonConfigLoader $jsonLoader = null,
+        private readonly bool $createMissing = true,
     ) {
         $this->requiredFiles = [...$envFiles, ...$jsonFiles];
         $this->creator = $creator ?? new EnvConfigCreator();
@@ -63,6 +65,9 @@ final class StartupConfigManager
     public function initialize(): StartupConfigResult
     {
         $missingFiles = $this->findFilesToCreate($this->requiredFiles);
+        if ($missingFiles !== [] && !$this->createMissing) {
+            throw StartupConfigException::missing('Required configuration files are missing', array_values($missingFiles));
+        }
         if ($missingFiles !== []) {
             $this->handleMissingFiles($missingFiles);
         }

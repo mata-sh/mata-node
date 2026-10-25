@@ -107,4 +107,7 @@ Parsers are tried in file name order during auto-detection and the first match w
 parser claims fall back to `php_error_log`. Give a strict `detect()` so it cannot claim other
 formats, or set `type` explicitly in `apps.json`.
 
+Check the result on real logs with `make mata ARGS="log test shop"`: it shows the parser each
+file gets, the entries it parses and the fatal and warning counts (see [Command line](cli.md)).
+
 Add a unit test next to the existing ones in `src/Tests/Unit/` (see `MonologParserTest`).

@@ -31,7 +31,8 @@
         "bramus/router": "^1.6",
         "vlucas/phpdotenv": "^5.6",
         "mata-sh/rate-limiter": "^2.0",
-        "monolog/monolog": "^3.8"
+        "monolog/monolog": "^3.8",
+        "symfony/console": "^7.4"
     },
     "require-dev": {
         "phpunit/phpunit": "^12.1",

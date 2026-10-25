@@ -45,7 +45,7 @@ final class LogInspector
     public function entries(string $app, string $filter = '', ?int $limit = null): array
     {
         $limit = $this->readoutLimit($limit);
-        $scanLineLimit = max(1, (int) ($this->transmitConfig['errorlog_scan_line_limit'] ?? self::DEFAULT_LOG_SCAN_LINE_LIMIT));
+        $scanLineLimit = $this->scanLineLimit();
 
         if (!$this->isValidLogFilter($filter)) {
             $this->logger->warning('Invalid log filter requested', [
@@ -128,6 +128,81 @@ final class LogInspector
     }
 
     /**
+     * What the parsing endpoints make of each configured log file, for `bin/mata-node log test`.
+     *
+     * Files found in a configured directory are listed but not parsed, as for `/logs`.
+     * `type_known` is false when a configured type names no parser and the format is detected.
+     *
+     * @return list<array{
+     *     path: string,
+     *     file: string,
+     *     readable: bool,
+     *     parsed: bool,
+     *     type: string,
+     *     type_known: bool,
+     *     parser: ?string,
+     *     lines: int,
+     *     entries: int,
+     *     fatal: int,
+     *     warnings: int,
+     *     total: int,
+     *     samples: list<array<string, mixed>>,
+     *     error: ?string
+     * }>
+     */
+    public function diagnose(string $app, int $sampleLimit): array
+    {
+        $scanLineLimit = $this->scanLineLimit();
+        $knownTypes = LogParserFactory::getAvailableParsers();
+
+        $files = [];
+        foreach ($this->resolveLogPaths($app, expandDirectories: true) as $logConfig) {
+            $type = is_string($logConfig['type']) ? $logConfig['type'] : '';
+            $logFile = $this->tools->normalizePath($logConfig['path'], $this->rootPath);
+            $file = [
+                'path' => $logConfig['path'],
+                'file' => $logFile,
+                'readable' => is_file($logFile) && is_readable($logFile),
+                'parsed' => !$logConfig['from_directory'],
+                'type' => $type,
+                'type_known' => $type === '' || in_array($type, $knownTypes, true),
+                'parser' => null,
+                'lines' => 0,
+                'entries' => 0,
+                'fatal' => 0,
+                'warnings' => 0,
+                'total' => 0,
+                'samples' => [],
+                'error' => null,
+            ];
+
+            if ($file['readable'] && $file['parsed']) {
+                try {
+                    $parser = $this->getLogParser($type, $logFile);
+                    $lines = $this->tailLogLines($logFile, $scanLineLimit);
+                    $entries = $parser->parseLines($lines);
+                    $stats = $parser->analyzeLog($logFile);
+                    $file = array_replace($file, [
+                        'parser' => $parser->getName(),
+                        'lines' => count($lines),
+                        'entries' => count($entries),
+                        'fatal' => $stats->fatal,
+                        'warnings' => $stats->warnings,
+                        'total' => $stats->total,
+                        'samples' => $sampleLimit > 0 ? array_values(array_slice($entries, -$sampleLimit)) : [],
+                    ]);
+                } catch (Throwable $e) {
+                    $file['error'] = $e->getMessage();
+                }
+            }
+
+            $files[] = $file;
+        }
+
+        return $files;
+    }
+
+    /**
      * Aggregated log counts plus the app's fatal cursor.
      *
      * The cursor is null exactly when the fatal count is zero.
@@ -188,7 +263,7 @@ final class LogInspector
      * expanded into the *.log files they contain (files/status endpoints);
      * otherwise they are skipped (parsing endpoints).
      *
-     * @return array<int, array{path: string, type: mixed}>
+     * @return array<int, array{path: string, type: mixed, from_directory: bool}>
      */
     private function resolveLogPaths(string $app, bool $expandDirectories = false): array
     {
@@ -220,7 +295,8 @@ final class LogInspector
                 }
 
                 $candidatePaths = [$logPath];
-                if (is_dir($this->tools->normalizePath($logPath, $this->rootPath))) {
+                $fromDirectory = is_dir($this->tools->normalizePath($logPath, $this->rootPath));
+                if ($fromDirectory) {
                     if (!$expandDirectories) {
                         continue;
                     }
@@ -232,6 +308,7 @@ final class LogInspector
                     $resolved[] = [
                         'path' => $resolvedPath,
                         'type' => $type,
+                        'from_directory' => $fromDirectory,
                     ];
                 }
             }
@@ -286,6 +363,12 @@ final class LogInspector
                 default => false,
             };
         }));
+    }
+
+    /** Most recent lines of a log file the parsing endpoints read. */
+    private function scanLineLimit(): int
+    {
+        return max(1, (int) ($this->transmitConfig['errorlog_scan_line_limit'] ?? self::DEFAULT_LOG_SCAN_LINE_LIMIT));
     }
 
     /**

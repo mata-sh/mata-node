@@ -92,6 +92,9 @@ Then describe the watched apps in `config/apps.json`. Everything else, including
 maintenance mode and databases, is in the [configuration reference](docs/configuration.md).
 Other log formats can be added with a [custom log parser](docs/log-parsers.md).
 
+Check the configuration with `make mata ARGS="config validate"` and an app's logs with
+`make mata ARGS="log test <app>"`; see the [command line](docs/cli.md).
+
 `/health` returns `200` when healthy and `503` otherwise. On a startup failure every route returns
 `503` with `reason` `configuration_missing`, `configuration_invalid` or `initialization_failed`.
 

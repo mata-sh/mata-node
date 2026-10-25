@@ -45,6 +45,7 @@ help:
 	@echo "    $(COLOR_GREEN)make dev-stop$(COLOR_RESET)      - Stop development"
 	@echo "    $(COLOR_GREEN)make dev-recreate$(COLOR_RESET)  - Recreate containers (reload env files)"
 	@echo "    $(COLOR_GREEN)make shell$(COLOR_RESET)         - Access web container"
+	@echo "    $(COLOR_GREEN)make mata ARGS=…$(COLOR_RESET)   - Run a bin/mata-node command, e.g. ARGS=\"config validate\""
 	@echo "  $(COLOR_CYAN)Testing:$(COLOR_RESET)"
 	@echo "    $(COLOR_GREEN)make test$(COLOR_RESET)          - Run tests with PHPUnit"
 	@echo "    $(COLOR_GREEN)make test-coverage$(COLOR_RESET) - Run tests with coverage"
@@ -390,6 +391,20 @@ shell:
 shell-www:
 	docker-compose exec -u www-data mata-web bash
 
+## CLI
+
+# Run a bin/mata-node command as www-data in the running container, e.g.
+# make mata ARGS="log test shop". Without ARGS it lists the commands. make exits 2 for
+# any failure, so scripts read the warning/error distinction from --json.
+mata:
+	@if docker-compose ps mata-web | grep -q "Up"; then \
+		tty=-T; [ -t 0 ] && [ -t 1 ] && tty=; \
+		docker-compose exec $$tty -u www-data mata-web php bin/mata-node $(ARGS); \
+	else \
+		echo "$(COLOR_RED)❌ Docker containers not running. Start with: make dev-start or make prod-start$(COLOR_RESET)"; \
+		exit 1; \
+	fi
+
 ## Composer (Docker)
 
 # Install/update Composer dependencies in container
@@ -505,6 +520,7 @@ docker-help:
 	@echo "$(COLOR_BOLD)Shell Access:$(COLOR_RESET)"
 	@echo "  $(COLOR_GREEN)make shell$(COLOR_RESET)           - Access web container"
 	@echo "  $(COLOR_GREEN)make shell-www$(COLOR_RESET)       - Access as www-data user"
+	@echo "  $(COLOR_GREEN)make mata ARGS=…$(COLOR_RESET)     - Run a bin/mata-node command as www-data"
 	@echo ""
 	@echo "$(COLOR_BOLD)Composer:$(COLOR_RESET)"
 	@echo "  $(COLOR_GREEN)make composer-install$(COLOR_RESET)  - Install dependencies in container"
@@ -523,6 +539,6 @@ docker-help:
 	docker-setup docker-network dev-start dev-logs dev-stop dev-restart dev-recreate dev-rebuild \
 	prod-start prod-stop prod-rebuild \
 	logs logs-web logs-php logs-app ps \
-	shell shell-www \
+	shell shell-www mata \
 	composer-install composer-update composer-rebuild \
 	down clean docker-clean docker-clean-all docker-help

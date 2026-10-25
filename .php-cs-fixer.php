@@ -11,6 +11,8 @@ $finder = Finder::create()
     ->name('*.php')
     ->ignoreDotFiles(true)
     ->ignoreVCS(true)
+    // No .php extension, so name() does not pick it up.
+    ->append([__DIR__ . '/bin/mata-node'])
 ;
 
 return (new Config())

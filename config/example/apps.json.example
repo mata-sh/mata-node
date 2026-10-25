@@ -3,7 +3,7 @@
         "title": "Example Application",
         "url": "https://example.com/app",
         "path": "example-app",
-        "disabled": "false",
+        "disabled": false,
         "readme": "example-app/README.md",
         "monitoring": {
             "loganalysis": true,

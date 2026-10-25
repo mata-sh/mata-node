@@ -7,8 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - The Docker images include the APCu extension, needed for `RATE_LIMIT_STORAGE=apcu`
+- `bin/mata-node`, a read-only command line run as the web server user (`make mata ARGS="…"` in Docker): `config validate` reports every problem in `config/` that would fail startup or `/apps`, or that the node silently skips, and `log test <app>` shows the parser, parsed entries and counts for each of an app's logs. Both take `--json` and exit `0`/`1`/`2` like the dashboard's `bin/mata`. `symfony/console` is now a production dependency
 
 ### Changed
+- CLI JSON preserves Unicode characters, and `config validate --json` returns `files` as a list of `{file, status}` objects instead of a filename-keyed map, matching the dashboard. Update scripts that read the old map
 - `config/databases.json` takes named `connections`, each with its own `engine`, login and databases, so one node can watch several database servers or accounts. `/databases/overview` returns a `connections` list with a per-connection `error`, and `/databases/processes` takes `connection=`, which is required. The single-connection format of 0.3.0 fails startup with `configuration_invalid`. **Action:** wrap the file in `"connections": {"<name>": …}`, or convert a pre-0.3.0 file with `scripts/migrate-databases-config.php`, and update the dashboard at the same time
 - A JSON config file whose top level is a list instead of an object fails startup with `configuration_invalid`, and the boot log now says why a file is not valid JSON
 - `config.env` values are validated, and an invalid one fails startup with `configuration_invalid` instead of being silently replaced: integer settings (rate limits and windows, Redis port and database, `DASHBOARD_CLOCK_SKEW_WINDOW`) must be whole numbers in range instead of becoming `0`, on/off settings `ON`/`OFF`, `TRUE`/`FALSE`, `YES`/`NO` or `1`/`0` instead of meaning off, `RATE_LIMIT_STORAGE` one of `file`, `redis` and `apcu` instead of falling back to `file`, and `MONOLOG_LEVEL` a Monolog level name instead of falling back to `debug`
@@ -22,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `RATE_LIMIT_LOGIN_*` and `RATE_LIMIT_DASHBOARD_*`, which the node never applied; they are ignored and can be deleted from `config.env`
 
 ### Fixed
+- `"disabled": true` in `apps.json` left the app enabled, as only the string `"true"` counted; the JSON boolean now disables the app too
 - `/databases/*` responses no longer include the database host, port or driver error; the node logs them as a warning instead
 - `RATE_LIMIT_AUTH_FAILED_*` only logged when the limit was exceeded; a client IP over the limit now gets `429` on authenticated routes, valid credentials included, until the window passes
 - Without a writable `logs/`, the boot log went to `/tmpmata-boot.log` instead of `/tmp/mata-boot.log`

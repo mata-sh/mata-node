@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Mata\Watchers;
 
+use Mata\Config\Validation\AppConfigValidator;
 use Mata\Services\Command\CommandRunnerInterface;
 use Mata\Services\Command\NativeCommandRunner;
 use Mata\Services\Command\ProcessCommandRunner;
@@ -262,6 +263,23 @@ class AppWatcher
     }
 
     /**
+     * How the node parses the app's logs, for `bin/mata-node log test`. Runs even when
+     * `loganalysis` is off, so a format can be checked before switching it on.
+     *
+     * @return array{app: string, loganalysis: bool, files: list<array<string, mixed>>}
+     */
+    public function diagnoseAppLogs(string $app, int $sampleLimit): array
+    {
+        $app = $this->requireAppKey($app);
+
+        return [
+            'app' => $app,
+            'loganalysis' => $this->monitoringFor($app)->loganalysis,
+            'files' => $this->logInspector->diagnose($app, $sampleLimit),
+        ];
+    }
+
+    /**
      * Return all libraries from a composer.lock.
      *
      * @param string $lockFile Path to composer.lock
@@ -288,7 +306,7 @@ class AppWatcher
     private function excludeDisabledApps(array $watcherConfig): array
     {
         foreach ($watcherConfig as $app => $config) {
-            if (is_array($config) && ($config['disabled'] ?? 'false') === 'true') {
+            if (is_array($config) && AppConfigValidator::isDisabled($config)) {
                 unset($watcherConfig[$app]);
             }
         }
@@ -315,37 +333,21 @@ class AppWatcher
      */
     private function normalizeAppMetadata(string $app, array $appConfig): array
     {
-        foreach (['title', 'url', 'path', 'env'] as $field) {
-            if (!isset($appConfig[$field]) || !is_string($appConfig[$field]) || trim($appConfig[$field]) === '') {
-                $this->invalidAppConfiguration($app, $field);
-            }
+        $metadata = AppConfigValidator::parseMetadata($appConfig);
+        $invalidField = $metadata['invalid_fields'][0] ?? null;
+        if ($invalidField !== null) {
+            $this->invalidAppConfiguration($app, $invalidField);
         }
 
-        if (!in_array($appConfig['env'], ['dev', 'test', 'stg', 'prod'], true)) {
-            $this->invalidAppConfiguration($app, 'env');
-        }
-
-        $statusEndpoint = array_key_exists('status_endpoint', $appConfig)
-            ? self::normalizeStatusEndpoint($appConfig['status_endpoint'])
-            : ['valid' => true, 'url' => null];
-        if (!$statusEndpoint['valid']) {
-            $this->invalidAppConfiguration($app, 'status_endpoint');
-        }
-
-        $monitoring = AppMonitoringSettings::parse($appConfig['monitoring'] ?? null);
-        if ($monitoring['invalid_field'] !== null) {
-            $this->invalidAppConfiguration($app, $monitoring['invalid_field']);
-        }
-
-        $this->monitoringSettings[$app] = $monitoring['settings'];
+        $this->monitoringSettings[$app] = $metadata['monitoring'];
 
         return [
             'title' => $appConfig['title'],
             'url' => $appConfig['url'],
             'path' => $appConfig['path'],
             'env' => $appConfig['env'],
-            'status_url' => $statusEndpoint['url'],
-            'monitoring' => $monitoring['settings'],
+            'status_url' => $metadata['status_url'],
+            'monitoring' => $metadata['monitoring'],
         ];
     }
 
@@ -387,31 +389,6 @@ class AppWatcher
         }
 
         return $this->monitoringSettings[$app] = $parsed['settings'];
-    }
-
-    /**
-     * @return array{valid: bool, url: ?string}
-     */
-    private static function normalizeStatusEndpoint(mixed $endpoint): array
-    {
-        if ($endpoint === '') {
-            return ['valid' => true, 'url' => null];
-        }
-
-        if (!is_string($endpoint) || trim($endpoint) !== $endpoint || filter_var($endpoint, FILTER_VALIDATE_URL) === false) {
-            return ['valid' => false, 'url' => null];
-        }
-
-        $parts = parse_url($endpoint);
-        if ($parts === false
-            || !isset($parts['scheme'], $parts['host'])
-            || !in_array(strtolower($parts['scheme']), ['http', 'https'], true)
-            || isset($parts['fragment'])
-        ) {
-            return ['valid' => false, 'url' => null];
-        }
-
-        return ['valid' => true, 'url' => $endpoint];
     }
 
     private function invalidAppConfiguration(string $app, string $field): never

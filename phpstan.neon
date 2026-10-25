@@ -2,6 +2,7 @@ parameters:
     level: 5
     paths:
         - src
+        - bin/mata-node
     treatPhpDocTypesAsCertain: false
     excludePaths:
         - src/Tests/

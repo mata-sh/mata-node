@@ -478,9 +478,11 @@ class AppMetadataTest extends TestCase
         $appWatcher = $this->createAppWatcher([
             'enabled' => $this->appConfig(),
             'disabled' => $this->appConfig(['disabled' => 'true']),
+            'disabled-bool' => $this->appConfig(['disabled' => true]),
+            'enabled-bool' => $this->appConfig(['disabled' => false]),
         ]);
 
-        $this->assertSame(['enabled'], array_keys($appWatcher->getApps()));
+        $this->assertSame(['enabled', 'enabled-bool'], array_keys($appWatcher->getApps()));
 
         try {
             $appWatcher->getApp('disabled');
