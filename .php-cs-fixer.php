@@ -7,7 +7,7 @@ use PhpCsFixer\Finder;
 
 $finder = Finder::create()
     ->in([__DIR__ . '/src'])
-    ->exclude(['vendor'])
+    ->exclude(['vendor', 'Tests/Fixtures'])
     ->name('*.php')
     ->ignoreDotFiles(true)
     ->ignoreVCS(true)

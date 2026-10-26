@@ -1,0 +1,90 @@
+{
+    "packages": [
+        {
+            "name": "symfony/console",
+            "version": "v7.1.9",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/console.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "library",
+            "description": "",
+            "version_normalized": "7.1.9.0",
+            "install-path": "../symfony/console"
+        },
+        {
+            "name": "symfony/dotenv",
+            "version": "v7.1.9",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/dotenv.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "library",
+            "description": "",
+            "version_normalized": "7.1.9.0",
+            "install-path": "../symfony/dotenv"
+        },
+        {
+            "name": "symfony/framework-bundle",
+            "version": "v7.1.9",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/framework-bundle.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "symfony-bundle",
+            "description": "",
+            "version_normalized": "7.1.9.0",
+            "install-path": "../symfony/framework-bundle"
+        },
+        {
+            "name": "symfony/http-kernel",
+            "version": "v7.1.9",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/http-kernel.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "library",
+            "description": "",
+            "version_normalized": "7.1.9.0",
+            "install-path": "../symfony/http-kernel"
+        },
+        {
+            "name": "symfony/runtime",
+            "version": "v7.1.9",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/runtime.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "composer-plugin",
+            "description": "",
+            "version_normalized": "7.1.9.0",
+            "install-path": "../symfony/runtime"
+        },
+        {
+            "name": "symfony/yaml",
+            "version": "v7.1.9",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/yaml.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "library",
+            "description": "",
+            "version_normalized": "7.1.9.0",
+            "install-path": "../symfony/yaml"
+        }
+    ],
+    "dev": true,
+    "dev-package-names": []
+}

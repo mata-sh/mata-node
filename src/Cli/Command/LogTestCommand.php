@@ -85,7 +85,7 @@ final class LogTestCommand extends Command
                 $file,
                 ['problems' => $problems]
             );
-       
+
         }
 
         $problems = $files === [] ? ['No log files are configured, or none exist in the configured directories'] : [];
@@ -93,11 +93,12 @@ final class LogTestCommand extends Command
         foreach ($files as $file) {
             if (!empty($file['problems'])) {
                 $hasFileProblems = true;
+
                 break;
             }
         }
         $warned = !empty($problems) || $hasFileProblems;
-   
+
         $level = $warned ? StatusLevel::Warning : StatusLevel::Ok;
 
         if ($input->getOption('json')) {
@@ -162,7 +163,8 @@ final class LogTestCommand extends Command
             // Main file line, bold/stand out for easy scanning
             $output->writeln('');
             $output->writeln(
-                sprintf('  %s <info>%s</info>',
+                sprintf(
+                    '  %s <info>%s</info>',
                     CliOutput::mark($level),
                     OutputFormatter::escape($file['path'])
                 )
@@ -221,7 +223,7 @@ final class LogTestCommand extends Command
             $timestamp,
             $msg
         );
-   
+
 
         return mb_strimwidth($line, 0, self::MESSAGE_WIDTH, '…');
     }

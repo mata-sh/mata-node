@@ -1,0 +1,93 @@
+{
+    "_readme": [
+        "This file locks the dependencies of your project to a known state",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
+        "This file is @generated automatically"
+    ],
+    "content-hash": "3f1c2b0e6d9a4c7f8e5b1a2d3c4e5f60",
+    "packages": [
+        {
+            "name": "symfony/console",
+            "version": "v7.1.10",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/console.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "library",
+            "description": ""
+        },
+        {
+            "name": "symfony/dotenv",
+            "version": "v7.1.10",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/dotenv.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "library",
+            "description": ""
+        },
+        {
+            "name": "symfony/framework-bundle",
+            "version": "v7.1.10",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/framework-bundle.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "symfony-bundle",
+            "description": ""
+        },
+        {
+            "name": "symfony/http-kernel",
+            "version": "v7.1.10",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/http-kernel.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "library",
+            "description": ""
+        },
+        {
+            "name": "symfony/runtime",
+            "version": "v7.1.10",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/runtime.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "composer-plugin",
+            "description": ""
+        },
+        {
+            "name": "symfony/yaml",
+            "version": "v7.1.10",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/yaml.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "library",
+            "description": ""
+        }
+    ],
+    "packages-dev": [],
+    "aliases": [],
+    "minimum-stability": "stable",
+    "stability-flags": {},
+    "prefer-stable": true,
+    "prefer-lowest": false,
+    "platform": {
+        "php": "^8.2"
+    },
+    "platform-dev": {},
+    "plugin-api-version": "2.6.0"
+}

@@ -9,7 +9,7 @@ make bootstrap-config
 | File | Contents |
 | --- | --- |
 | [`config.env`](#configconfigenv) | Dashboard credentials, access control, logging, rate limiting |
-| [`apps.json`](#configappsjson) | Watched applications: logs, sessions, Composer, monitoring switches |
+| [`apps.json`](#configappsjson) | Watched applications: logs, sessions, Composer, framework, monitoring switches |
 | [`databases.json`](#configdatabasesjson) | Database connections for `/databases/*` |
 | [`transmit.json`](#configtransmitjson) | Node limits, disk check, cron heartbeats |
 
@@ -93,6 +93,7 @@ Full example:
     "env": "prod",
     "description": "Example app",
     "disabled": false,
+    "framework": "laravel",
     "status_endpoint": "https://example.com/app/health/",
     "monitoring": {
       "loganalysis": true,
@@ -137,6 +138,7 @@ Full example:
 | `readme` | No | `<path>/README.md` | Served by `/{app}/readme`. |
 | `monitoring` | No | all on | See [Monitoring](#monitoring). |
 | `sessions` | No | unconfigured | See [Sessions](#sessions). |
+| `framework` | No | detected | Framework or CMS reported by `/apps`: a known identifier, any other name, or `none` to report none. See [Framework](#framework). |
 | `composer` | No | off | See [Composer](#composer). |
 
 **Status endpoint.** The dashboard sends an unauthenticated `GET` to
@@ -270,6 +272,23 @@ Used by `/apps/libraries`, `/apps/composer-audit` and `/{app}/libraries`.
 | `bin` | `COMPOSER_BIN`, else `composer` from `PATH` | A `.phar` is run as `php <bin>`. |
 | `php_bin` | `COMPOSER_PHP_BIN`, else `php` | PHP binary for running a `.phar`. |
 
+### Framework
+
+`/apps` reports `framework` as `{"name": "laravel", "version": "11.34.2"}` when a framework is
+declared or detected.
+
+| `framework` config | Result |
+| --- | --- |
+| absent, `null` or blank | Detect it from Composer packages and version files; omit `framework` if nothing matches. |
+| `"none"` | Omit `framework`, without detection. |
+| known identifier, such as `"laravel"` | Report that name, with the version read from its own files only, or `null`. |
+| any other string | Report it as `name` with `version: null`, without detection. |
+| anything else | Log a warning and omit `framework`. |
+
+Values are trimmed and case-sensitive: `"Laravel"` is reported as a custom name without a
+version. [Framework detection](frameworks.md) lists the known identifiers and the files they
+are read from.
+
 ### App metadata responses
 
 `/apps` returns, per app, these keys in this order:
@@ -283,12 +302,15 @@ Used by `/apps/libraries`, `/apps/composer-audit` and `/{app}/libraries`.
   "status_url": "https://example.com/app/health/",
   "description": "Example app",
   "composer": true,
+  "framework": { "name": "laravel", "version": "11.34.2" },
   "status": { "fatal": 7, "warnings": 12, "total": 4231, "fatal_cursor": "v1:98cc…9ab" },
   "session": { "type": "file", "status": "ok", "count_last_hour": 1, "count_last_day": 2, "count_total": 2, "path": "example-app/temp/sessions", "size_kb": 12.34 },
   "logs": { "example-app/logs/error.log": 128.5 }
 }
 ```
 
+- `framework` is present only when a framework was declared or detected; `version` may be
+  `null`. Consumers must accept custom and future `name` values.
 - `status`, `logs` and `session` are present only when `loganalysis`, `logsize` and `sessions`
   are on. A missing key means "not measured", not zero or clean.
 - `monitoring` is present only when a switch is off, and lists only those switches (all `false`)

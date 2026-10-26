@@ -1,0 +1,135 @@
+{
+    "packages": [
+        {
+            "name": "laravel/framework",
+            "version": "v11.34.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/laravel/framework.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "library",
+            "description": "The Laravel Framework.",
+            "version_normalized": "11.34.2.0",
+            "install-path": "../laravel/framework"
+        },
+        {
+            "name": "laravel/prompts",
+            "version": "v0.3.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/laravel/prompts.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "library",
+            "description": "",
+            "version_normalized": "0.3.2.0",
+            "install-path": "../laravel/prompts"
+        },
+        {
+            "name": "monolog/monolog",
+            "version": "3.8.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/monolog/monolog.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "library",
+            "description": "",
+            "version_normalized": "3.8.0.0",
+            "install-path": "../monolog/monolog"
+        },
+        {
+            "name": "symfony/console",
+            "version": "v7.1.8",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/console.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "library",
+            "description": "",
+            "version_normalized": "7.1.8.0",
+            "install-path": "../symfony/console"
+        },
+        {
+            "name": "symfony/http-foundation",
+            "version": "v7.1.9",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/http-foundation.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "library",
+            "description": "",
+            "version_normalized": "7.1.9.0",
+            "install-path": "../symfony/http-foundation"
+        },
+        {
+            "name": "symfony/http-kernel",
+            "version": "v7.1.9",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/http-kernel.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "library",
+            "description": "",
+            "version_normalized": "7.1.9.0",
+            "install-path": "../symfony/http-kernel"
+        },
+        {
+            "name": "symfony/routing",
+            "version": "v7.1.9",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/routing.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "library",
+            "description": "",
+            "version_normalized": "7.1.9.0",
+            "install-path": "../symfony/routing"
+        },
+        {
+            "name": "laravel/pint",
+            "version": "v1.18.3",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/laravel/pint.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "library",
+            "description": "",
+            "version_normalized": "1.18.3.0",
+            "install-path": "../laravel/pint"
+        },
+        {
+            "name": "phpunit/phpunit",
+            "version": "11.4.4",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/phpunit/phpunit.git",
+                "reference": "0000000000000000000000000000000000000000"
+            },
+            "require": {},
+            "type": "library",
+            "description": "",
+            "version_normalized": "11.4.4.0",
+            "install-path": "../phpunit/phpunit"
+        }
+    ],
+    "dev": true,
+    "dev-package-names": [
+        "laravel/pint",
+        "phpunit/phpunit"
+    ]
+}
