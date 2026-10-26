@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-26
+
 ### Added
 - The Docker images include the APCu extension, needed for `RATE_LIMIT_STORAGE=apcu`
 - YAML log formats, one per file in the optional `config/log-formats/`: a regular expression or JSON fields, plus the levels that count as errors and warnings. `type` in `apps.json` selects one; they are never auto-detected. `nginx_error` ships in `resources/log-formats/`. `config validate` and `log test` cover them. `symfony/yaml` is now a production dependency
