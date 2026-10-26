@@ -7,6 +7,7 @@ namespace Mata\Bootstrap;
 use Mata\Config\DatabasesConfigParser;
 use Mata\Config\Dto\EnvConfig;
 use Mata\Config\Dto\StartupConfigResult;
+use Mata\Config\LogFormatLoader;
 use Mata\Config\StartupConfigException;
 use Mata\Config\StartupConfigInventory;
 use Mata\Config\StartupConfigManager;
@@ -16,6 +17,7 @@ use Mata\Utils\PathResolver;
 use Mata\Utils\Tools;
 use Mata\Watchers\AppWatcher;
 use Mata\Watchers\DatabaseWatcher;
+use Mata\Watchers\LogParsers\LogParserFactory;
 use Mata\Watchers\ServerWatcher;
 use Psr\Log\LoggerInterface;
 
@@ -67,7 +69,17 @@ final readonly class Runtime
             composerHome: $this->paths->cachePath . '/composer',
             composerBin: $this->env->composer->bin,
             composerPhpBin: $this->env->composer->phpBin,
+            logParsers: $this->logParsers(),
         );
+    }
+
+    /**
+     * The built-in parsers plus the formats in resources/log-formats/ and config/log-formats/.
+     * Broken format files are skipped without logging; `config validate` reports them.
+     */
+    private function logParsers(): LogParserFactory
+    {
+        return new LogParserFactory((new LogFormatLoader())->load($this->paths->appPath . '/config')['formats']);
     }
 
     public function serverWatcher(): ServerWatcher

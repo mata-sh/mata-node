@@ -90,7 +90,7 @@ it as `api_key` in the `servers.json` entry instead.
 
 Then describe the watched apps in `config/apps.json`. Everything else, including IP allowlisting,
 maintenance mode and databases, is in the [configuration reference](docs/configuration.md).
-Other log formats can be added with a [custom log parser](docs/log-parsers.md).
+Other log formats can be defined in YAML in `config/log-formats/`; see [log formats](docs/log-parsers.md).
 
 Check the configuration with `make mata ARGS="config validate"` and an app's logs with
 `make mata ARGS="log test <app>"`; see the [command line](docs/cli.md).

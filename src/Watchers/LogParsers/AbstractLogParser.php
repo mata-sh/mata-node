@@ -6,8 +6,6 @@ namespace Mata\Watchers\LogParsers;
 
 use DateTimeImmutable;
 use Generator;
-use Mata\Services\Command\CommandRunnerInterface;
-use Mata\Services\Command\NativeCommandRunner;
 use Throwable;
 
 /**
@@ -30,32 +28,73 @@ abstract class AbstractLogParser implements LogParserInterface
 
     /**
      * Largest logical line held in memory at once. A longer line is processed
-     * as a head plus streamed tail blocks; severity matching continues across
-     * them, so counts stay identical to a full-line match at any length.
+     * as a head plus streamed tail blocks; only the head is typed, as an
+     * entry's level sits at its start.
      */
     protected const MAX_LINE_BUFFER_BYTES = 5 * 1024 * 1024;
 
+    /** Lines from the start of a file that detect() looks at. */
+    protected const DETECT_LINES = 10;
+
     /**
-     * Bytes of the previous block replayed when matching a continued line, so
-     * a severity marker straddling a block boundary is still found.
+     * Whether at least half of the first non-blank lines of a file are format lines. Reads only
+     * the start of the file, through readLines(), so neither file size nor line length matters.
      */
-    protected const MATCH_OVERLAP_BYTES = 256;
-
-    protected CommandRunnerInterface $commandRunner;
-
-    public function __construct(?CommandRunnerInterface $commandRunner = null)
+    public function detect(string $logFile): bool
     {
-        $this->commandRunner = $commandRunner ?? new NativeCommandRunner();
+        $handle = @fopen($logFile, 'rb');
+        if ($handle === false) {
+            return false;
+        }
+
+        $lines = 0;
+        $matched = 0;
+
+        try {
+            foreach ($this->readLines($handle) as [$text, $startsLine]) {
+                if (!$startsLine || trim($text) === '') {
+                    continue;
+                }
+
+                ++$lines;
+                if ($this->isFormatLine($text)) {
+                    ++$matched;
+                }
+
+                if ($lines === self::DETECT_LINES) {
+                    break;
+                }
+            }
+        } finally {
+            fclose($handle);
+        }
+
+        return $lines > 0 && $matched / $lines >= 0.5;
+    }
+
+    /**
+     * Lines grouped into entries (see startsEntry()), each parsed by parseEntry(); entries it
+     * cannot parse are left out.
+     *
+     * @param array<int,string> $lines
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function parseLines(array $lines): array
+    {
+        $entries = $this->entryStartPattern() === null ? $lines : $this->groupEntries($lines);
+
+        return array_values(array_filter(array_map($this->parseEntry(...), $entries)));
     }
 
     /**
      * Analyze a log file in a single bounded-memory pass.
      *
-     * Counts keep the historical line based semantics (one match per physical
-     * line, total counts newline terminated lines). The digest covers the
-     * complete ordered fatal entries of the file plus its generation identity,
-     * so appending warnings never changes it while appending, changing,
-     * duplicating or reordering fatal entries always does.
+     * `fatal` and `warnings` count entries by lineType(), `total` counts
+     * newline terminated lines. The digest covers the complete ordered fatal
+     * entries of the file plus its generation identity, so appending warnings
+     * never changes it while appending, changing, duplicating or reordering
+     * fatal entries always does.
      */
     public function analyzeLog(string $logFile): LogAnalysisResult
     {
@@ -79,14 +118,20 @@ abstract class AbstractLogParser implements LogParserInterface
     }
 
     /**
-     * PCRE matching a physical line that counts as fatal.
+     * The type of the entry a line starts: `Error` and `Warning` are counted, anything else is
+     * not. parseEntry() gives an entry the same type, so the counts match the parsed entries.
      */
-    abstract protected function fatalLinePattern(): string;
+    abstract protected function lineType(string $line): string;
+
+    /** Whether a line looks like this format, for detect(). */
+    abstract protected function isFormatLine(string $line): bool;
 
     /**
-     * PCRE matching a physical line that counts as a warning.
+     * One entry as `timestamp`, `type`, `message` and any extra fields; null when it is not one.
+     *
+     * @return null|array<string,mixed>
      */
-    abstract protected function warningLinePattern(): string;
+    abstract protected function parseEntry(string $entry): ?array;
 
     /**
      * PCRE matching the first line of a log entry.
@@ -96,6 +141,16 @@ abstract class AbstractLogParser implements LogParserInterface
     protected function entryStartPattern(): ?string
     {
         return null;
+    }
+
+    /**
+     * Whether a physical line starts a log entry; every line does in line delimited formats.
+     */
+    protected function startsEntry(string $line): bool
+    {
+        $pattern = $this->entryStartPattern();
+
+        return $pattern === null || preg_match($pattern, $line) === 1;
     }
 
     /**
@@ -111,24 +166,33 @@ abstract class AbstractLogParser implements LogParserInterface
     }
 
     /**
-     * Whether the severity patterns can only match at the start of a line.
+     * A JSON record with its keys sorted, so the digest does not depend on key order.
      *
-     * Anchored patterns must not be re-run on the continuation of an over-long
-     * line: the continuation is not a line start, so a match there would be a
-     * false positive.
+     * Falls back to the raw line when the record is not decodable, which keeps
+     * malformed input contributing its own bytes instead of being dropped.
      */
-    protected function severityPatternsMatchLineStartOnly(): bool
+    protected function canonicalJsonLine(string $line): string
     {
-        return false;
+        $decoded = json_decode(trim($line), true);
+        if (!is_array($decoded)) {
+            return $line;
+        }
+
+        $canonical = json_encode(
+            self::sortRecursively($decoded),
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+        );
+
+        return $canonical === false ? $line : $canonical;
     }
 
-    protected function shell(string $command): ?string
-    {
-        return $this->commandRunner->run($command);
-    }
-
+    /** The timestamp as `Y-m-d H:i:s`; '' when it is empty or not a date. */
     protected function normalizeTimestamp(string $timestamp): string
     {
+        if (trim($timestamp) === '') {
+            return '';
+        }
+
         try {
             return (new DateTimeImmutable($timestamp))->format('Y-m-d H:i:s');
         } catch (Throwable) {
@@ -137,19 +201,20 @@ abstract class AbstractLogParser implements LogParserInterface
     }
 
     /**
-     * Group multi-line log entries by entry start pattern.
+     * Lines joined into multi-line entries: a line that starts an entry plus the lines up to the
+     * next one. Lines before the first entry are dropped.
      *
      * @param array<int,string> $lines
      *
      * @return array<int,string>
      */
-    protected function groupMultilineEntries(array $lines, string $entryStartPattern): array
+    private function groupEntries(array $lines): array
     {
         $logEntries = [];
         $currentEntry = '';
 
         foreach ($lines as $line) {
-            if (preg_match($entryStartPattern, $line)) {
+            if ($this->startsEntry($line)) {
                 if ($currentEntry !== '') {
                     $logEntries[] = $currentEntry;
                 }
@@ -171,20 +236,12 @@ abstract class AbstractLogParser implements LogParserInterface
      */
     private function scan($handle, string $generation): LogAnalysisResult
     {
-        $entryStartPattern = $this->entryStartPattern();
-        $fatalPattern = $this->fatalLinePattern();
-        $warningPattern = $this->warningLinePattern();
-
-        $rescanContinuations = !$this->severityPatternsMatchLineStartOnly();
+        $lineDelimited = $this->entryStartPattern() === null;
 
         $fatal = 0;
         $warnings = 0;
         $total = 0;
-        $fatalEntries = 0;
         $inFatalEntry = false;
-        $lineIsFatal = false;
-        $lineIsWarning = false;
-        $overlap = '';
 
         $digest = hash_init('sha256');
         hash_update($digest, $this->digestPreamble($generation));
@@ -194,55 +251,31 @@ abstract class AbstractLogParser implements LogParserInterface
                 ++$total;
             }
 
-            if ($startsLine) {
-                $lineIsFatal = preg_match($fatalPattern, $text) === 1;
-                $lineIsWarning = preg_match($warningPattern, $text) === 1;
-                if ($lineIsFatal) {
+            if ($startsLine && $this->startsEntry($text)) {
+                $type = $this->lineType($text);
+                $inFatalEntry = $type === 'Error';
+                if ($inFatalEntry) {
                     ++$fatal;
-                }
-                if ($lineIsWarning) {
-                    ++$warnings;
-                }
-
-                if ($entryStartPattern === null || preg_match($entryStartPattern, $text) === 1) {
-                    $inFatalEntry = $lineIsFatal;
-                    if ($inFatalEntry) {
-                        ++$fatalEntries;
-                        hash_update($digest, "\0entry:" . $fatalEntries . "\0");
-                    }
-                }
-            } elseif ($rescanContinuations) {
-                // Tail of a line longer than the buffer: keep looking for a
-                // severity marker so counts match a full line match.
-                $subject = $overlap . $text;
-
-                if (!$lineIsFatal && preg_match($fatalPattern, $subject) === 1) {
-                    $lineIsFatal = true;
-                    ++$fatal;
-                    ++$fatalEntries;
-                    $inFatalEntry = true;
-                    hash_update($digest, "\0entry:" . $fatalEntries . "\0");
-                }
-                if (!$lineIsWarning && preg_match($warningPattern, $subject) === 1) {
-                    $lineIsWarning = true;
+                    hash_update($digest, "\0entry:" . $fatal . "\0");
+                } elseif ($type === 'Warning') {
                     ++$warnings;
                 }
             }
-
-            $overlap = $endsLine ? '' : substr($text, -self::MATCH_OVERLAP_BYTES);
 
             if (!$inFatalEntry) {
                 continue;
             }
 
-            $payload = $entryStartPattern === null && $startsLine && $endsLine
+            $payload = $lineDelimited && $startsLine && $endsLine
                 ? $this->canonicalizeEntryLine($text)
                 : $text;
 
             hash_update($digest, "\0" . strlen($payload) . "\0" . $payload);
         }
 
-        hash_update($digest, "\0count:" . $fatal . ':' . $fatalEntries . "\0");
+        // v1 counted fatal lines and fatal entries apart; both are the entry count now, and the
+        // layout stays so that cursors of logs whose entries kept their type do not change.
+        hash_update($digest, "\0count:" . $fatal . ':' . $fatal . "\0");
 
         return new LogAnalysisResult(
             parserName: $this->getName(),
@@ -302,6 +335,28 @@ abstract class AbstractLogParser implements LogParserInterface
         if ($buffer !== '') {
             yield [$buffer, true, false];
         }
+    }
+
+    /**
+     * @param array<array-key, mixed> $value
+     *
+     * @return array<array-key, mixed>
+     */
+    private static function sortRecursively(array $value): array
+    {
+        $isList = array_is_list($value);
+
+        foreach ($value as $key => $item) {
+            if (is_array($item)) {
+                $value[$key] = self::sortRecursively($item);
+            }
+        }
+
+        if (!$isList) {
+            ksort($value, SORT_STRING);
+        }
+
+        return $value;
     }
 
     private function digestPreamble(string $generation): string

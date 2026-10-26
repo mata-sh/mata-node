@@ -1,0 +1,7 @@
+# nginx error log: 2026/10/26 08:00:00 [error] 1234#1234: *5 message
+# PHP errors from PHP-FPM arrive as "FastCGI sent in stderr: "PHP message: …"", logged as error.
+description: nginx error log
+pattern: '^(?<timestamp>\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}) \[(?<level>[a-z]+)\] \d+#\d+: (?:\*\d+ )?(?<message>.*)$'
+levels:
+  error: [error, crit, alert, emerg]
+  warning: [warn]

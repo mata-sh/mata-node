@@ -26,6 +26,7 @@ final class LogInspector
         private readonly array $watcherConfig,
         private readonly array $transmitConfig,
         private readonly CommandRunnerInterface $commandRunner,
+        private readonly LogParserFactory $logParsers,
     ) {}
 
     public function files(string $app): array
@@ -153,7 +154,7 @@ final class LogInspector
     public function diagnose(string $app, int $sampleLimit): array
     {
         $scanLineLimit = $this->scanLineLimit();
-        $knownTypes = LogParserFactory::getAvailableParsers();
+        $knownTypes = $this->logParsers->names();
 
         $files = [];
         foreach ($this->resolveLogPaths($app, expandDirectories: true) as $logConfig) {
@@ -391,10 +392,10 @@ final class LogInspector
     private function getLogParser(string $type, string $logFile): LogParserInterface
     {
         if ($type === '') {
-            return LogParserFactory::detectFormat($logFile, $this->logger, $this->commandRunner);
+            return $this->logParsers->detect($logFile);
         }
 
-        $parser = LogParserFactory::getParser($type, $this->logger, $this->commandRunner);
+        $parser = $this->logParsers->parser($type);
         if ($parser !== null) {
             return $parser;
         }
@@ -404,6 +405,6 @@ final class LogInspector
             'log' => $logFile,
         ]);
 
-        return LogParserFactory::detectFormat($logFile, $this->logger, $this->commandRunner);
+        return $this->logParsers->detect($logFile);
     }
 }

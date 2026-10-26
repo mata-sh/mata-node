@@ -67,6 +67,8 @@ Uses the loaders the node runs at startup and for each request:
   apps. Warns when the app's directory is unreadable, or `disabled` is not `true` or `false`.
 - **`databases.json`:** the connection structure. Only the first problem is reported.
 - **`transmit.json`:** only that it is a JSON object; every setting has a default.
+- **`log-formats/`:** each format file, listed once the directory has one. A broken file only
+  warns, as the node skips that format and auto-detects the logs of apps that name it.
 
 A missing file is an error, and the command does not create it. `make bootstrap-config` does.
 
@@ -80,5 +82,5 @@ Use it after adding a log or setting its `type`. For each file it shows:
 - the last `N` parsed entries
 
 A parser that finds no entries in a non-empty file does not match the format: set the right `type`,
-or [add a parser](log-parsers.md). Files in a configured directory are listed but not parsed, as
+or [define the format](log-parsers.md). Files in a configured directory are listed but not parsed, as
 by `/logs`. The command also works with `monitoring.loganalysis` switched off.

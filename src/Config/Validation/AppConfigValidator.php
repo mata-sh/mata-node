@@ -6,7 +6,6 @@ namespace Mata\Config\Validation;
 
 use Mata\Utils\Tools;
 use Mata\Watchers\App\AppMonitoringSettings;
-use Mata\Watchers\LogParsers\LogParserFactory;
 
 /**
  * Checks one `apps.json` entry the way the node reads it. AppWatcher fails an app on the first
@@ -95,11 +94,12 @@ final class AppConfigValidator
     /**
      * Every problem in one app entry. Disabled apps are not checked, as the node never reads them.
      *
-     * @param string $rootPath Directory relative app paths resolve against
+     * @param string       $rootPath Directory relative app paths resolve against
+     * @param list<string> $logTypes Names a log group's `type` can take
      *
      * @return list<ConfigProblem>
      */
-    public function validate(string $app, mixed $appConfig, string $rootPath): array
+    public function validate(string $app, mixed $appConfig, string $rootPath, array $logTypes): array
     {
         if (!is_array($appConfig)) {
             return [ConfigProblem::error(self::FILE, 'The app entry must be a JSON object', $app)];
@@ -125,7 +125,7 @@ final class AppConfigValidator
         return [
             ...$problems,
             ...$this->pathProblems($app, $appConfig['path'] ?? null, $rootPath),
-            ...$this->logProblems($app, $appConfig['logs'] ?? null),
+            ...$this->logProblems($app, $appConfig['logs'] ?? null, $logTypes),
             ...$this->sessionProblems($app, $appConfig['sessions'] ?? null),
         ];
     }
@@ -171,9 +171,11 @@ final class AppConfigValidator
      * Malformed log entries are skipped by the node and an unknown type is auto-detected, so
      * both only warn. A non-string type breaks the app's log statistics.
      *
+     * @param list<string> $knownTypes
+     *
      * @return list<ConfigProblem>
      */
-    private function logProblems(string $app, mixed $logs): array
+    private function logProblems(string $app, mixed $logs, array $knownTypes): array
     {
         if ($logs === null) {
             return [];
@@ -184,7 +186,6 @@ final class AppConfigValidator
         }
 
         $problems = [];
-        $knownTypes = LogParserFactory::getAvailableParsers();
         foreach ($logs as $index => $group) {
             $field = "logs[{$index}]";
             if (is_string($group)) {

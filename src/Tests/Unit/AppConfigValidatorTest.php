@@ -6,6 +6,7 @@ namespace Mata\Tests\Unit;
 
 use Mata\Config\Validation\AppConfigValidator;
 use Mata\Config\Validation\ConfigProblem;
+use Mata\Watchers\LogParsers\LogParserFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -26,7 +27,7 @@ final class AppConfigValidatorTest extends TestCase
     {
         $app = $overrides + ['title' => 'Shop', 'url' => 'https://shop.example', 'path' => __DIR__, 'env' => 'prod'];
 
-        $problems = (new AppConfigValidator())->validate('shop', $app, __DIR__);
+        $problems = (new AppConfigValidator())->validate('shop', $app, __DIR__, (new LogParserFactory())->names());
 
         $this->assertSame(
             [[$field, $level]],

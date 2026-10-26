@@ -16,6 +16,7 @@ use Mata\Watchers\App\ComposerInspector;
 use Mata\Watchers\App\LogInspector;
 use Mata\Watchers\App\ReadmeReader;
 use Mata\Watchers\Exceptions\AppWatcherException;
+use Mata\Watchers\LogParsers\LogParserFactory;
 use Mata\Watchers\SessionBackends\SessionBackendFactory;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
@@ -51,6 +52,7 @@ class AppWatcher
         ?string $composerHome = null,
         ?string $composerBin = null,
         ?string $composerPhpBin = null,
+        ?LogParserFactory $logParsers = null,
     ) {
         $this->logger = $logger;
         $this->rootPath = $rootPath;
@@ -60,7 +62,15 @@ class AppWatcher
         $commandRunner = $commandRunner ?? new NativeCommandRunner($processRunner);
 
         $this->sessionBackendFactory = $sessionBackendFactory ?? new SessionBackendFactory(null, $fileCache);
-        $this->logInspector = new LogInspector($logger, $rootPath, $tools, $this->watcherConfig, $transmitConfig, $commandRunner);
+        $this->logInspector = new LogInspector(
+            $logger,
+            $rootPath,
+            $tools,
+            $this->watcherConfig,
+            $transmitConfig,
+            $commandRunner,
+            $logParsers ?? new LogParserFactory(),
+        );
         $this->composerInspector = new ComposerInspector(
             $tools,
             $logger,

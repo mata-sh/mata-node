@@ -7,13 +7,16 @@ namespace Mata\Config\Validation;
 use Mata\Config\DatabasesConfigParser;
 use Mata\Config\EnvConfigLoader;
 use Mata\Config\JsonConfigLoader;
+use Mata\Config\LogFormatLoader;
 use Mata\Config\StartupConfigInventory;
+use Mata\Watchers\LogParsers\LogParserFactory;
 use Throwable;
 
 /**
  * Runs the config files through the loaders the node uses at startup, without creating
  * missing files and without stopping at the first problem. `transmit.json` is only checked
- * for being a JSON object, as the node reads each of its settings with a default.
+ * for being a JSON object, as the node reads each of its settings with a default. The optional
+ * log formats in `log-formats/` are listed as files once they exist.
  */
 final class NodeConfigValidator
 {
@@ -22,6 +25,7 @@ final class NodeConfigValidator
         private readonly JsonConfigLoader $jsonLoader = new JsonConfigLoader(),
         private readonly DatabasesConfigParser $databasesParser = new DatabasesConfigParser(),
         private readonly AppConfigValidator $appValidator = new AppConfigValidator(),
+        private readonly LogFormatLoader $formatLoader = new LogFormatLoader(),
     ) {}
 
     /**
@@ -36,14 +40,21 @@ final class NodeConfigValidator
 
         $problems = [...$problems, ...$this->envProblems($configDir)];
 
+        $formats = $this->formatLoader->load($configDir);
+        $logTypes = (new LogParserFactory($formats['formats']))->names();
+
         foreach (StartupConfigInventory::JSON_FILES as $file) {
             $config = $this->loadJson($configDir, $file, $problems);
             if ($config !== null) {
-                $problems = [...$problems, ...$this->contentProblems($file, $config, $rootPath)];
+                $problems = [...$problems, ...$this->contentProblems($file, $config, $rootPath, $logTypes)];
             }
         }
 
-        return new ConfigValidationReport($configDir, StartupConfigInventory::FILES, $problems);
+        return new ConfigValidationReport(
+            $configDir,
+            [...StartupConfigInventory::FILES, ...$formats['files']],
+            [...$problems, ...$formats['problems']],
+        );
     }
 
     /**
@@ -75,15 +86,16 @@ final class NodeConfigValidator
 
     /**
      * @param array<string, mixed> $config
+     * @param list<string>         $logTypes
      *
      * @return list<ConfigProblem>
      */
-    private function contentProblems(string $file, array $config, string $rootPath): array
+    private function contentProblems(string $file, array $config, string $rootPath, array $logTypes): array
     {
         if ($file === 'apps.json') {
             $problems = [];
             foreach ($config as $app => $appConfig) {
-                $problems = [...$problems, ...$this->appValidator->validate((string) $app, $appConfig, $rootPath)];
+                $problems = [...$problems, ...$this->appValidator->validate((string) $app, $appConfig, $rootPath, $logTypes)];
             }
 
             return $problems;

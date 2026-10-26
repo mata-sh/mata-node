@@ -51,6 +51,20 @@ class FileSessionBackendTest extends TestCase
         ], $metadata);
     }
 
+    public function testCountsFileSessionsAtAbsolutePath(): void
+    {
+        file_put_contents($this->rootPath . '/sessions/sess_recent', 'recent');
+        $absolutePath = $this->rootPath . '/sessions';
+
+        $metadata = (new FileSessionBackend())->getMetadata([
+            'path' => $absolutePath,
+        ], '/nonexistent-root');
+
+        $this->assertSame('ok', $metadata['status']);
+        $this->assertSame(1, $metadata['count_total']);
+        $this->assertSame($absolutePath, $metadata['path']);
+    }
+
     public function testMissingSessionDirectoryReturnsZeroCounts(): void
     {
         $metadata = (new FileSessionBackend())->getMetadata([

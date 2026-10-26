@@ -6,7 +6,6 @@ namespace Mata\Tests\Integration;
 
 use Mata\Utils\Tools;
 use Mata\Watchers\AppWatcher;
-use Mata\Watchers\LogParsers\LogParserFactory;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\AbstractLogger;
 use Psr\Log\LoggerInterface;
@@ -37,9 +36,6 @@ class LogParserIntegrationTest extends TestCase
         $this->fixturesPath = __DIR__ . '/../Fixtures/logs';
         $this->rootPath = __DIR__ . '/../Fixtures';
         $this->tools = new Tools();
-
-        // Clear parser factory caches
-        LogParserFactory::clearCache();
     }
 
     protected function tearDown(): void
@@ -48,7 +44,6 @@ class LogParserIntegrationTest extends TestCase
             ini_set('error_log', $this->previousErrorLog);
             $this->previousErrorLog = null;
         }
-        LogParserFactory::clearCache();
     }
 
     private function createAppWatcher(array $watcherConfig, ?LoggerInterface $logger = null, array $transmitConfig = []): AppWatcher

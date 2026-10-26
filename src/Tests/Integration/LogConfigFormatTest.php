@@ -6,7 +6,6 @@ namespace Mata\Tests\Integration;
 
 use Mata\Utils\Tools;
 use Mata\Watchers\AppWatcher;
-use Mata\Watchers\LogParsers\LogParserFactory;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 
@@ -31,8 +30,6 @@ class LogConfigFormatTest extends TestCase
         $this->fixturesPath = __DIR__ . '/../Fixtures/logs';
         $this->rootPath = __DIR__ . '/../Fixtures';
         $this->tools = new Tools();
-
-        LogParserFactory::clearCache();
     }
 
     protected function tearDown(): void
@@ -41,7 +38,6 @@ class LogConfigFormatTest extends TestCase
             ini_set('error_log', $this->previousErrorLog);
             $this->previousErrorLog = null;
         }
-        LogParserFactory::clearCache();
     }
 
     private function createAppWatcher(array $watcherConfig): AppWatcher

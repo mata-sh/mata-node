@@ -23,11 +23,11 @@ final class ShellCommandsTest extends TestCase
         $this->assertSame('tail -n 1 -- ' . escapeshellarg($path), ShellCommands::tail($path, -10));
     }
 
-    public function testHeadEscapesPathsBeginningWithDash(): void
+    public function testTailEscapesPathsBeginningWithDash(): void
     {
         $path = '-weird.log';
 
-        $this->assertSame('head -n 10 -- ' . escapeshellarg($path), ShellCommands::head($path, 10));
+        $this->assertSame('tail -n 10 -- ' . escapeshellarg($path), ShellCommands::tail($path, 10));
     }
 
     public function testLineCountUsesShellRedirectionForBareCount(): void

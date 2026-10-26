@@ -1,7 +1,6 @@
 # Configuration reference
 
-All four files in `config/` must exist, or every endpoint returns `503` with
-`configuration_missing`. Create the missing ones from `config/example/`:
+The node reads four files from `config/`. Create any missing ones from `config/example/`:
 
 ```bash
 make bootstrap-config
@@ -11,69 +10,79 @@ make bootstrap-config
 | --- | --- |
 | [`config.env`](#configconfigenv) | Dashboard credentials, access control, logging, rate limiting |
 | [`apps.json`](#configappsjson) | Watched applications: logs, sessions, Composer, monitoring switches |
-| [`databases.json`](#configdatabasesjson) | Named database connections and monitored databases for `/databases/*` |
+| [`databases.json`](#configdatabasesjson) | Database connections for `/databases/*` |
 | [`transmit.json`](#configtransmitjson) | Node limits, disk check, cron heartbeats |
 
-JSON files must be strict JSON (no comments, no trailing commas). After editing, check them with
-`make mata ARGS="config validate"`, which reports every problem the node would fail on or skip;
-see [Command line](cli.md).
+`config/log-formats/` is optional: one YAML file per log format the built-in parsers do not
+cover. See [Log formats](log-parsers.md).
 
-`/health` reports `checks.config_files_present` and lists `missing_config_files`. If startup
-fails, every route returns `503` (`Retry-After: 300`, `Cache-Control: no-store`) with
-`{"status": "not_ready", "reason": "...", "missing_config_files": [...]}`; `reason` is
-`configuration_missing`, `configuration_invalid` or `initialization_failed`, and file names are
-basenames only.
+- JSON files must be strict JSON: no comments, no trailing commas.
+- After editing, run `make mata ARGS="config validate"`. It reports every problem the node would
+  fail on or skip; see [Command line](cli.md).
+- In Docker, env files are read only when the container is created: run `make dev-recreate`
+  after editing them. Other setups pick up changes immediately.
 
-In Docker, env files are read only at container creation: run `make dev-recreate` after editing
-them. Non-Docker setups pick up changes immediately.
+**When startup fails**, every route returns `503` with `Retry-After: 300` and
+`Cache-Control: no-store`:
+
+```json
+{"status": "not_ready", "reason": "configuration_missing", "missing_config_files": ["apps.json"]}
+```
+
+`reason` is `configuration_missing`, `configuration_invalid` or `initialization_failed`. File
+names are basenames only.
 
 ## `config/config.env`
 
 | Key | Default | Purpose |
 | --- | --- | --- |
-| `DASHBOARD_SERVER_ID` | `dashboard` | This node's entry key in the dashboard's `servers.json` and `servers.secrets.json`. |
-| `DASHBOARD_API_KEY` | empty | Shared HMAC secret; the `api_key` under the same name in the dashboard's `servers.secrets.json` (in `servers.json` up to dashboard 0.8.0). |
-| `DASHBOARD_CLOCK_SKEW_WINDOW` | `120` | Accepted request timestamp skew, seconds. |
+| `DASHBOARD_SERVER_ID` | `dashboard` | This node's key in the dashboard's `servers.json` and `servers.secrets.json`. |
+| `DASHBOARD_API_KEY` | empty | Shared HMAC secret. Must match this node's `api_key` in the dashboard's `servers.secrets.json` (`servers.json` up to dashboard 0.8.0). |
+| `DASHBOARD_CLOCK_SKEW_WINDOW` | `120` | Accepted request timestamp skew, in seconds. |
 | `MAINTENANCE_MODE_ENABLED` | `OFF` | `ON` returns `503` with `Retry-After: 300` on every route except `/health`. |
-| `IP_WHITELIST_ENABLED`, `ALLOWED_IPS` | `OFF`, empty | Restrict authenticated routes to listed IPs/CIDRs, e.g. `198.51.100.10,2001:db8::/32`. |
-| `TRUSTED_PROXIES` | empty | Client IP is `REMOTE_ADDR`; `X-Forwarded-For` is used only when `REMOTE_ADDR` is listed here. Never list untrusted proxies. |
-| `MONOLOG_LEVEL`, `APP_LOG_PATH` | `debug`, `logs/app.log` | Node application log. |
+| `IP_WHITELIST_ENABLED`, `ALLOWED_IPS` | `OFF`, empty | Restrict authenticated routes to IPs/CIDRs, e.g. `198.51.100.10,2001:db8::/32`. |
+| `TRUSTED_PROXIES` | empty | The client IP is `REMOTE_ADDR`. `X-Forwarded-For` is used only when `REMOTE_ADDR` is listed here, so never list untrusted proxies. |
+| `MONOLOG_LEVEL`, `APP_LOG_PATH` | `debug`, `logs/app.log` | The node's own log. |
 | `TEMP_DIR` | `temp/` | Cache directory. |
-| `COMPOSER_BIN`, `COMPOSER_PHP_BIN` | `composer` from `PATH` | Node-wide defaults for Composer audits. |
-| `RATE_LIMIT_ENABLED`, `RATE_LIMIT_STORAGE` | `ON`, `file` | Rate limiting; storage `file`, `redis` (`RATE_LIMIT_REDIS_*`) or `apcu`. `apcu` needs the apcu PHP extension, which the Docker images include; `redis` needs the redis extension, which they do not. |
-| `RATE_LIMIT_API_MAX_REQUESTS`, `RATE_LIMIT_API_WINDOW_SECONDS` | `200`, `60` | Limit per client IP on authenticated routes. |
-| `RATE_LIMIT_AUTH_FAILED_MAX_REQUESTS`, `RATE_LIMIT_AUTH_FAILED_WINDOW_SECONDS` | `10`, `300` | Failed authentication attempts per client IP. Once reached, the IP gets `429` on authenticated routes, valid credentials included, until the window passes. |
+| `COMPOSER_BIN`, `COMPOSER_PHP_BIN` | `composer` from `PATH` | Default Composer binaries for all apps. |
+| `RATE_LIMIT_ENABLED`, `RATE_LIMIT_STORAGE` | `ON`, `file` | Storage is `file`, `redis` (set `RATE_LIMIT_REDIS_*`) or `apcu`. The Docker images include the apcu extension but not redis. |
+| `RATE_LIMIT_API_MAX_REQUESTS`, `RATE_LIMIT_API_WINDOW_SECONDS` | `200`, `60` | Requests per client IP on authenticated routes. |
+| `RATE_LIMIT_AUTH_FAILED_MAX_REQUESTS`, `RATE_LIMIT_AUTH_FAILED_WINDOW_SECONDS` | `10`, `300` | Failed logins per client IP. Once reached, the IP gets `429` on authenticated routes, even with valid credentials, until the window passes. |
 
-Values are checked at startup; anything else fails it with `configuration_invalid`:
+Invalid values fail startup with `configuration_invalid`:
 
-- On/off keys (`*_ENABLED`): `ON` or `OFF`; `TRUE`/`FALSE`, `YES`/`NO` and `1`/`0` also work, in any case.
-- Numeric keys: whole numbers; limits, windows and the clock skew window at least `1`, the Redis
-  port `1`–`65535`.
-- `RATE_LIMIT_STORAGE`: `file`, `redis` or `apcu`; with rate limiting on, `redis` and `apcu` need
-  their PHP extension loaded.
-- `MONOLOG_LEVEL`: `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert` or `emergency`.
-
-## Path base
-
-For `apps.json`, most app paths are resolved relative to the parent directory of this node repo, not relative to `config/`.
-
-Example: if the node is at `/srv/mata-node`, relative app paths are read from `/srv/...`.
-
-Current path handling:
-
-- `logs`, `sessions.path`, `readme`: relative paths are resolved against the parent directory. `logs` paths beginning with `/` are used as absolute paths.
-- `composer.json`, `composer.lock`, `composer.bin`: relative paths are normalized against the same parent directory; absolute paths are accepted.
-- `transmit.json.check_disk_space_path`: passed directly to PHP/disk commands. Use an absolute path.
+- `*_ENABLED`: `ON`/`OFF`, `TRUE`/`FALSE`, `YES`/`NO` or `1`/`0`, in any case.
+- Numbers: whole numbers. Limits, windows and the clock skew window are at least `1`; the Redis
+  port is `1`–`65535`.
+- `RATE_LIMIT_STORAGE`: `redis` and `apcu` need their PHP extension when rate limiting is on.
+- `MONOLOG_LEVEL`: `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert` or
+  `emergency`.
 
 ## `config/apps.json`
 
-Top-level structure: object map of `app-id` to app config object.
+- Use lowercase app ids.
+- The dashboard treats app ids as global across all nodes. Make them unique by adding a 
+server suffix, e.g. `shop-eu` and `shop-us`.
+- Relative paths resolve against the **parent directory of the node repo**, not `config/`. With
+  the node at `/srv/mata-node`, `example-app/logs/error.log` is
+  `/srv/example-app/logs/error.log`. `logs`, `readme`, `composer.*` and `sessions.path` also take
+  absolute paths.
 
-When used with MATA Dashboard, `app-id` is a global application identifier across all monitored nodes. Use a server-specific suffix for deployments that must remain separate applications.
+Minimal example:
 
-Use lowercase `app-id` values. Route lookups lowercase the requested app name before matching it against the config key.
+```json
+{
+  "minimal-app": {
+    "title": "Minimal Application",
+    "url": "https://example.com/minimal",
+    "path": "minimal-app",
+    "env": "test",
+    "logs": ["minimal-app/logs/error.log"]
+  }
+}
+```
 
-### Full example
+Full example:
 
 ```json
 {
@@ -81,8 +90,9 @@ Use lowercase `app-id` values. Route lookups lowercase the requested app name be
     "title": "Example Application",
     "url": "https://example.com/app",
     "path": "example-app",
-    "disabled": false,
     "env": "prod",
+    "description": "Example app",
+    "disabled": false,
     "status_endpoint": "https://example.com/app/health/",
     "monitoring": {
       "loganalysis": true,
@@ -99,27 +109,10 @@ Use lowercase `app-id` values. Route lookups lowercase the requested app name be
       "filename_regex": "/^sess_/"
     },
     "logs": [
-      {
-        "type": "php_error_log",
-        "paths": [
-          "example-app/logs/error.log"
-        ]
-      },
-      {
-        "type": "monolog",
-        "paths": [
-          "example-app/logs/app.log",
-          "example-app/logs/debug.log"
-        ]
-      },
-      {
-        "type": "json",
-        "paths": [
-          "example-app/logs/structured.log"
-        ]
-      }
+      {"type": "php_error_log", "paths": ["example-app/logs/error.log"]},
+      {"type": "monolog", "paths": ["example-app/logs/app.log", "example-app/logs/debug.log"]},
+      {"type": "json", "paths": ["example-app/logs/structured.log"]}
     ],
-    "description": "Example app",
     "composer": {
       "json": "example-app/composer.json",
       "lock": "example-app/composer.lock",
@@ -129,135 +122,157 @@ Use lowercase `app-id` values. Route lookups lowercase the requested app name be
 }
 ```
 
-### Minimal example
-
-```json
-{
-  "minimal-app": {
-    "title": "Minimal Application",
-    "url": "https://example.com/minimal",
-    "path": "minimal-app",
-    "env": "test",
-    "logs": [
-      "minimal-app/logs/error.log"
-    ]
-  }
-}
-```
-
 ### App fields
 
-| Key | Required | Default | Behavior |
+| Key | Required | Default | Purpose |
 | --- | --- | --- | --- |
-| `title` | Yes for `/apps` | none | Returned as app title. |
-| `url` | Yes for `/apps` | none | Returned as app URL. |
-| `path` | Yes for `/apps`, `/readme`, composer auto-detect | none | App base path. Used for default README path and composer auto-detect. |
-| `env` | Yes for `/apps` | none | Static application environment. Must be exactly `dev`, `test`, `stg`, or `prod`. |
-| `disabled` | No | `false` | Set to `true` to hide the app and make its app-specific endpoints unavailable. The string `"true"` works too. |
-| `status_endpoint` | No | none | Complete absolute `http` or `https` URL. The dashboard calls it directly; the node never calls it. |
-| `monitoring` | No | all settings enabled | JSON object of per-app monitoring switches. See monitoring settings below. |
-| `sessions` | No | unconfigured | Session metadata config returned by `/apps` and `/{app}/sessions`. |
-| `sessions.type` | No | `file` when `sessions.path` exists | Session backend type: `file`, `redis`, or `none`. |
-| `sessions.path` | No | empty | Directory scanned for file sessions. Missing/empty/non-directory returns counts `0`. |
-| `sessions.filename_regex` | No | empty | File backend only. Passed to `preg_match()` for each session filename. Empty means count all files. Include regex delimiters, e.g. `"/^sess_/"`. |
-| `sessions.dsn` | Yes for Redis unless `dsn_env` is set | none | Redis DSN, e.g. `redis://127.0.0.1:6379/0`. |
-| `sessions.dsn_env` | No | none | Environment variable name containing the Redis DSN. Prefer this when the DSN includes credentials. |
-| `sessions.prefix` | No | `PHPREDIS_SESSION:` | Redis session key prefix used by SCAN fallback. |
-| `sessions.count_key` | No | empty | Redis key containing the current session count. When set, the node uses one `GET` and does not scan. The app/session writer must maintain this key. |
-| `sessions.scan_count` | No | `1000` | Redis SCAN count hint used only when `count_key` is empty. |
-| `sessions.timeout_seconds` | No | client default | Redis socket timeout in seconds. |
-| `sessions.cache_ttl_seconds` | No | `60` for Redis SCAN | Redis SCAN metadata cache TTL in seconds. `0` disables Redis session count caching. Ignored when `count_key` is set. |
-| `logs` | Yes for clean `/apps`; optional for `/logs` and `/logs-status` | `[]` for `/logs` and `/logs-status` | Log paths/groups read for recent lines and status counts. See log formats below. |
-| `description` | No | empty string | Returned by `/apps`. |
-| `readme` | No | `<path>/README.md` | Path used by `/{app}/readme`. |
-| `composer` | No | disabled | Composer library/audit config. See composer fields below. |
+| `title` | for `/apps` | – | Display name. |
+| `url` | for `/apps` | – | Public URL. |
+| `path` | for `/apps`, `/readme`, Composer auto-detect | – | App base path. |
+| `env` | for `/apps` | – | Exactly `dev`, `test`, `stg` or `prod`. |
+| `logs` | for a clean `/apps` | `[]` | See [Logs](#logs). |
+| `description` | No | `""` | Returned by `/apps`. |
+| `disabled` | No | `false` | `true` (or `"true"`) hides the app and its routes. |
+| `status_endpoint` | No | – | Absolute `http`/`https` URL; see below. |
+| `readme` | No | `<path>/README.md` | Served by `/{app}/readme`. |
+| `monitoring` | No | all on | See [Monitoring](#monitoring). |
+| `sessions` | No | unconfigured | See [Sessions](#sessions). |
+| `composer` | No | off | See [Composer](#composer). |
 
-### Monitoring settings
+**Status endpoint.** The dashboard sends an unauthenticated `GET` to
+`status_endpoint` and expects `{"maintenance_mode": false}` (or `true`). `/apps` returns it as
+`status_url`, or `null` when unset. Without it, the dashboard probes `url` instead and cannot
+detect maintenance mode.
 
-`monitoring` is an optional per-app JSON object with seven independent switches. Every switch
-defaults to `true`, so an app without a `monitoring` block behaves exactly as it did before the
-block existed.
+### Monitoring
+
+`monitoring` has seven switches, all `true` by default. List only the ones you turn off:
 
 ```json
-{
-  "shop": {
-    "monitoring": {
-      "loganalysis": true,
-      "logsize": true,
-      "sessions": true,
-      "reachability": true,
-      "alarms": true,
-      "events": true,
-      "libraryaudit": true
-    }
-  }
+"monitoring": {"loganalysis": false, "sessions": false}
+```
+
+| Setting | Applies to | When `false` |
+| --- | --- | --- |
+| `loganalysis` | node | No log parsing. `/apps` omits `status`; `/{app}/logs` returns `409`. |
+| `logsize` | node | No log globbing or sizing. `/apps` omits `logs`; `/{app}/logs-status` returns `409`. |
+| `sessions` | node | No session directory scan or Redis `SCAN`. `/apps` omits `session`; `/{app}/sessions` returns `409`. |
+| `reachability` | dashboard | Stops probing the app. |
+| `alarms` | dashboard | Records events but never raises alarms. |
+| `events` | dashboard | Produces no events for the app. |
+| `libraryaudit` | dashboard | Stops its scheduled Composer audit and library security events. `/{app}/composer-audit` stays available. |
+
+A `409` body names the setting:
+
+```json
+{"error": "Monitoring disabled", "message": "Monitoring disabled", "details": {"app": "archived-shop", "setting": "logsize"}}
+```
+
+`/{app}/readme`, `/{app}/libraries` and `/{app}/composer-audit` are never blocked.
+
+**Validation.** Values must be JSON `true` or `false`. Anything else (`"off"`, `0`, `null`, …),
+unknown keys and a non-object `monitoring` make the app config invalid. Unknown keys are rejected
+so a typo like `"logsizes": false` cannot silently leave a scan running. An invalid config makes
+`/apps` and the app's blockable routes return `500` with the generic configuration error. Only
+the field name (`monitoring.<key>`) and app id are logged, never the value.
+
+### Logs
+
+`logs` is either a list of paths, with the parser auto-detected per file:
+
+```json
+"logs": ["minimal-app/logs/error.log", "minimal-app/logs/app.log"]
+```
+
+or a list of groups:
+
+```json
+"logs": [
+  {"type": "monolog", "paths": ["example-app/logs/app.log"]},
+  {"paths": ["example-app/logs/auto-detect.log"]}
+]
+```
+
+| Key | Required | Default | Purpose |
+| --- | --- | --- | --- |
+| `paths` | Yes | – | Log file paths. Groups without paths are skipped. |
+| `type` | No | auto-detect | `php_error_log`, `monolog`, `json`, a format in `resources/log-formats/` (e.g. `nginx_error`) or one in `config/log-formats/`. See [Log formats](log-parsers.md). |
+
+- **Auto-detection** samples a file's first 10 lines and picks the parser that matches at least
+  half of them, falling back to `php_error_log`. An unknown `type` logs a warning and
+  auto-detects. YAML-defined formats are never auto-detected.
+- **Directories:** `/apps` log sizes and `/{app}/logs-status` include the `*.log` files inside a
+  configured directory; `/{app}/logs` skips directories.
+- **Memory:** for `/apps`, each file is streamed once, holding at most one line in memory (up to
+  5 MB; longer lines are streamed through).
+- To see which parser a log gets and what it parses, run `make mata ARGS="log test <app>"`.
+
+### Sessions
+
+`sessions.type` is `file` (the default when `path` is set), `redis` or `none`. File example: see
+[the full example](#configappsjson). Redis example:
+
+```json
+"sessions": {
+  "type": "redis",
+  "dsn": "redis://127.0.0.1:6379/0",
+  "prefix": "PHPREDIS_SESSION:",
+  "count_key": "mata:sessions:example-app:count",
+  "scan_count": 1000,
+  "timeout_seconds": 1.0,
+  "cache_ttl_seconds": 60
 }
 ```
 
-The block may be sparse. Only list what you switch off:
+| Key | Backend | Default | Purpose |
+| --- | --- | --- | --- |
+| `path` | file | empty | Directory to scan. Missing, empty or not a directory gives counts of `0`. |
+| `filename_regex` | file | all files | `preg_match()` pattern with delimiters, e.g. `"/^sess_/"`. |
+| `dsn` | redis | – | Redis DSN. Required unless `dsn_env` is set. |
+| `dsn_env` | redis | – | Environment variable holding the DSN. Prefer it when the DSN has credentials. |
+| `prefix` | redis | `PHPREDIS_SESSION:` | Session key prefix to scan for. |
+| `count_key` | redis | empty | Key holding the session count; see below. |
+| `scan_count` | redis | `1000` | `SCAN` `COUNT` hint. |
+| `timeout_seconds` | redis | client default | Socket timeout. |
+| `cache_ttl_seconds` | redis | `60` | How long `SCAN` results are cached; `0` disables. |
+
+**Counting Redis sessions.** Set `count_key` for large session stores: the node reads it with one
+`GET` and never scans. The node never writes the key; your app must keep it a non-negative
+integer. A missing key counts as `0`; a non-numeric value returns error metadata.
+
+Without `count_key`, the node counts keys with `SCAN MATCH <prefix>*`. The count is approximate
+(`SCAN` can return duplicates), so use it for monitoring, not exact accounting. Results are cached
+in the node cache directory; the cache key contains no passwords or DSN credentials.
+
+Redis reports only `count_total`; `count_last_hour`, `count_last_day`, `path` and `size_kb` are
+`null`.
+
+### Composer
+
+Used by `/apps/libraries`, `/apps/composer-audit` and `/{app}/libraries`.
+
+`"composer": true` (or `"true"`, `"on"`, `"1"`, `"yes"`) reads `<path>/composer.json` and
+`<path>/composer.lock`. An object overrides individual settings:
 
 ```json
-{
-  "archived-shop": {
-    "monitoring": {
-      "loganalysis": false,
-      "sessions": false
-    }
-  }
+"composer": {
+  "json": "example-app/composer.json",
+  "lock": "example-app/composer.lock",
+  "bin": "example-app/composer.phar"
 }
 ```
 
-| Setting | Default | Effect when `false` |
+| Key | Default | Purpose |
 | --- | --- | --- |
-| `loganalysis` | `true` | The node performs no log parsing for the app. `/apps` omits `status`; `/{app}/logs` returns `409`. |
-| `logsize` | `true` | The node performs no log file globbing or sizing. `/apps` omits `logs`; `/{app}/logs-status` returns `409`. |
-| `sessions` | `true` | The node performs no session directory scan or Redis `SCAN`. `/apps` omits `session`; `/{app}/sessions` returns `409`. |
-| `reachability` | `true` | No node behavior. Reported to the dashboard, which stops probing the app. |
-| `alarms` | `true` | No node behavior. Reported to the dashboard, which records events but never elevates them into alarms. |
-| `events` | `true` | No node behavior. Reported to the dashboard, which produces no events for the app. |
-| `libraryaudit` | `true` | No node behavior. Reported to the dashboard, which stops its scheduled Composer audit and library security events for the app. `/{app}/composer-audit` stays available. Only relevant when `composer` is enabled. |
-
-The first three actually skip work on the node — that is the point of the block. The last four
-are transport-only: the node reports them and the dashboard acts on them.
-
-#### Validation
-
-| Input | Result |
-| --- | --- |
-| `monitoring` absent | all seven settings `true` |
-| `monitoring` an empty object | all seven settings `true` |
-| a key absent | that setting `true` |
-| literal `true` / `false` | taken as-is |
-| `"true"`, `"false"`, `"on"`, `"off"`, `""`, `1`, `0`, `1.0`, `null`, array, object | invalid application configuration, field `monitoring.<key>` |
-| `monitoring` not a JSON object | invalid application configuration, field `monitoring` |
-| unknown key inside `monitoring` | invalid application configuration, field `monitoring.<key>` |
-
-Only literal JSON booleans are accepted. An invalid application configuration makes `/apps` and
-the app's gated detail routes fail with the generic configuration error and HTTP `500`. The
-rejected value is never returned or logged; only the field name is logged, alongside the app id.
-
-Unknown keys are rejected deliberately. A typo such as `"logsizes": false` would otherwise
-resolve silently to `true` and keep running the exact scan the operator meant to switch off.
-
-#### Removed settings
-
-The following per-app keys were removed. Leftover keys in an existing `apps.json` are ignored;
-they are neither validated nor returned by `/apps`.
-
-| Removed key | Removed | Replacement |
-| --- | --- | --- |
-| `alarms_enabled` | 2026-07 | `monitoring.alarms` |
-| `ping` | 2026-07-25 | `monitoring.reachability` |
-| `error_monitoring_enabled` | 2026-07-25 | `monitoring.loganalysis` |
-| `logsize_monitoring_enabled` | 2026-07-25 | `monitoring.logsize` |
-
-**Upgrading.** Migrate disabled settings by hand, e.g. `"ping": "off"` to
-`"monitoring": {"reachability": false}`; otherwise the feature turns back on. Enabled settings
-need no migration, since every `monitoring` switch defaults to `true`.
+| `enabled` | `true` if any other key is set | Truthy enables, falsy disables. |
+| `json` | `<path>/composer.json` | Required for audits. |
+| `lock` | `<path>/composer.lock` | Required for libraries and audits. |
+| `bin` | `COMPOSER_BIN`, else `composer` from `PATH` | A `.phar` is run as `php <bin>`. |
+| `php_bin` | `COMPOSER_PHP_BIN`, else `php` | PHP binary for running a `.phar`. |
 
 ### App metadata responses
 
-A fully monitored app returns these keys, in this order:
+`/apps` returns, per app, these keys in this order:
 
 ```json
 "example-app": {
@@ -274,224 +289,33 @@ A fully monitored app returns these keys, in this order:
 }
 ```
 
-The response is shaped by the app's `monitoring` block:
+- `status`, `logs` and `session` are present only when `loganalysis`, `logsize` and `sessions`
+  are on. A missing key means "not measured", not zero or clean.
+- `monitoring` is present only when a switch is off, and lists only those switches (all `false`)
+  in the order of the [Monitoring](#monitoring) table, e.g.
+  `"monitoring": {"loganalysis": false, "sessions": false}`.
+- `/{app}/sessions` returns the same `session` object.
 
-- `status` is present iff `loganalysis` is enabled.
-- `logs` is present iff `logsize` is enabled.
-- `session` is present iff `sessions` is enabled.
-- `monitoring` is present iff at least one setting is disabled, and then it lists **only** the
-  disabled settings, always in the order `loganalysis`, `logsize`, `sessions`, `reachability`,
-  `alarms`, `events`. There is never a `true` value inside it.
+**`status`.** `fatal`, `warnings` and `total` are summed over all the app's logs.
+`fatal_cursor` is `null` when `fatal` is `0`, otherwise `v1:` plus 64 lowercase hex characters.
 
-An app with `loganalysis` and `sessions` switched off therefore returns:
+The cursor is an opaque fingerprint of the app's fatal entries, meant only for comparison: if it
+differs from the last value, the fatal entries changed. It contains no log content, paths, file
+identity, offsets or per-entry hashes; entries are in `/{app}/logs` and file details in
+`/{app}/logs-status`.
 
-```json
-"archived-shop": {
-  "path": "archived-shop",
-  "title": "Archived Shop",
-  "url": "https://example.com/archived",
-  "env": "prod",
-  "status_url": null,
-  "description": "",
-  "composer": false,
-  "logs": { "archived-shop/logs/error.log": 128.5 },
-  "monitoring": { "loganalysis": false, "sessions": false }
-}
-```
-
-An omitted key means "not measured", not "measured as zero". A consumer must not read an absent
-`status` as a clean log or an absent `logs` as an empty log set.
-
-`/{app}/sessions` returns the same `session` object for one app.
-
-#### Gated detail routes
-
-A disabled setting also closes the matching detail route, so a scan the operator switched off
-cannot be triggered from the dashboard UI:
-
-| Route | Requires | Refused with |
-| --- | --- | --- |
-| `/{app}/logs` | `loganalysis` | `409` |
-| `/{app}/logs-status` | `logsize` | `409` |
-| `/{app}/sessions` | `sessions` | `409` |
-
-The refusal body names the setting:
-
-```json
-{
-  "error": "Monitoring disabled",
-  "message": "Monitoring disabled",
-  "details": {"app": "archived-shop", "setting": "logsize"}
-}
-```
-
-`/{app}/readme`, `/{app}/libraries`, and `/{app}/composer-audit` are not gated — they read no logs
-and no sessions.
-
-In `status`, `fatal`, `warnings`, and `total` are non-negative integers aggregated over all
-configured logs of the app. `fatal_cursor` is `null` exactly when `fatal` is `0`; otherwise it is
-`v1:` followed by 64 lowercase hexadecimal characters.
-
-The cursor is opaque and equality-only. It does not identify, describe, or expose an error: it
-carries no log content, no absolute path, no file identity, no offsets, and no per-entry hashes.
-Comparing two cursors for the same app answers exactly one question — whether the fatal
-observation changed. Detailed entries stay behind `/{app}/logs`; line counts, byte sizes, and
-modification times stay behind `/{app}/logs-status`. `/apps` never calls either endpoint.
-
-The cursor changes when a fatal entry is added (including a duplicate of an existing one), when a
-fatal entry's timestamp, message, stack trace, context, multiplicity, or order changes, and when
-log rotation replaces a fatal-bearing file with a new file generation. It does not change when
-warnings, notices, info entries, or unrelated lines are appended, and it is stable across node
-restarts. The node is stateless, so an in-place rewrite that reproduces exactly the same fatal
-entries at the same positions in the same file is indistinguishable from an unchanged file.
-
-`/apps` also returns static `env` and `status_url`. `status_url` is the validated `status_endpoint`, or `null` when no endpoint is configured. It never returns `status_endpoint`.
-
-The dashboard, not MATA Node, makes an unauthenticated read-only `GET` to `status_url`. The endpoint must return:
-
-```json
-{"maintenance_mode": false}
-```
-
-Without a status endpoint, the dashboard uses the visitor `url` for its legacy availability probe and cannot determine dynamic maintenance state.
-
-Redis session config:
-
-```json
-"sessions": {
-  "type": "redis",
-  "dsn": "redis://127.0.0.1:6379/0",
-  "prefix": "PHPREDIS_SESSION:",
-  "count_key": "mata:sessions:example-app:count",
-  "scan_count": 1000,
-  "timeout_seconds": 1.0,
-  "cache_ttl_seconds": 60
-}
-```
-
-For low-stress Redis counting, set `count_key`. The node reads `count_total` with one `GET` and never scans. Missing `count_key` values are reported as `0`; non-numeric values return error metadata. The node never mutates this key; the app/session writer is responsible for incrementing/decrementing or otherwise maintaining a non-negative integer value.
-
-Operational rule: configure `count_key` for high-cardinality Redis session stores. Leave it empty only when SCAN fallback load is acceptable.
-
-If `count_key` is not set, Redis returns `count_total` from a full `SCAN MATCH <prefix>*` pass. `SCAN` count is approximate: Redis may return duplicate keys during an iteration, and `COUNT` is only a per-call hint. The value is suitable for monitoring, not billing or exact accounting.
-
-SCAN-based Redis session metadata is cached in the node cache directory for `cache_ttl_seconds` to avoid a full keyspace scan on every dashboard poll. Cache keys include the app identity and non-secret Redis identity fields (`host`, `port`, `database`, `prefix`, or sanitized DSN parts). Passwords and DSN credentials are not included. `count_last_hour`, `count_last_day`, `path`, and `size_kb` are `null`.
-
-`dsn_env` is also supported to read the Redis DSN from an environment variable instead of config JSON.
-
-### Log formats
-
-`logs` supports both formats. Paths beginning with `/` are absolute; all other paths are resolved against the node's parent directory.
-
-Old format: array of path strings. Parser type is auto-detected per file.
-
-```json
-{
-  "logs": [
-    "minimal-app/logs/error.log",
-    "minimal-app/logs/app.log"
-  ]
-}
-```
-
-A configured path (in either format) may also be a directory. For `/apps` log-size output and `/logs-status`, the node expands directory paths into the `*.log` files they contain. `/logs` parses only explicitly configured file paths and skips directories.
-
-New format: array of log groups:
-
-```json
-{
-  "logs": [
-    {
-      "type": "monolog",
-      "paths": [
-        "example-app/logs/app.log"
-      ]
-    },
-    {
-      "paths": [
-        "example-app/logs/auto-detect.log"
-      ]
-    }
-  ]
-}
-```
-
-Log group fields:
-
-| Key | Required | Default | Behavior |
-| --- | --- | --- | --- |
-| `paths` | Yes for structured groups | none | Array of log file paths. Empty/missing groups are skipped. |
-| `type` | No | auto-detect | Parser name. Supported values: `php_error_log`, `monolog`, `json`. |
-
-If `type` is omitted, the node auto-detects the parser per file from the first 10 lines. It picks a parser when at least 50% of sampled lines match that parser. If none match, it falls back to `php_error_log`.
-
-If `type` is set to an unknown value, the node logs a warning and auto-detects the format.
-
-To see which parser a log gets and what it parses, run `make mata ARGS="log test <app>"`.
-
-App-level parser format settings are unsupported. Use structured log group `type` or omit `type` for auto-detection.
-
-`/apps` log-size output supports old string paths and structured log group `paths`.
-
-#### Analysis behavior
-
-For `/apps` counts and the fatal cursor, each log file is streamed once with memory capped at one
-line (max 5 MB; longer lines are streamed through). `fatal` and `warnings` count matching lines,
-like `grep -c`; `total` counts newline-terminated lines. The cursor fingerprints the ordered fatal
-entries including multiline stack traces; JSON records are canonicalized first, so key order does
-not matter.
-
-To support another log format, add a parser class: see [Custom log parsers](log-parsers.md).
-
-### Composer fields
-
-Composer config is used by:
-
-- `/apps/libraries`
-- `/apps/composer-audit`
-- `/{app}/libraries`
-
-Supported forms:
-
-```json
-{
-  "composer": {
-    "json": "example-app/composer.json",
-    "lock": "example-app/composer.lock",
-    "bin": "example-app/composer.phar"
-  }
-}
-```
-
-```json
-{
-  "composer": true
-}
-```
-
-```json
-{
-  "composer": "on"
-}
-```
-
-With `composer: true` or a truthy string (`true`, `on`, `1`, `yes`), the node reads
-`<path>/composer.json` and `<path>/composer.lock`.
-
-Object fields (all optional):
-
-| Key | Default | Behavior |
-| --- | --- | --- |
-| `composer.enabled` | `true` when any other key is set | Truthy value enables, falsy disables Composer for the app. |
-| `composer.json` | `<path>/composer.json` | Path to `composer.json`. Required for audit. |
-| `composer.lock` | `<path>/composer.lock` | Path to `composer.lock`. Required for libraries and audit. |
-| `composer.bin` | `COMPOSER_BIN`, else `composer` from `PATH` | Composer executable. If it ends in `.phar`, the command is run as `php <bin>`. |
-| `composer.php_bin` | `COMPOSER_PHP_BIN`, else `php` | PHP binary used to run a `.phar`. |
+- **Changes when** a fatal entry is added (even a duplicate), when a fatal entry's timestamp,
+  message, stack trace, context, repeat count or order changes, or when log rotation replaces a
+  file containing fatal entries. Multiline stack traces count; JSON records are canonicalized
+  first, so key order does not matter.
+- **Stays the same when** warnings, notices, info or other lines are appended, and across node
+  restarts. The node is stateless, so rewriting a file with exactly the same fatal entries in the
+  same positions looks unchanged.
 
 ## `config/databases.json`
 
-Lets the node watch MariaDB, MySQL or PostgreSQL servers for the `/databases/*` routes. Each
-named connection says which server, how to log in, and which of its databases to report on.
+Named connections to MariaDB, MySQL or PostgreSQL servers, used by the `/databases/*` routes.
+`{}` turns database monitoring off; the routes then return `404`.
 
 ```json
 {
@@ -525,50 +349,39 @@ named connection says which server, how to log in, and which of its databases to
 }
 ```
 
-The connection name (`shop`, `reporting`) is shown in the dashboard and identifies the
-connection in the API and in dashboard URLs, so it may only contain letters, digits, `.`, `_`
-and `-`; it is never derived from host or credentials. Use one connection per
-login, so databases that need different accounts or servers get their own connection. The same
-database name may appear under several connections.
-
-`/databases/overview` returns one entry per connection in `connections`, each with
-`connection`, `engine`, `collected_at`, the server-wide `status` (connections, limits, uptime),
-its `databases` and `error`. A connection that fails has `status: null` and
-`error: {"status_code": 503, ...}`; the others are still reported, and the reason is logged as a
-warning in the node log. `/databases/processes` requires `connection=NAME` and lists only
-sessions on that connection's databases; sessions on any other database of that server are
-never returned.
-
-`{}` turns database monitoring off; the `/databases/*` routes then return `404`.
-
 | Field | Meaning |
 | --- | --- |
-| `connections` | Name => connection settings; at least one |
-| `engine` | Database type; selects the driver. `mariadb` (also for MySQL) or `pgsql` |
-| `connection` | `host`, `port` (string or number), `username`, `password`; use a read-only account |
-| `databases` | Database name => description shown in the dashboard; at least one |
+| `connections` | Name => connection; at least one. |
+| `engine` | `mariadb` (also for MySQL) or `pgsql`. |
+| `connection` | `host`, `port` (string or number), `username`, `password`. Use a read-only account. |
+| `databases` | Database name => description shown in the dashboard; at least one. |
 
-All fields are required. Unknown keys and missing fields fail startup with
-`configuration_invalid`. Startup never connects to the database, so an outage cannot stop the
-node.
+- All fields are required. Unknown keys or missing fields fail startup with
+  `configuration_invalid`. Startup never connects, so a database outage cannot stop the node.
+- The connection name appears in the dashboard, the API and dashboard URLs. It may contain only
+  letters, digits, `.`, `_` and `-`.
+- Use one connection per login. The same database may appear under several connections.
 
-The account needs no write rights. For a complete process list it needs the `PROCESS`
-privilege (`GRANT PROCESS ON *.* TO 'mata_monitor'@'...'`); without it `/databases/processes`
-reports `"visibility": "own_sessions"` and shows only the account's own sessions. A privilege
-granted only through a role is also reported as `own_sessions`.
+**Responses.** `/databases/overview` returns one entry per connection with `connection`,
+`engine`, `collected_at`, the server-wide `status` (connections, limits, uptime), `databases`
+and `error`. A failing connection has `status: null` and `error: {"status_code": 503, ...}` and
+its reason is logged as a warning; the other connections are still reported.
+`/databases/processes?connection=NAME` lists only sessions on that connection's databases.
 
-On PostgreSQL the node connects to the `postgres` database. For a complete process list and
-server-wide counts the account needs the `pg_read_all_stats` role
-(`GRANT pg_read_all_stats TO mata_monitor`) or superuser; without it `/databases/processes`
-reports `own_sessions`, and the overview's `connections` and `running` count only the account's
-own sessions. PostgreSQL has no equivalent for `max_used_connections`, `refused_connections` and
-`aborted_connects`; they are `null`.
+**Privileges.** The account needs no write rights. Without the privileges below,
+`/databases/processes` reports `"visibility": "own_sessions"` and shows only the account's own
+sessions.
+
+- MariaDB/MySQL: `GRANT PROCESS ON *.* TO 'mata_monitor'@'...'`. `PROCESS` granted only through
+  a role also counts as `own_sessions`.
+- PostgreSQL: `GRANT pg_read_all_stats TO mata_monitor`, or superuser. Without it, the
+  overview's `connections` and `running` also count only the account's own sessions. The node
+  connects to the `postgres` database. `max_used_connections`, `refused_connections` and
+  `aborted_connects` have no PostgreSQL equivalent and are `null`.
 
 ## `config/transmit.json`
 
-Top-level structure: one object.
-
-### Example
+One object; every key is optional.
 
 ```json
 {
@@ -577,43 +390,36 @@ Top-level structure: one object.
   "errorlog_readout_limit": 200,
   "errorlog_scan_line_limit": 20000,
   "system_filecount_cache_max_age": 1800,
-  "cronjob_heartbeats": [
-    "logs/cron/heartbeat-daily.log"
-  ],
+  "cronjob_heartbeats": ["logs/cron/heartbeat-daily.log"],
   "cronjob_heartbeat_stale_seconds": 86400,
   "cronjob_heartbeat_tail_line_limit": 50
 }
 ```
 
-### Fields
+| Key | Default | Purpose |
+| --- | --- | --- |
+| `check_disk_space_enabled` | on | Only the exact string `"off"` disables disk checks; anything else, even `false`, enables them. |
+| `check_disk_space_path` | `/` | Filesystem to check. Use an absolute path. Disk values are returned in KiB. |
+| `errorlog_readout_limit` | `50` | Entries returned per file by `/{app}/logs` after filtering and grouping; repeats of one message count once. |
+| `errorlog_scan_line_limit` | `20000` | Tail lines read per file before `/{app}/logs` parses and filters them. |
+| `system_filecount_cache_max_age` | `1800` | Seconds a cached server file count is reused. |
+| `cronjob_heartbeats` | `[]` | Heartbeat file paths, relative to the node root. A single string also works. |
+| `cronjob_heartbeat_stale_seconds` | `86400` | Heartbeat files older than this are stale. |
+| `cronjob_heartbeat_tail_line_limit` | `50` | Lines returned in `content_tail`. |
 
-| Key | Required | Default | Units | Behavior |
-| --- | --- | --- | --- | --- |
-| `check_disk_space_enabled` | No | enabled | `"off"` disables | Only the exact string `"off"` disables disk checks. Any other value, including boolean `false`, enables them. |
-| `check_disk_space_path` | No | `/` | filesystem path | Path passed to disk-space checks. Returned disk values are KiB. |
-| `errorlog_readout_limit` | No | `50` | entries | Default number of log entries returned per file by `/{app}/logs` after filtering and grouping; repeats of one message count once. |
-| `errorlog_scan_line_limit` | No | `20000` | lines | Number of raw tail lines read before parsing and filtering `/{app}/logs`. |
-| `system_filecount_cache_max_age` | No | `1800` | seconds | Used by server file-count caching. Cached value is reused while its age is less than or equal to this value; older cache is recalculated. |
-| `cronjob_heartbeats` | No | empty array | paths | Ordered array of heartbeat file paths relative to the node root. A single string is also accepted. `/server/data` returns summary counts; `/server/cronjobs` returns per-file metadata and tail content. |
-| `cronjob_heartbeat_stale_seconds` | No | `86400` | seconds | Existing heartbeat files older than this are marked stale. Non-numeric values use the default; numeric values are clamped to at least `1`. |
-| `cronjob_heartbeat_tail_line_limit` | No | `50` | lines | Number of heartbeat file tail lines returned in `/server/cronjobs` `content_tail`. Non-numeric values use the default; numeric values are clamped to at least `1`. |
+The two `cronjob_heartbeat_*` numbers fall back to the default when not numeric and are at
+least `1`.
 
-### Cronjob heartbeat monitoring
+### Cron heartbeats
 
-Cronjob heartbeats are server-scoped because cron runs per host. Configure them in `config/transmit.json`.
-
-`/server/data` returns compact cronjob summary data:
+Cron runs per host, so heartbeats are configured per node, here rather than per app.
+`/server/data` returns a summary:
 
 ```json
-"cronjobs": {
-  "total": 2,
-  "working": 1,
-  "stale": 0,
-  "missing": 1
-}
+"cronjobs": {"total": 2, "working": 1, "stale": 0, "missing": 1}
 ```
 
-`/server/cronjobs` returns ordered detail data:
+`/server/cronjobs` returns one entry per file, in configured order:
 
 ```json
 [
@@ -629,4 +435,3 @@ Cronjob heartbeats are server-scoped because cron runs per host. Configure them 
   }
 ]
 ```
-

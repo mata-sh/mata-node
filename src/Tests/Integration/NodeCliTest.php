@@ -9,7 +9,6 @@ use Mata\Cli\Command\ConfigValidateCommand;
 use Mata\Cli\Command\LogTestCommand;
 use Mata\Config\Validation\NodeConfigValidator;
 use Mata\Utils\PathResolver;
-use Mata\Watchers\LogParsers\LogParserFactory;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\ApplicationTester;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -50,15 +49,12 @@ final class NodeCliTest extends TestCase
         file_put_contents($this->configDir . '/config.env', "DASHBOARD_API_KEY=test-key\nIP_WHITELIST_ENABLED=OFF\n");
         file_put_contents($this->configDir . '/databases.json', '{}');
         file_put_contents($this->configDir . '/transmit.json', '{}');
-
-        LogParserFactory::clearCache();
     }
 
     protected function tearDown(): void
     {
         $_ENV = $this->env;
         $_SERVER = $this->server;
-        LogParserFactory::clearCache();
 
         $this->removeDirectory($this->root);
     }
@@ -173,6 +169,41 @@ final class NodeCliTest extends TestCase
         $this->assertFileDoesNotExist($this->configDir . '/transmit.json');
     }
 
+    public function testLogTestParsesWithAFormatFromTheConfigDirectory(): void
+    {
+        $this->writePlainLevelFormat();
+        file_put_contents($this->root . '/shop/logs/plain.log', "2026-10-26T08:00:00Z ERROR Payment failed\n2026-10-26T08:00:05Z WARN Retrying\n");
+        $this->writeApps(['shop' => $this->app(['logs' => [['type' => 'plain_level', 'paths' => ['shop/logs/plain.log']]]])]);
+
+        [$status, $result] = $this->runJson('log:test', ['app' => 'shop']);
+
+        $this->assertSame(0, $status);
+        $file = $result['files'][0];
+        $this->assertSame('plain_level', $file['parser']);
+        $this->assertTrue($file['type_known']);
+        $this->assertSame([2, 1, 1], [$file['entries'], $file['fatal'], $file['warnings']]);
+    }
+
+    public function testConfigValidateListsFormatFilesAndOnlyWarnsAboutABrokenOne(): void
+    {
+        $this->writePlainLevelFormat();
+        file_put_contents($this->configDir . '/log-formats/broken.yaml', "pattern: '^(?<message>.*)$'\n");
+        $this->writeApps(['shop' => $this->app(['logs' => [['type' => 'plain_level', 'paths' => ['shop/logs/app.log']]]])]);
+
+        [$status, $report] = $this->runJson('config:validate');
+
+        $this->assertSame(1, $status);
+        $this->assertSame([
+            ['file' => 'config.env', 'status' => 'ok'],
+            ['file' => 'apps.json', 'status' => 'ok'],
+            ['file' => 'databases.json', 'status' => 'ok'],
+            ['file' => 'transmit.json', 'status' => 'ok'],
+            ['file' => 'log-formats/broken.yaml', 'status' => 'warning'],
+            ['file' => 'log-formats/plain_level.yaml', 'status' => 'ok'],
+        ], $report['files']);
+        $this->assertCount(1, $report['problems']);
+    }
+
     public function testUsageErrorIsJsonWithJsonOption(): void
     {
         $application = new CliApplication();
@@ -197,6 +228,17 @@ final class NodeCliTest extends TestCase
     private function app(array $overrides = []): array
     {
         return $overrides + ['title' => 'Shop', 'url' => 'https://shop.example', 'path' => 'shop', 'env' => 'prod'];
+    }
+
+    private function writePlainLevelFormat(): void
+    {
+        mkdir($this->configDir . '/log-formats');
+        file_put_contents($this->configDir . '/log-formats/plain_level.yaml', <<<'YAML'
+            pattern: '^(?<timestamp>\S+Z) (?<level>[A-Z]+) (?<message>.*)$'
+            levels:
+              error: [ERROR]
+              warning: [WARN]
+            YAML);
     }
 
     /**

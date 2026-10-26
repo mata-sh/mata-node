@@ -6,7 +6,6 @@ namespace Mata\Tests\Unit;
 
 use Mata\Watchers\LogParsers\MonologParser;
 use PHPUnit\Framework\TestCase;
-use RuntimeException;
 
 /**
  * Unit tests for Monolog parser.
@@ -24,6 +23,14 @@ class MonologParserTest extends TestCase
     {
         $this->parser = new MonologParser();
         $this->fixturesPath = __DIR__ . '/../Fixtures/logs';
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function parse(string $logFile): array
+    {
+        return $this->parser->parseLines(file($logFile, FILE_IGNORE_NEW_LINES) ?: []);
     }
 
     public function testGetNameReturnsCorrectIdentifier(): void
@@ -71,14 +78,10 @@ class MonologParserTest extends TestCase
         $this->assertFalse($result);
     }
 
-    public function testParseToJsonParsesMonologFormat(): void
+    public function testParseLinesParsesMonologFormat(): void
     {
         $logFile = $this->fixturesPath . '/monolog.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-
-        $this->assertJson($result);
-
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
         $this->assertIsArray($parsed);
         $this->assertNotEmpty($parsed);
 
@@ -91,31 +94,28 @@ class MonologParserTest extends TestCase
         $this->assertArrayHasKey('level', $firstEntry);
     }
 
-    public function testParseToJsonExtractsChannelCorrectly(): void
+    public function testParseLinesExtractsChannelCorrectly(): void
     {
         $logFile = $this->fixturesPath . '/monolog.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         $firstEntry = $parsed[0];
         $this->assertEquals('app', $firstEntry['channel']);
     }
 
-    public function testParseToJsonExtractsLevelCorrectly(): void
+    public function testParseLinesExtractsLevelCorrectly(): void
     {
         $logFile = $this->fixturesPath . '/monolog.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         $firstEntry = $parsed[0];
         $this->assertEquals('INFO', $firstEntry['level']);
     }
 
-    public function testParseToJsonNormalizesErrorLevel(): void
+    public function testParseLinesNormalizesErrorLevel(): void
     {
         $logFile = $this->fixturesPath . '/monolog.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         // Find ERROR entry
         $errorEntry = null;
@@ -131,11 +131,10 @@ class MonologParserTest extends TestCase
         $this->assertEquals('Error', $errorEntry['type']);
     }
 
-    public function testParseToJsonNormalizesWarningLevel(): void
+    public function testParseLinesNormalizesWarningLevel(): void
     {
         $logFile = $this->fixturesPath . '/monolog.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         // Find WARNING entry
         $warningEntry = null;
@@ -151,11 +150,10 @@ class MonologParserTest extends TestCase
         $this->assertEquals('Warning', $warningEntry['type']);
     }
 
-    public function testParseToJsonNormalizesCriticalLevel(): void
+    public function testParseLinesNormalizesCriticalLevel(): void
     {
         $logFile = $this->fixturesPath . '/monolog.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         // Find CRITICAL entry
         $criticalEntry = null;
@@ -171,11 +169,10 @@ class MonologParserTest extends TestCase
         $this->assertEquals('Error', $criticalEntry['type']);
     }
 
-    public function testParseToJsonNormalizesEmergencyLevel(): void
+    public function testParseLinesNormalizesEmergencyLevel(): void
     {
         $logFile = $this->fixturesPath . '/monolog.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         // Find EMERGENCY entry
         $emergencyEntry = null;
@@ -191,11 +188,10 @@ class MonologParserTest extends TestCase
         $this->assertEquals('Error', $emergencyEntry['type']);
     }
 
-    public function testParseToJsonNormalizesInfoLevel(): void
+    public function testParseLinesNormalizesInfoLevel(): void
     {
         $logFile = $this->fixturesPath . '/monolog.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         // Find INFO entry
         $infoEntry = $parsed[0];
@@ -203,11 +199,10 @@ class MonologParserTest extends TestCase
         $this->assertEquals('Other', $infoEntry['type']);
     }
 
-    public function testParseToJsonHandlesMultilineEntries(): void
+    public function testParseLinesHandlesMultilineEntries(): void
     {
         $logFile = $this->fixturesPath . '/monolog.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         // API ERROR entry contains stack trace (multi-line)
         $stackTraceEntry = null;
@@ -224,44 +219,23 @@ class MonologParserTest extends TestCase
         $this->assertStringContainsString('GuzzleHttp', $stackTraceEntry['message']);
     }
 
-    public function testParseToJsonExtractsTimestampCorrectly(): void
+    public function testParseLinesExtractsTimestampCorrectly(): void
     {
         $logFile = $this->fixturesPath . '/monolog.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         $firstEntry = $parsed[0];
         $this->assertEquals('2026-01-18 10:30:45', $firstEntry['timestamp']);
     }
 
-    public function testParseToJsonHandlesContextData(): void
+    public function testParseLinesHandlesContextData(): void
     {
         $logFile = $this->fixturesPath . '/monolog.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         // First entry contains context data
         $firstEntry = $parsed[0];
         $this->assertStringContainsString('user_id', $firstEntry['message']);
-    }
-
-    public function testParseToJsonThrowsExceptionForNonExistentFile(): void
-    {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('log file not found or unreadable');
-
-        $logFile = $this->fixturesPath . '/nonexistent.log';
-        $this->parser->parseToJson($logFile, 100);
-    }
-
-    public function testParseToJsonRespectsMaxLines(): void
-    {
-        $logFile = $this->fixturesPath . '/monolog.log';
-        $result = $this->parser->parseToJson($logFile, 5);
-        $parsed = json_decode($result, true);
-
-        // Should have fewer entries due to maxLines limit
-        $this->assertLessThanOrEqual(14, count($parsed));
     }
 
     public function testAnalyzeLogCountsErrorsAndWarnings(): void
@@ -292,11 +266,10 @@ class MonologParserTest extends TestCase
         $this->assertNull($result->fatalDigest);
     }
 
-    public function testParseToJsonHandlesDifferentChannels(): void
+    public function testParseLinesHandlesDifferentChannels(): void
     {
         $logFile = $this->fixturesPath . '/monolog.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         $channels = array_unique(array_column($parsed, 'channel'));
 
@@ -306,11 +279,10 @@ class MonologParserTest extends TestCase
         $this->assertContains('security', $channels);
     }
 
-    public function testParseToJsonHandlesAlertLevel(): void
+    public function testParseLinesHandlesAlertLevel(): void
     {
         $logFile = $this->fixturesPath . '/monolog.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         // Find ALERT entry
         $alertEntry = null;

@@ -6,7 +6,6 @@ namespace Mata\Tests\Unit;
 
 use Mata\Watchers\LogParsers\PhpErrorLogParser;
 use PHPUnit\Framework\TestCase;
-use RuntimeException;
 
 /**
  * Unit tests for PHP error log parser.
@@ -24,6 +23,14 @@ class PhpErrorLogParserTest extends TestCase
     {
         $this->parser = new PhpErrorLogParser();
         $this->fixturesPath = __DIR__ . '/../Fixtures/logs';
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function parse(string $logFile): array
+    {
+        return $this->parser->parseLines(file($logFile, FILE_IGNORE_NEW_LINES) ?: []);
     }
 
     public function testGetNameReturnsCorrectIdentifier(): void
@@ -80,14 +87,10 @@ class PhpErrorLogParserTest extends TestCase
         $this->assertFalse($result);
     }
 
-    public function testParseToJsonParsesPhpErrorLog(): void
+    public function testParseLinesParsesPhpErrorLog(): void
     {
         $logFile = $this->fixturesPath . '/php_error.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-
-        $this->assertJson($result);
-
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
         $this->assertIsArray($parsed);
         $this->assertNotEmpty($parsed);
 
@@ -98,11 +101,10 @@ class PhpErrorLogParserTest extends TestCase
         $this->assertArrayHasKey('message', $firstEntry);
     }
 
-    public function testParseToJsonNormalizesWarnings(): void
+    public function testParseLinesNormalizesWarnings(): void
     {
         $logFile = $this->fixturesPath . '/php_error.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         // First entry is a warning
         $warningEntry = $parsed[0];
@@ -110,11 +112,10 @@ class PhpErrorLogParserTest extends TestCase
         $this->assertStringContainsString('Undefined array key', $warningEntry['message']);
     }
 
-    public function testParseToJsonNormalizesErrors(): void
+    public function testParseLinesNormalizesErrors(): void
     {
         $logFile = $this->fixturesPath . '/php_error.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         // Find an error entry
         $errorEntry = null;
@@ -130,11 +131,10 @@ class PhpErrorLogParserTest extends TestCase
         $this->assertEquals('Error', $errorEntry['type']);
     }
 
-    public function testParseToJsonHandlesMultilineEntries(): void
+    public function testParseLinesHandlesMultilineEntries(): void
     {
         $logFile = $this->fixturesPath . '/php_error.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         // Fatal error entry contains stack trace (multi-line)
         $fatalEntry = null;
@@ -149,26 +149,6 @@ class PhpErrorLogParserTest extends TestCase
         $this->assertNotNull($fatalEntry);
         $this->assertStringContainsString('Stack trace', $fatalEntry['message']);
         $this->assertStringContainsString('#0', $fatalEntry['message']);
-    }
-
-    public function testParseToJsonRespectsMaxLines(): void
-    {
-        $logFile = $this->fixturesPath . '/php_error.log';
-        $result = $this->parser->parseToJson($logFile, 3);
-        $parsed = json_decode($result, true);
-
-        // With multi-line entries, we might get fewer entries than maxLines
-        // But we should definitely not get more than the total entries
-        $this->assertLessThanOrEqual(10, count($parsed));
-    }
-
-    public function testParseToJsonThrowsExceptionForNonExistentFile(): void
-    {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('errorlog not found or unreadable');
-
-        $logFile = $this->fixturesPath . '/nonexistent.log';
-        $this->parser->parseToJson($logFile, 100);
     }
 
     public function testAnalyzeLogCountsErrorsAndWarnings(): void
@@ -199,21 +179,19 @@ class PhpErrorLogParserTest extends TestCase
         $this->assertNull($result->fatalDigest);
     }
 
-    public function testParseToJsonExtractsTimestampCorrectly(): void
+    public function testParseLinesExtractsTimestampCorrectly(): void
     {
         $logFile = $this->fixturesPath . '/php_error.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         $firstEntry = $parsed[0];
         $this->assertEquals('2026-01-18 10:30:45', $firstEntry['timestamp']);
     }
 
-    public function testParseToJsonHandlesDeprecatedNotices(): void
+    public function testParseLinesHandlesDeprecatedNotices(): void
     {
         $logFile = $this->fixturesPath . '/php_error.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         // Find deprecated entry
         $deprecatedEntry = null;
@@ -229,11 +207,10 @@ class PhpErrorLogParserTest extends TestCase
         $this->assertEquals('Deprecated', $deprecatedEntry['type']);
     }
 
-    public function testParseToJsonNormalizesNoticesAsWarnings(): void
+    public function testParseLinesNormalizesNoticesAsWarnings(): void
     {
         $logFile = $this->fixturesPath . '/php_error.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         $noticeEntry = null;
         foreach ($parsed as $entry) {

@@ -8,7 +8,6 @@ use LogicException;
 use Mata\Utils\Tools;
 use Mata\Watchers\App\FatalCursor;
 use Mata\Watchers\AppWatcher;
-use Mata\Watchers\LogParsers\LogParserFactory;
 use Monolog\Handler\TestHandler;
 use Monolog\Logger;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -35,12 +34,10 @@ final class FatalCursorTest extends TestCase
     {
         $this->rootPath = sys_get_temp_dir() . '/mata-node-fatal-cursor-' . bin2hex(random_bytes(6));
         mkdir($this->rootPath . '/app/logs', 0777, true);
-        LogParserFactory::clearCache();
     }
 
     protected function tearDown(): void
     {
-        LogParserFactory::clearCache();
         $this->removeDirectory($this->rootPath);
     }
 
@@ -322,7 +319,7 @@ final class FatalCursorTest extends TestCase
         $this->assertNotSame($before, $this->cursor('php_error_log'));
     }
 
-    public function testSeverityMarkerBeyondTheLineBufferIsStillCounted(): void
+    public function testJsonRecordLongerThanTheLineBufferHasNoLevelAndIsNotCounted(): void
     {
         $record = [
             'timestamp' => '2026-07-19T12:00:00Z',
@@ -335,9 +332,9 @@ final class FatalCursorTest extends TestCase
 
         $status = $this->logStatus('json');
 
-        $this->assertSame(1, $status['fatal'], 'A line longer than the buffer must not lose its severity marker.');
+        $this->assertSame(0, $status['fatal'], 'Only the buffered head of the record is read, and it does not decode.');
         $this->assertSame(2, $status['total']);
-        $this->assertNotNull($status['fatal_cursor']);
+        $this->assertNull($status['fatal_cursor']);
     }
 
     public function testScanningALargeLogUsesBoundedMemory(): void

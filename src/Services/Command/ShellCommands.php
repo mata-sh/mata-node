@@ -10,11 +10,6 @@ final class ShellCommands
 
     private function __construct() {}
 
-    public static function head(string $file, int $lines): string
-    {
-        return 'head -n ' . ShellInput::positiveInt($lines, max: self::MAX_LOG_LINES) . ' -- ' . self::argPath($file);
-    }
-
     public static function tail(string $file, int $lines): string
     {
         return 'tail -n ' . ShellInput::positiveInt($lines, max: self::MAX_LOG_LINES) . ' -- ' . self::argPath($file);

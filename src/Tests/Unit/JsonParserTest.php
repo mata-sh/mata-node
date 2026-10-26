@@ -4,11 +4,8 @@ declare(strict_types=1);
 
 namespace Mata\Tests\Unit;
 
-use Mata\Services\Command\ShellCommands;
-use Mata\Tests\Support\FakeCommandRunner;
 use Mata\Watchers\LogParsers\JsonParser;
 use PHPUnit\Framework\TestCase;
-use RuntimeException;
 
 /**
  * Unit tests for JSON log parser.
@@ -42,6 +39,14 @@ class JsonParserTest extends TestCase
         $this->tempFiles = [];
     }
 
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function parse(string $logFile): array
+    {
+        return $this->parser->parseLines(file($logFile, FILE_IGNORE_NEW_LINES) ?: []);
+    }
+
     private function createTempLogFile(string $contents): string
     {
         $tempLog = tempnam(sys_get_temp_dir(), 'mata-json-');
@@ -56,16 +61,6 @@ class JsonParserTest extends TestCase
     public function testGetNameReturnsCorrectIdentifier(): void
     {
         $this->assertEquals('json', $this->parser->getName());
-    }
-
-    public function testDetectUsesInjectedCommandRunner(): void
-    {
-        $logFile = $this->createTempLogFile("not used by fake runner\n");
-        $parser = new JsonParser(new FakeCommandRunner([
-            ShellCommands::head($logFile, 10) => "{\"level\":\"error\",\"message\":\"failed\"}\n",
-        ]));
-
-        $this->assertTrue($parser->detect($logFile));
     }
 
     public function testDetectReturnsTrueForJsonFormat(): void
@@ -108,14 +103,25 @@ class JsonParserTest extends TestCase
         $this->assertFalse($result);
     }
 
-    public function testParseToJsonParsesJsonFormat(): void
+    public function testDetectLooksOnlyAtTheLeadingNonBlankLines(): void
+    {
+        $record = '{"level":"info","message":"ok"}';
+        $logFile = $this->createTempLogFile("\n" . str_repeat($record . "\n\n", 10) . str_repeat("plain text\n", 1000));
+
+        $this->assertTrue($this->parser->detect($logFile));
+    }
+
+    public function testDetectCutsAnOverlongLine(): void
+    {
+        $logFile = $this->createTempLogFile('{"message":"' . str_repeat('x', 6 * 1024 * 1024) . "\"}\n");
+
+        $this->assertFalse($this->parser->detect($logFile));
+    }
+
+    public function testParseLinesParsesJsonFormat(): void
     {
         $logFile = $this->fixturesPath . '/json.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-
-        $this->assertJson($result);
-
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
         $this->assertIsArray($parsed);
         $this->assertNotEmpty($parsed);
 
@@ -126,21 +132,19 @@ class JsonParserTest extends TestCase
         $this->assertArrayHasKey('message', $firstEntry);
     }
 
-    public function testParseToJsonExtractsTimestampCorrectly(): void
+    public function testParseLinesExtractsTimestampCorrectly(): void
     {
         $logFile = $this->fixturesPath . '/json.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         $firstEntry = $parsed[0];
         $this->assertEquals('2026-01-18 10:30:45', $firstEntry['timestamp']);
     }
 
-    public function testParseToJsonNormalizesErrorLevel(): void
+    public function testParseLinesNormalizesErrorLevel(): void
     {
         $logFile = $this->fixturesPath . '/json.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         // Find error entry
         $errorEntry = null;
@@ -156,11 +160,10 @@ class JsonParserTest extends TestCase
         $this->assertEquals('Error', $errorEntry['type']);
     }
 
-    public function testParseToJsonNormalizesWarningLevel(): void
+    public function testParseLinesNormalizesWarningLevel(): void
     {
         $logFile = $this->fixturesPath . '/json.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         // Find warning entry
         $warningEntry = null;
@@ -176,11 +179,10 @@ class JsonParserTest extends TestCase
         $this->assertEquals('Warning', $warningEntry['type']);
     }
 
-    public function testParseToJsonNormalizesCriticalLevel(): void
+    public function testParseLinesNormalizesCriticalLevel(): void
     {
         $logFile = $this->fixturesPath . '/json.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         // Find critical entry
         $criticalEntry = null;
@@ -196,11 +198,10 @@ class JsonParserTest extends TestCase
         $this->assertEquals('Error', $criticalEntry['type']);
     }
 
-    public function testParseToJsonNormalizesEmergencyLevel(): void
+    public function testParseLinesNormalizesEmergencyLevel(): void
     {
         $logFile = $this->fixturesPath . '/json.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         // Find emergency entry
         $emergencyEntry = null;
@@ -216,22 +217,20 @@ class JsonParserTest extends TestCase
         $this->assertEquals('Error', $emergencyEntry['type']);
     }
 
-    public function testParseToJsonNormalizesInfoLevel(): void
+    public function testParseLinesNormalizesInfoLevel(): void
     {
         $logFile = $this->fixturesPath . '/json.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         // First entry is info
         $infoEntry = $parsed[0];
         $this->assertEquals('Other', $infoEntry['type']);
     }
 
-    public function testParseToJsonNormalizesDebugLevel(): void
+    public function testParseLinesNormalizesDebugLevel(): void
     {
         $logFile = $this->fixturesPath . '/json.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         // Find debug entry
         $debugEntry = null;
@@ -247,11 +246,10 @@ class JsonParserTest extends TestCase
         $this->assertEquals('Other', $debugEntry['type']);
     }
 
-    public function testParseToJsonIncludesContextData(): void
+    public function testParseLinesIncludesContextData(): void
     {
         $logFile = $this->fixturesPath . '/json.log';
-        $result = $this->parser->parseToJson($logFile, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($logFile);
 
         // First entry has context
         $firstEntry = $parsed[0];
@@ -261,57 +259,46 @@ class JsonParserTest extends TestCase
         $this->assertEquals('2.1.0', $firstEntry['context']['version']);
     }
 
-    public function testParseToJsonHandlesExtraField(): void
+    public function testParseLinesHandlesExtraField(): void
     {
         $tempLog = $this->createTempLogFile('{"timestamp":"2026-01-18T10:30:45.123Z","level":"info","message":"Test","context":{"foo":"bar"},"extra":{"baz":"qux"}}');
 
-        $result = $this->parser->parseToJson($tempLog, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($tempLog);
 
         $this->assertArrayHasKey('extra', $parsed[0]);
         $this->assertEquals(['baz' => 'qux'], $parsed[0]['extra']);
     }
 
-    public function testParseToJsonSkipsInvalidLines(): void
+    public function testParseLinesSkipsInvalidLines(): void
     {
         $tempLog = $this->createTempLogFile("not valid json\n{\"timestamp\":\"2026-01-18T10:30:45.123Z\",\"level\":\"info\",\"message\":\"Valid\"}\ninvalid again");
 
-        $result = $this->parser->parseToJson($tempLog, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($tempLog);
 
         // Should only have the valid entry
         $this->assertCount(1, $parsed);
         $this->assertEquals('Valid', $parsed[0]['message']);
     }
 
-    public function testParseToJsonHandlesAlternativeFieldNames(): void
+    public function testParseLinesHandlesAlternativeFieldNames(): void
     {
         $tempLog = $this->createTempLogFile('{"time":"2026-01-18T10:30:45.123Z","severity":"error","msg":"Alternative fields"}');
 
-        $result = $this->parser->parseToJson($tempLog, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($tempLog);
 
         $this->assertEquals('2026-01-18 10:30:45', $parsed[0]['timestamp']);
         $this->assertEquals('Alternative fields', $parsed[0]['message']);
     }
 
-    public function testParseToJsonThrowsExceptionForNonExistentFile(): void
+    public function testParseLinesReadsMonologJsonFormatterRecords(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('log file not found or unreadable');
+        $tempLog = $this->createTempLogFile('{"message":"boom","context":{"id":7},"level":400,"level_name":"ERROR","channel":"app","datetime":"2026-01-18T10:30:45.123456+00:00","extra":{}}');
 
-        $logFile = $this->fixturesPath . '/nonexistent.log';
-        $this->parser->parseToJson($logFile, 100);
-    }
+        $parsed = $this->parse($tempLog);
 
-    public function testParseToJsonRespectsMaxLines(): void
-    {
-        $logFile = $this->fixturesPath . '/json.log';
-        $result = $this->parser->parseToJson($logFile, 5);
-        $parsed = json_decode($result, true);
-
-        // Should have at most 5 entries
-        $this->assertLessThanOrEqual(5, count($parsed));
+        $this->assertSame('2026-01-18 10:30:45', $parsed[0]['timestamp']);
+        $this->assertSame('Error', $parsed[0]['type']);
+        $this->assertSame(['id' => 7], $parsed[0]['context']);
     }
 
     public function testAnalyzeLogCountsErrorsAndWarnings(): void
@@ -342,44 +329,40 @@ class JsonParserTest extends TestCase
         $this->assertNull($result->fatalDigest);
     }
 
-    public function testParseToJsonHandlesEmptyContext(): void
+    public function testParseLinesHandlesEmptyContext(): void
     {
         $tempLog = $this->createTempLogFile('{"timestamp":"2026-01-18T10:30:45.123Z","level":"info","message":"No context"}');
 
-        $result = $this->parser->parseToJson($tempLog, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($tempLog);
 
         $this->assertArrayNotHasKey('context', $parsed[0]);
     }
 
-    public function testParseToJsonHandlesMissingTimestamp(): void
+    public function testParseLinesHandlesMissingTimestamp(): void
     {
         $tempLog = $this->createTempLogFile('{"level":"info","message":"No timestamp"}');
 
-        $result = $this->parser->parseToJson($tempLog, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($tempLog);
 
         // Should have empty timestamp
         $this->assertEquals('', $parsed[0]['timestamp']);
     }
 
-    public function testParseToJsonHandlesMissingLevel(): void
+    public function testParseLinesHandlesMissingLevel(): void
     {
         $tempLog = $this->createTempLogFile('{"timestamp":"2026-01-18T10:30:45.123Z","message":"No level"}');
 
-        $result = $this->parser->parseToJson($tempLog, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($tempLog);
 
         // Should default to info level
         $this->assertEquals('Other', $parsed[0]['type']);
     }
 
-    public function testParseToJsonHandlesMissingMessage(): void
+    public function testParseLinesHandlesMissingMessage(): void
     {
         $tempLog = $this->createTempLogFile('{"timestamp":"2026-01-18T10:30:45.123Z","level":"info"}');
 
-        $result = $this->parser->parseToJson($tempLog, 100);
-        $parsed = json_decode($result, true);
+        $parsed = $this->parse($tempLog);
 
         // Should have empty message
         $this->assertEquals('', $parsed[0]['message']);

@@ -4,60 +4,39 @@ declare(strict_types=1);
 
 namespace Mata\Watchers\LogParsers;
 
-use Mata\Services\Command\ShellCommands;
-use RuntimeException;
-
 /**
  * Parser for Monolog line format.
  *
- * Handles Monolog format: [YYYY-MM-DD HH:MM:SS] channel.LEVEL: message {context}
+ * Handles Monolog format: [YYYY-MM-DD HH:MM:SS] channel.LEVEL: message {context}, with the
+ * timestamp also in Monolog's default form [YYYY-MM-DDTHH:MM:SS.uuuuuu+00:00].
  * Supports multi-line entries (stack traces, context blocks).
  */
 class MonologParser extends AbstractLogParser
 {
-    private const ENTRY_START_PATTERN = '/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\]/';
+    /** [2026-01-18 10:30:45], or with `T`, fractional seconds and an offset or `Z` */
+    private const TIMESTAMP = '\[\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?\]';
+
+    private const ENTRY_START_PATTERN = '/^' . self::TIMESTAMP . '/';
+
+    /** [timestamp] channel.LEVEL: */
+    private const FORMAT_LINE_PATTERN = '/^' . self::TIMESTAMP . ' \w+\.\w+:/';
+
+    /** An entry: [timestamp] channel.LEVEL: message, the message running on over continuation lines. */
+    private const ENTRY_PATTERN = '/^\[(.*?)\] (\w+)\.(\w+): (.+)$/s';
 
     public function getName(): string
     {
         return 'monolog';
     }
 
-    public function detect(string $logFile): bool
+    protected function lineType(string $line): string
     {
-        if (!file_exists($logFile) || !is_readable($logFile)) {
-            return false;
-        }
-
-        $output = $this->shell(ShellCommands::head($logFile, 10));
-        if ($output === null || $output === '') {
-            return false;
-        }
-
-        $lines = explode("\n", trim($output));
-        $matchCount = 0;
-        $totalLines = count($lines);
-
-        // Pattern: [YYYY-MM-DD HH:MM:SS] channel.LEVEL:
-        $pattern = '/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] \w+\.\w+:/';
-
-        foreach ($lines as $line) {
-            if (preg_match($pattern, $line)) {
-                ++$matchCount;
-            }
-        }
-
-        // Return true if 50%+ of lines match Monolog format
-        return $totalLines > 0 && ($matchCount / $totalLines) >= 0.5;
+        return preg_match(self::ENTRY_PATTERN, $line, $matches) === 1 ? self::type($matches[3]) : 'Other';
     }
 
-    protected function fatalLinePattern(): string
+    protected function isFormatLine(string $line): bool
     {
-        return '/.ERROR:|.CRITICAL:|.EMERGENCY:|.ALERT:/';
-    }
-
-    protected function warningLinePattern(): string
-    {
-        return '/.WARNING:/';
+        return preg_match(self::FORMAT_LINE_PATTERN, $line) === 1;
     }
 
     protected function entryStartPattern(): string
@@ -65,77 +44,30 @@ class MonologParser extends AbstractLogParser
         return self::ENTRY_START_PATTERN;
     }
 
-    /**
-     * Parse Monolog lines.
-     *
-     * @param array<int,string> $lines
-     *
-     * @return array<int,array<string,mixed>>
-     */
-    public function parseLines(array $lines): array
+    protected function parseEntry(string $entry): ?array
     {
-        // Monolog entry starts with: [YYYY-MM-DD HH:MM:SS]
-        $logEntries = $this->groupMultilineEntries($lines, self::ENTRY_START_PATTERN);
-
-        $parsedEntries = [];
-        foreach ($logEntries as $entry) {
-            $parsed = $this->parse($entry);
-            if ($parsed !== null) {
-                $parsedEntries[] = $parsed;
-            }
-        }
-
-        return $parsedEntries;
-    }
-
-    /**
-     * Parse a single Monolog entry.
-     *
-     * @return null|array<string,mixed>
-     */
-    public function parse(string $entry): ?array
-    {
-        // Parse: [2026-01-18 10:30:45] channel.LEVEL: message {context}
-        if (!preg_match('/^\[(.*?)\] (\w+)\.(\w+): (.+)$/s', $entry, $matches)) {
+        if (preg_match(self::ENTRY_PATTERN, $entry, $matches) !== 1) {
             return null;
         }
 
-        $timestamp = $matches[1];
-        $channel = $matches[2];
-        $level = $matches[3];
-        $message = trim($matches[4]);
-
-        // Normalize log level to match PHP error_log format
-        $normalizedType = match (strtoupper($level)) {
-            'ERROR', 'CRITICAL', 'ALERT', 'EMERGENCY' => 'Error',
-            'WARNING' => 'Warning',
-            'NOTICE', 'INFO' => 'Other',
-            'DEBUG' => 'Other',
-            default => 'Other'
-        };
+        [, $timestamp, $channel, $level, $message] = $matches;
 
         return [
             'timestamp' => $this->normalizeTimestamp($timestamp),
-            'type' => $normalizedType,
-            'message' => $message,
+            'type' => self::type($level),
+            'message' => trim($message),
             'channel' => $channel,
             'level' => $level,
         ];
     }
 
-    public function parseToJson(string $logFile, int $maxLines): string
+    /** A Monolog level as entry type, in the types of the PHP error_log format. */
+    private static function type(string $level): string
     {
-        if (!file_exists($logFile) || !is_readable($logFile)) {
-            throw new RuntimeException("log file not found or unreadable: {$logFile}");
-        }
-
-        $output = $this->shell(ShellCommands::tail($logFile, $maxLines));
-        if ($output === null) {
-            throw new RuntimeException('failed to read log using tail');
-        }
-
-        $lines = trim($output) !== '' ? explode("\n", trim($output)) : [];
-
-        return json_encode($this->parseLines($lines), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        return match (strtoupper($level)) {
+            'ERROR', 'CRITICAL', 'ALERT', 'EMERGENCY' => 'Error',
+            'WARNING' => 'Warning',
+            default => 'Other'
+        };
     }
 }

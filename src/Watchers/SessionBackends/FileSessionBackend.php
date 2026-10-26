@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Mata\Watchers\SessionBackends;
 
+use Mata\Utils\Tools;
+
 final class FileSessionBackend implements SessionBackendInterface
 {
+    public function __construct(private readonly Tools $tools = new Tools()) {}
+
     /**
      * @param array<string, mixed> $config
      *
@@ -33,7 +37,7 @@ final class FileSessionBackend implements SessionBackendInterface
             return $metadata;
         }
 
-        $sessionsDirPath = rtrim($rootPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $sessionPath;
+        $sessionsDirPath = $this->tools->normalizePath($sessionPath, $rootPath);
         if (!is_dir($sessionsDirPath)) {
             return $metadata;
         }

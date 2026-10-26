@@ -4,7 +4,6 @@ Policy: keep shell commands for performant OS/log work, but build command string
 
 | Builder | Command shape | Inputs | Risk | Decision |
 |---|---|---|---|---|
-| `ShellCommands::head()` | `head -n N -- FILE` | file path, line count | path/arg injection | Keep shell. Centralized escaping and line clamp. |
 | `ShellCommands::tail()` | `tail -n N -- FILE` | file path, line count | path/arg injection | Keep shell. Centralized escaping and line clamp. |
 | `ShellCommands::lineCount()` | `wc -l < FILE` | file path | path injection | Keep shell for large logs. Centralized escaping. |
 | `ShellCommands::composerAudit()` | `composer audit ... --working-dir=DIR` | optional composer bin path, working dir | config path injection | Keep shell. Bin/path escaped; default command is literal `composer`. |
@@ -22,8 +21,9 @@ Rules:
 
 - Watchers and log parsers must call builders, not concatenate shell strings.
 - Log analysis (`/apps` counts and fatal cursor) does not shell out at all: parsers read the file
-  once as a bounded-memory PHP stream. The former `ShellCommands::grepCount()` builder was removed
-  with its last caller.
+  once as a bounded-memory PHP stream. Format detection reads the first lines the same way. The
+  former `ShellCommands::grepCount()` and `ShellCommands::head()` builders were removed with their
+  last callers.
 - Shell paths go through `ShellInput::path()` and `escapeshellarg()` in the builder.
 - Counts go through `ShellInput::positiveInt()`.
 - Process patterns go through `ShellInput::safeProcessPattern()`.

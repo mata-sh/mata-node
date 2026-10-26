@@ -39,3 +39,6 @@ TODO.md
 # Local planning notes (not published)
 docs/plans/
 docs/*-plan.md
+
+# Instance-owned log formats (version them with the rest of config/)
+config/log-formats/

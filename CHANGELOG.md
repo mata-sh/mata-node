@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - The Docker images include the APCu extension, needed for `RATE_LIMIT_STORAGE=apcu`
+- YAML log formats, one per file in the optional `config/log-formats/`: a regular expression or JSON fields, plus the levels that count as errors and warnings. `type` in `apps.json` selects one; they are never auto-detected. `nginx_error` ships in `resources/log-formats/`. `config validate` and `log test` cover them. `symfony/yaml` is now a production dependency
 - `bin/mata-node`, a read-only command line run as the web server user (`make mata ARGS="…"` in Docker): `config validate` reports every problem in `config/` that would fail startup or `/apps`, or that the node silently skips, and `log test <app>` shows the parser, parsed entries and counts for each of an app's logs. Both take `--json` and exit `0`/`1`/`2` like the dashboard's `bin/mata`. `symfony/console` is now a production dependency
 
 ### Changed
@@ -15,21 +16,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `config/databases.json` takes named `connections`, each with its own `engine`, login and databases, so one node can watch several database servers or accounts. `/databases/overview` returns a `connections` list with a per-connection `error`, and `/databases/processes` takes `connection=`, which is required. The single-connection format of 0.3.0 fails startup with `configuration_invalid`. **Action:** wrap the file in `"connections": {"<name>": …}`, or convert a pre-0.3.0 file with `scripts/migrate-databases-config.php`, and update the dashboard at the same time
 - A JSON config file whose top level is a list instead of an object fails startup with `configuration_invalid`, and the boot log now says why a file is not valid JSON
 - `config.env` values are validated, and an invalid one fails startup with `configuration_invalid` instead of being silently replaced: integer settings (rate limits and windows, Redis port and database, `DASHBOARD_CLOCK_SKEW_WINDOW`) must be whole numbers in range instead of becoming `0`, on/off settings `ON`/`OFF`, `TRUE`/`FALSE`, `YES`/`NO` or `1`/`0` instead of meaning off, `RATE_LIMIT_STORAGE` one of `file`, `redis` and `apcu` instead of falling back to `file`, and `MONOLOG_LEVEL` a Monolog level name instead of falling back to `debug`
+- `/apps` `fatal` and `warnings` count entries by level, matching their `type` in `/{app}/logs`, instead of lines containing level text: `json` now counts levels in any case or spacing, `severity` and `warn`, and no built-in format counts level text in a message, context or stack trace. A JSON record over 5 MB is not counted. Where this changes which entries are fatal, `fatal_cursor` changes once after the update
 
 - With rate limiting on, `RATE_LIMIT_STORAGE=redis` or `apcu` without the PHP extension fails startup with `configuration_invalid` instead of denying every request with `429`
 
 ### Removed
+- Parser classes dropped into `src/Watchers/LogParsers/` are no longer discovered; the node uses its built-in parsers and the YAML formats. **Action:** define such a format in `config/log-formats/` instead
 - `make logs-db` and the database steps in `make docker-setup`; the Docker setup has no database container
 - `DOMAIN` and `DIR`, which nothing read; `DOMAIN` is no longer required
 - `DISPLAY_ERRORS` and `LOG_LEVEL`, which nothing read; PHP errors are never displayed and go to `logs/php-error.log`, and `error_reporting` comes from `php.ini` (`docker/php/php-*.ini` in Docker)
 - `RATE_LIMIT_LOGIN_*` and `RATE_LIMIT_DASHBOARD_*`, which the node never applied; they are ignored and can be deleted from `config.env`
 
 ### Fixed
+- `json` ignored the level name and timestamp of records from Monolog's `JsonFormatter` (`level_name`, `datetime`), so their errors and warnings were not counted or typed
+- `monolog` did not recognise Monolog's default timestamp `[2026-01-18T10:30:45.123456+00:00]`, so such logs were not auto-detected and `/{app}/logs` returned no entries for them
 - `"disabled": true` in `apps.json` left the app enabled, as only the string `"true"` counted; the JSON boolean now disables the app too
 - `/databases/*` responses no longer include the database host, port or driver error; the node logs them as a warning instead
 - `RATE_LIMIT_AUTH_FAILED_*` only logged when the limit was exceeded; a client IP over the limit now gets `429` on authenticated routes, valid credentials included, until the window passes
 - Without a writable `logs/`, the boot log went to `/tmpmata-boot.log` instead of `/tmp/mata-boot.log`
 - A `0` in `config.env` was treated as unset and replaced by the default, so `RATE_LIMIT_ENABLED=0` left rate limiting on
+- An absolute `sessions.path` in `apps.json` was resolved under the node's parent directory, so file sessions were reported as `0`; absolute paths are now used as given
 - Responses containing invalid UTF-8, such as a Latin-1 README or log line, were sent as an empty body with status `200`; invalid bytes are now replaced with U+FFFD
 
 ## [0.4.0] - 2026-10-10
