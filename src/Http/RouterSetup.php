@@ -185,6 +185,7 @@ class RouterSetup
                 $limit = isset($_GET['limit']) && is_scalar($_GET['limit']) ? (int) $_GET['limit'] : null;
 
                 return [
+                    'grouped' => true,
                     'entries' => $this->appWatcher->getAppLogEntries(
                         app: $app,
                         filter: is_string($_GET['filter'] ?? null) ? $_GET['filter'] : '',

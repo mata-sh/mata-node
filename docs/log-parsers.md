@@ -97,11 +97,23 @@ Use it in `apps.json`:
 
 | Method | Used by | Must |
 | --- | --- | --- |
-| `parseLines()` | `/{app}/logs` | Return entries with `timestamp` (`Y-m-d H:i:s` or `""`), `type` (`Error`, `Warning` or `Other`; the `errors`/`warnings` filters match on it) and `message`. Extra keys are passed through. |
+| `parseLines()` | `/{app}/logs` | Return entries with `timestamp` (`Y-m-d H:i:s` or `""`), `type` (`Error`, `Warning` or `Other`; the `errors`/`warnings` filters match on it) and `message`, one per occurrence. Extra keys are passed through. |
 | `fatalLinePattern()`, `warningLinePattern()` | `/apps` `status` counts, fatal cursor | Match one physical line. |
 | `entryStartPattern()` | fatal cursor | Optional. Match the first line of a multiline entry so stack traces belong to it. Default: every line is an entry. |
 | `canonicalizeEntryLine()` | fatal cursor | Optional. Normalize single-line entries whose serialization varies (see `JsonParser`). |
 | `detect()` | auto-detection | Return `true` only for files in this format. |
+
+`/{app}/logs` groups the parsed entries before applying the readout limit: entries of the same
+`type` whose messages differ only in timestamps, IDs and numbers become one entry, the newest,
+with `count`, `first_seen` and `last_seen`. A source location such as `Db.php:75` or `line 75`
+is not masked, so the same message from another line stays separate. Counts and `first_seen`
+cover only the scanned lines (`errorlog_scan_line_limit`), not the whole file.
+
+```json
+{"grouped": true, "readout_limit": 200, "entries": {"logs/error.log": [
+  {"timestamp": "2026-10-25 22:48:49", "type": "Error", "message": "MySQL server has gone away in /src/Db.php:75",
+   "count": 42, "first_seen": "2026-10-25 08:01:12", "last_seen": "2026-10-25 22:48:49"}]}}
+```
 
 Parsers are tried in file name order during auto-detection and the first match wins; files no
 parser claims fall back to `php_error_log`. Give a strict `detect()` so it cannot claim other

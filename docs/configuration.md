@@ -591,7 +591,7 @@ Top-level structure: one object.
 | --- | --- | --- | --- | --- |
 | `check_disk_space_enabled` | No | enabled | `"off"` disables | Only the exact string `"off"` disables disk checks. Any other value, including boolean `false`, enables them. |
 | `check_disk_space_path` | No | `/` | filesystem path | Path passed to disk-space checks. Returned disk values are KiB. |
-| `errorlog_readout_limit` | No | `50` | entries | Default number of parsed log entries returned by `/{app}/logs` after filtering. |
+| `errorlog_readout_limit` | No | `50` | entries | Default number of log entries returned per file by `/{app}/logs` after filtering and grouping; repeats of one message count once. |
 | `errorlog_scan_line_limit` | No | `20000` | lines | Number of raw tail lines read before parsing and filtering `/{app}/logs`. |
 | `system_filecount_cache_max_age` | No | `1800` | seconds | Used by server file-count caching. Cached value is reused while its age is less than or equal to this value; older cache is recalculated. |
 | `cronjob_heartbeats` | No | empty array | paths | Ordered array of heartbeat file paths relative to the node root. A single string is also accepted. `/server/data` returns summary counts; `/server/cronjobs` returns per-file metadata and tail content. |

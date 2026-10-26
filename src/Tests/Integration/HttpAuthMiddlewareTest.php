@@ -214,6 +214,7 @@ final class HttpAuthMiddlewareTest extends TestCase
 
         $this->assertSame(200, $response->getStatusCode(), (string) $response->getBody());
         $this->assertSame([
+            'grouped' => true,
             'entries' => [],
             'readout_limit' => 1,
         ], $this->decodeJson($response));

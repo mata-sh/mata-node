@@ -77,7 +77,7 @@ final class LogInspector
                 $lines = $this->tailLogLines($logFile, $scanLineLimit);
                 $parsedEntries = $parser->parseLines($lines);
                 $parsedEntries = $this->filterLogEntries($parsedEntries, $filter);
-                $entries[$logPath] = array_slice($parsedEntries, -$limit);
+                $entries[$logPath] = array_slice(LogEntryGrouper::group($parsedEntries), -$limit);
             } catch (Throwable $e) {
                 $this->logger->warning('Failed to parse log file', [
                     'app' => $app,
