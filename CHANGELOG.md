@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-13
+
 ### Fixed
 - Updated Symfony components for CVE-2026-123792 (YAML parser denial of service in `symfony/yaml`) and a `symfony/filesystem` path escape. **Action:** none.
 
