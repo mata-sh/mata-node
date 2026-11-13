@@ -13,6 +13,10 @@ updates:
     # `composer update` manually now and then.
     open-pull-requests-limit: 0
 
+    # Fake lockfiles for framework detection tests, not installed dependencies.
+    exclude-paths:
+      - "tests/Fixtures/**"
+
     labels:
       - "dependencies"
 
