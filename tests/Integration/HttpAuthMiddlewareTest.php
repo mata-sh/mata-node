@@ -439,7 +439,7 @@ PHP;
             $this->serverPipes,
             null,
             [
-                'MATA_HTTP_TEST_PROJECT_ROOT' => dirname(__DIR__, 3),
+                'MATA_HTTP_TEST_PROJECT_ROOT' => dirname(__DIR__, 2),
                 'MATA_HTTP_TEST_BASE_PATH' => $this->tmpDir,
                 'MATA_HTTP_TEST_SERVER_ID' => self::SERVER_ID,
                 'MATA_HTTP_TEST_API_KEY' => self::API_KEY,

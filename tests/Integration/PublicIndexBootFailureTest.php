@@ -31,7 +31,7 @@ final class PublicIndexBootFailureTest extends TestCase
         mkdir($this->appPath . '/logs', 0775, true);
         mkdir($this->workingPath, 0775, true);
 
-        $projectRoot = dirname(__DIR__, 3);
+        $projectRoot = dirname(__DIR__, 2);
         copy($projectRoot . '/public/index.php', $this->appPath . '/public/index.php');
         file_put_contents(
             $this->appPath . '/vendor/autoload.php',

@@ -4,5 +4,3 @@ parameters:
         - src
         - bin/mata-node
     treatPhpDocTypesAsCertain: false
-    excludePaths:
-        - src/Tests/

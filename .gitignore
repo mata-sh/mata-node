@@ -23,9 +23,9 @@ logs/
 reports/
 
 # allow test fixtures
-!src/Tests/Fixtures/logs/
-!src/Tests/Fixtures/**/*.log
-!src/Tests/Fixtures/frameworks/**/vendor/
+!tests/Fixtures/logs/
+!tests/Fixtures/**/*.log
+!tests/Fixtures/frameworks/**/vendor/
 
 config/*.json
 config/*/*.json

@@ -44,7 +44,6 @@ CONTRIBUTING.md
 TODO.md
 
 # Test files
-src/Tests/
 tests/
 phpunit.xml
 phpunit.xml.dist

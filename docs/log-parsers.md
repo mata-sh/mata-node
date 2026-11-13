@@ -92,7 +92,7 @@ with:
 
 - the format file in `resources/log-formats/`, written as for `config/log-formats/`
   (see `nginx_error.yaml`);
-- a log fixture in `src/Tests/Fixtures/logs/`, with a test that parses it (see `DefinedLogParserTest`).
+- a log fixture in `tests/Fixtures/logs/`, with a test that parses it (see `DefinedLogParserTest`).
 
 Shipped formats take their names first: a file in `config/log-formats/` with the same name is
 skipped, so a name means the same format on every node.

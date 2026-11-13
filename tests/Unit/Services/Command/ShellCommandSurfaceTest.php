@@ -19,7 +19,7 @@ final class ShellCommandSurfaceTest extends TestCase
     public function testProductionShellCommandConstructionStaysCentralized(): void
     {
         $violations = [];
-        $root = dirname(__DIR__, 5);
+        $root = dirname(__DIR__, 4);
         $src = $root . '/src';
 
         $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($src));
@@ -30,7 +30,7 @@ final class ShellCommandSurfaceTest extends TestCase
 
             $path = $file->getPathname();
             $relative = substr($path, strlen($root) + 1);
-            if (str_starts_with($relative, 'src/Tests/') || str_starts_with($relative, 'src/Services/Command/')) {
+            if (str_starts_with($relative, 'src/Services/Command/')) {
                 continue;
             }
 
