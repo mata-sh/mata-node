@@ -15,6 +15,12 @@ COLOR_MAGENTA := $(shell git config --get-color "" "magenta")
 # Compose v2 plugin; DOCKER_COMPOSE=docker-compose for the standalone v1 binary
 DOCKER_COMPOSE ?= docker compose
 
+# NONINTERACTIVE=1 skips the setup prompts (scripts/install.sh). ENV=prod makes setup install
+# production dependencies only.
+NONINTERACTIVE ?=
+ENV ?= dev
+COMPOSER_INSTALL_FLAGS := $(if $(filter prod,$(ENV)),--no-dev --optimize-autoloader --no-interaction,)
+
 # Config bootstrap source/target files
 ENV_CONFIG_FILES := config.env
 JSON_CONFIG_FILES := apps.json transmit.json databases.json
@@ -115,6 +121,7 @@ setup:
 			echo "$(COLOR_YELLOW)⚠️  Could not create temp/cache; set TEMP_DIR in config/config.env or create manually$(COLOR_RESET)"; \
 		fi; \
 	fi
+ifeq ($(NONINTERACTIVE),)
 	@echo ""
 	@echo "$(COLOR_CYAN)🔑 Dashboard API Key$(COLOR_RESET)"
 	@read -p "$(COLOR_CYAN)Paste DASHBOARD_API_KEY from your dashboard (or press Enter to skip): $(COLOR_RESET)" dash_key; \
@@ -180,6 +187,7 @@ setup:
 			echo "$(COLOR_RED)❌ Invalid option. See docs/examples/webserver-configs/README.md$(COLOR_RESET)"; \
 			;; \
 	esac
+endif
 	@echo ""
 		@echo "$(COLOR_BLUE)📦 Installing Composer dependencies...$(COLOR_RESET)"
 	@if [ ! -f composer.json ]; then \
@@ -187,9 +195,9 @@ setup:
 		exit 1; \
 	fi
 	@if command -v composer >/dev/null 2>&1; then \
-		composer install; \
+		composer install $(COMPOSER_INSTALL_FLAGS); \
 	elif [ -f "$$HOME/.composer/composer" ]; then \
-		$$HOME/.composer/composer install; \
+		$$HOME/.composer/composer install $(COMPOSER_INSTALL_FLAGS); \
 	else \
 		echo "$(COLOR_RED)❌ Composer not found in PATH$(COLOR_RESET)"; \
 		echo "$(COLOR_YELLOW)Please install Composer or run manually:$(COLOR_RESET)"; \
@@ -200,6 +208,7 @@ setup:
 		exit 1; \
 	fi
 	@echo "$(COLOR_GREEN)✅ Development environment ready!$(COLOR_RESET)"
+ifeq ($(NONINTERACTIVE),)
 	@echo ""
 	@echo "$(COLOR_CYAN)⚙️  NEXT STEPS:$(COLOR_RESET)"
 	@echo "$(COLOR_YELLOW)1.$(COLOR_RESET) Edit $(COLOR_BOLD)config/config.env$(COLOR_RESET) - set DASHBOARD_SERVER_ID and DASHBOARD_API_KEY"
@@ -207,6 +216,7 @@ setup:
 	@echo "$(COLOR_YELLOW)3.$(COLOR_RESET) Choose webserver config from $(COLOR_BOLD)docs/examples/webserver-configs/README.md$(COLOR_RESET)"
 	@echo ""
 	@echo "$(COLOR_BLUE)Or use Docker:$(COLOR_RESET) $(COLOR_CYAN)make docker-setup$(COLOR_RESET) then $(COLOR_CYAN)make dev-start$(COLOR_RESET)"
+endif
 
 # Install Composer dependencies and git hooks
 install-hooks:
@@ -266,6 +276,7 @@ docker-setup:
 			echo "$(COLOR_YELLOW)⚠️  Could not create temp/cache; set TEMP_DIR in config/config.env or create manually$(COLOR_RESET)"; \
 		fi; \
 	fi
+ifeq ($(NONINTERACTIVE),)
 	@echo ""
 	@echo "$(COLOR_CYAN)🔑 Dashboard API Key$(COLOR_RESET)"
 	@read -p "$(COLOR_CYAN)Paste DASHBOARD_API_KEY from your dashboard (or press Enter to skip): $(COLOR_RESET)" dash_key; \
@@ -285,14 +296,17 @@ docker-setup:
 	else \
 		echo "$(COLOR_YELLOW)⚠️  Skipped. Set DASHBOARD_API_KEY manually in config/config.env$(COLOR_RESET)"; \
 	fi
+endif
 	@echo ""
 	@echo "$(COLOR_GREEN)✅ Docker environment ready!$(COLOR_RESET)"
+ifeq ($(NONINTERACTIVE),)
 	@echo ""
 	@echo "$(COLOR_CYAN)⚙️  NEXT STEPS:$(COLOR_RESET)"
 	@echo "$(COLOR_YELLOW)1.$(COLOR_RESET) Edit $(COLOR_BOLD)config/config.env$(COLOR_RESET) - set DASHBOARD_SERVER_ID and DASHBOARD_API_KEY"
 	@echo "$(COLOR_YELLOW)2.$(COLOR_RESET) Review $(COLOR_BOLD)config/apps.json$(COLOR_RESET), $(COLOR_BOLD)config/transmit.json$(COLOR_RESET), and $(COLOR_BOLD)config/databases.json$(COLOR_RESET)"
 	@echo "$(COLOR_YELLOW)3.$(COLOR_RESET) Start containers: $(COLOR_CYAN)make dev-start$(COLOR_RESET)"
 	@echo "$(COLOR_YELLOW)4.$(COLOR_RESET) Check health at $(COLOR_CYAN)http://localhost:3310/health$(COLOR_RESET)"
+endif
 
 # Create the external network shared with MATA Dashboard if neither project has yet
 docker-network:

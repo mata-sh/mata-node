@@ -34,6 +34,8 @@ Dashboard) if it does not exist yet.
 
 ## Production
 
+`curl -fsSL https://mata.sh/install-node.sh | sh -s -- --docker` runs these steps. By hand:
+
 ```bash
 cp .env.example .env
 make bootstrap-config             # then edit config/

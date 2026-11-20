@@ -49,27 +49,33 @@ All routes are `GET`. `/apps` responses depend on each app's `monitoring` switch
 
 ## Quick start
 
-Requires Docker, or PHP 8.3+ with a web server that serves `public/`.
+Requires PHP 8.3+, Composer and a web server that serves `public/`, or Docker.
 
-**Docker** (development setup; for production with `make prod-start` see
-[`docker/README.md`](docker/README.md#production)):
-
-```bash
-git clone https://github.com/mata-sh/mata-node.git && cd mata-node
-make dev-start
-curl http://localhost:3310/health
-```
-
-**Without Docker:**
+Add the node on the dashboard first. `server add` prints the `DASHBOARD_SERVER_ID` and
+`DASHBOARD_API_KEY` the node needs:
 
 ```bash
-git clone https://github.com/mata-sh/mata-node.git && cd mata-node
-make bootstrap-config   # creates all config files from config/example/
-composer install
+make mata ARGS="server add web-01 --api-url https://node.example.com/"   # on the dashboard
 ```
 
-Point the web root to `public/` using one of the configs in
-[`docs/examples/webserver-configs/`](docs/examples/webserver-configs/).
+Then install the latest release into `./mata-node` on the monitored host:
+
+```bash
+# Native: reads the host directly; the web server is yours to configure
+curl -fsSL https://mata.sh/install-node.sh | sh -s -- --server-id web-01
+
+# Docker: sees the host only through mounts you add
+curl -fsSL https://mata.sh/install-node.sh | sh -s -- --docker --server-id web-01
+```
+
+The installer asks for the key on the terminal or reads `MATA_NODE_API_KEY`. It does not take the
+key as an argument, so it stays out of shell history. It never runs `sudo`, is safe to run again,
+and ends with the steps left to do; `--help` lists its options. Docker mode starts the production
+container ([`docker/README.md`](docker/README.md#production)) and needs the Compose plugin.
+
+**From a checkout:** `make setup` asks for the key and the web server and installs dependencies.
+For development, `make dev-start` runs the node on `http://localhost:3310`. The web server configs
+are in [`docs/examples/webserver-configs/`](docs/examples/webserver-configs/).
 
 ## Configuration
 

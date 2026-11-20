@@ -51,13 +51,20 @@ jobs:
             --output-file sbom.cdx.json \
             --omit dev
 
+      # mata.sh/install-node.sh redirects to releases/latest/download/install.sh.
+      - name: Pin the installer to this release
+        run: |
+          sed "s/^MATA_VERSION_DEFAULT=\$/MATA_VERSION_DEFAULT=${GITHUB_REF_NAME}/" scripts/install.sh > install.sh
+          grep -qx "MATA_VERSION_DEFAULT=${GITHUB_REF_NAME}" install.sh
+
       - name: Generate checksums
         run: |
-          sha256sum sbom.cdx.json > checksums.txt
+          sha256sum sbom.cdx.json install.sh > checksums.txt
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: |
             sbom.cdx.json
+            install.sh
             checksums.txt

@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- One-command installer: `curl -fsSL https://mata.sh/install-node.sh | sh` installs the newest release into `./mata-node`, natively by default or with `--docker` as the production container. `--server-id` and the API key (asked on the terminal, or `MATA_NODE_API_KEY`) go into `config/config.env`. Each release attaches it as `install.sh`, pinned to that release
+- `make setup` and `make docker-setup` take `NONINTERACTIVE=1` to skip their prompts, and `make setup ENV=prod` installs production dependencies only
 - `make prod-fix-perms` gives the production container's `www-data` read access to `config/` and write access to `logs/` and `temp/`. **Action:** none for a production install that works; run it if the container cannot read or write those directories
 
 ### Changed
