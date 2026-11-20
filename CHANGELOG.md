@@ -3,7 +3,7 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.0] - 2026-11-20
 
 ### Added
 - One-command installer: `curl -fsSL https://mata.sh/install-node.sh | sh` installs the newest release into `./mata-node`, natively by default or with `--docker` as the production container. `--server-id` and the API key (asked on the terminal, or `MATA_NODE_API_KEY`) go into `config/config.env`. Each release attaches it as `install.sh`, pinned to that release
