@@ -5,6 +5,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- The Docker `make` targets call `docker compose` (the Compose plugin) instead of `docker-compose`. **Action:** with only the standalone v1 binary installed, pass `DOCKER_COMPOSE=docker-compose`
+
 ## [0.5.1] - 2026-11-13
 
 ### Fixed

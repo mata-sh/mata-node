@@ -12,6 +12,9 @@ COLOR_BLUE := $(shell git config --get-color "" "blue")
 COLOR_CYAN := $(shell git config --get-color "" "cyan")
 COLOR_MAGENTA := $(shell git config --get-color "" "magenta")
 
+# Compose v2 plugin; DOCKER_COMPOSE=docker-compose for the standalone v1 binary
+DOCKER_COMPOSE ?= docker compose
+
 # Config bootstrap source/target files
 ENV_CONFIG_FILES := config.env
 JSON_CONFIG_FILES := apps.json transmit.json databases.json
@@ -124,7 +127,7 @@ setup:
 		mv $$tmpfile config/config.env; \
 		chmod 600 config/config.env; \
 		echo "$(COLOR_GREEN)✅ Updated DASHBOARD_API_KEY in config/config.env$(COLOR_RESET)"; \
-		if docker-compose ps mata-web 2>/dev/null | grep -q "Up"; then \
+		if $(DOCKER_COMPOSE) ps mata-web 2>/dev/null | grep -q "Up"; then \
 			echo "$(COLOR_YELLOW)⚠️  Containers are already running. Env files are only read at container creation — run '$(COLOR_CYAN)make dev-recreate$(COLOR_RESET)$(COLOR_YELLOW)' to apply the new key.$(COLOR_RESET)"; \
 		fi; \
 	else \
@@ -222,8 +225,8 @@ install-hooks:
 
 # Run tests with PHPUnit (in Docker container)
 test:
-	@if docker-compose ps mata-web | grep -q "Up"; then \
-		docker-compose exec mata-web vendor/bin/phpunit; \
+	@if $(DOCKER_COMPOSE) ps mata-web | grep -q "Up"; then \
+		$(DOCKER_COMPOSE) exec mata-web vendor/bin/phpunit; \
 	else \
 		echo "$(COLOR_RED)❌ Docker containers not running. Start with: make dev-start$(COLOR_RESET)"; \
 		exit 1; \
@@ -231,7 +234,7 @@ test:
 
 # Run tests with coverage (in Docker container)
 test-coverage:
-	docker-compose exec mata-web vendor/bin/phpunit --coverage-html coverage
+	$(DOCKER_COMPOSE) exec mata-web vendor/bin/phpunit --coverage-html coverage
 
 # ============================================
 # Docker Targets
@@ -275,7 +278,7 @@ docker-setup:
 		mv $$tmpfile config/config.env; \
 		chmod 600 config/config.env; \
 		echo "$(COLOR_GREEN)✅ Updated DASHBOARD_API_KEY in config/config.env$(COLOR_RESET)"; \
-		if docker-compose ps mata-web 2>/dev/null | grep -q "Up"; then \
+		if $(DOCKER_COMPOSE) ps mata-web 2>/dev/null | grep -q "Up"; then \
 			echo "$(COLOR_YELLOW)⚠️  Containers are already running. Env files are only read at container creation — run '$(COLOR_CYAN)make dev-recreate$(COLOR_RESET)$(COLOR_YELLOW)' to apply the new key.$(COLOR_RESET)"; \
 		fi; \
 	else \
@@ -306,7 +309,7 @@ dev-start: docker-network
 		$(MAKE) docker-setup; \
 		echo ""; \
 	fi
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 	@echo ""
 	@echo "$(COLOR_GREEN)✅ Development environment running!$(COLOR_RESET)"
 	@# Read actual port from .env file or use default
@@ -316,26 +319,26 @@ dev-start: docker-network
 
 # Start dev environment and follow logs
 dev-logs: docker-network
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml logs -f
 
 # Stop development environment
 dev-stop:
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml down
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml down
 
 # Restart development environment
 dev-restart:
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml restart
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml restart
 
 # Recreate development containers to reload env files
 dev-recreate: docker-network
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --force-recreate --no-build
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml up -d --force-recreate --no-build
 
 # Rebuild development containers from scratch
 dev-rebuild: docker-network
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml down
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml build --no-cache
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml down
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml build --no-cache
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml up -d
 
 ## Production
 
@@ -346,50 +349,50 @@ prod-start: docker-network
 		echo "$(COLOR_RED)❌ ERROR: .env file required for production$(COLOR_RESET)"; \
 		exit 1; \
 	fi
-	docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 	@echo "$(COLOR_GREEN)✅ Production deployed!$(COLOR_RESET)"
 
 # Stop production environment
 prod-stop:
-	docker-compose -f docker-compose.yml -f docker-compose.prod.yml down
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.prod.yml down
 
 # Rebuild production from scratch
 prod-rebuild: docker-network
-	docker-compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache
-	docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.prod.yml build --no-cache
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 ## Logs & Monitoring
 
 
 # Follow all container logs
 logs:
-	docker-compose logs -f
+	$(DOCKER_COMPOSE) logs -f
 
 # Follow web container logs only
 logs-web:
-	docker-compose logs -f mata-web
+	$(DOCKER_COMPOSE) logs -f mata-web
 
 # Follow the PHP error log
 logs-php:
-	docker-compose exec -u www-data mata-web tail -fn 500 logs/php-error.log
+	$(DOCKER_COMPOSE) exec -u www-data mata-web tail -fn 500 logs/php-error.log
 
 # Follow the app log
 logs-app:
-	docker-compose exec -u www-data mata-web tail -fn 500 logs/app.log
+	$(DOCKER_COMPOSE) exec -u www-data mata-web tail -fn 500 logs/app.log
 	
 # Show container status
 ps:
-	docker-compose ps
+	$(DOCKER_COMPOSE) ps
 
 ## Shell Access
 
 # Access web container shell
 shell:
-	docker-compose exec mata-web bash
+	$(DOCKER_COMPOSE) exec mata-web bash
 
 # Access web container as www-data user
 shell-www:
-	docker-compose exec -u www-data mata-web bash
+	$(DOCKER_COMPOSE) exec -u www-data mata-web bash
 
 ## CLI
 
@@ -397,9 +400,9 @@ shell-www:
 # make mata ARGS="log test shop". Without ARGS it lists the commands. make exits 2 for
 # any failure, so scripts read the warning/error distinction from --json.
 mata:
-	@if docker-compose ps mata-web | grep -q "Up"; then \
+	@if $(DOCKER_COMPOSE) ps mata-web | grep -q "Up"; then \
 		tty=-T; [ -t 0 ] && [ -t 1 ] && tty=; \
-		docker-compose exec $$tty -u www-data mata-web php bin/mata-node $(ARGS); \
+		$(DOCKER_COMPOSE) exec $$tty -u www-data mata-web php bin/mata-node $(ARGS); \
 	else \
 		echo "$(COLOR_RED)❌ Docker containers not running. Start with: make dev-start or make prod-start$(COLOR_RESET)"; \
 		exit 1; \
@@ -410,8 +413,8 @@ mata:
 # Install/update Composer dependencies in container
 composer-install:
 	@echo "$(COLOR_BLUE)📦 Installing Composer dependencies in container...$(COLOR_RESET)"
-	@if docker-compose ps mata-web | grep -q "Up"; then \
-		docker-compose exec mata-web composer install --no-interaction --optimize-autoloader; \
+	@if $(DOCKER_COMPOSE) ps mata-web | grep -q "Up"; then \
+		$(DOCKER_COMPOSE) exec mata-web composer install --no-interaction --optimize-autoloader; \
 		echo "$(COLOR_GREEN)✅ Composer dependencies installed$(COLOR_RESET)"; \
 	else \
 		echo "$(COLOR_RED)❌ Docker containers not running. Start with: make dev-start$(COLOR_RESET)"; \
@@ -421,8 +424,8 @@ composer-install:
 # Update Composer dependencies in container
 composer-update:
 	@echo "$(COLOR_BLUE)📦 Updating Composer dependencies in container...$(COLOR_RESET)"
-	@if docker-compose ps mata-web | grep -q "Up"; then \
-		docker-compose exec mata-web composer update --no-interaction --optimize-autoloader; \
+	@if $(DOCKER_COMPOSE) ps mata-web | grep -q "Up"; then \
+		$(DOCKER_COMPOSE) exec mata-web composer update --no-interaction --optimize-autoloader; \
 		echo "$(COLOR_GREEN)✅ Composer dependencies updated$(COLOR_RESET)"; \
 	else \
 		echo "$(COLOR_RED)❌ Docker containers not running. Start with: make dev-start$(COLOR_RESET)"; \
@@ -435,9 +438,9 @@ composer-rebuild: docker-network
 	@read -p "This will delete the vendor-data volume. Continue? [y/N]: " -n 1 -r; \
 	echo; \
 	if [ "$$REPLY" = "y" ] || [ "$$REPLY" = "Y" ]; then \
-		docker-compose -f docker-compose.yml -f docker-compose.dev.yml down; \
+		$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml down; \
 		docker volume rm mata-node_vendor-data 2>/dev/null || true; \
-		docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d; \
+		$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml up -d; \
 		echo "$(COLOR_GREEN)✅ Vendor will be reinstalled on container startup$(COLOR_RESET)"; \
 	else \
 		echo "$(COLOR_YELLOW)Cancelled$(COLOR_RESET)"; \
@@ -448,8 +451,8 @@ composer-rebuild: docker-network
 
 # Stop and remove all containers, networks
 down:
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml down
-	docker-compose -f docker-compose.yml -f docker-compose.prod.yml down
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml down
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.prod.yml down
 
 # Remove everything including volumes (WARNING: deletes data!)
 clean:
@@ -457,8 +460,8 @@ clean:
 	@read -p "Are you sure? [y/N]: " -n 1 -r; \
 	echo; \
 	if [ "$$REPLY" = "y" ] || [ "$$REPLY" = "Y" ]; then \
-		docker-compose -f docker-compose.yml -f docker-compose.dev.yml down -v; \
-		docker-compose -f docker-compose.yml -f docker-compose.prod.yml down -v; \
+		$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml down -v; \
+		$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.prod.yml down -v; \
 		echo "$(COLOR_GREEN)✅ Cleaned up$(COLOR_RESET)"; \
 	else \
 		echo "$(COLOR_YELLOW)Cancelled$(COLOR_RESET)"; \
@@ -468,8 +471,8 @@ clean:
 docker-clean:
 	@echo "$(COLOR_YELLOW)🧹 Cleaning up mata-node Docker resources...$(COLOR_RESET)"
 	@echo "$(COLOR_CYAN)Stopping and removing containers...$(COLOR_RESET)"
-	@docker-compose -f docker-compose.yml -f docker-compose.dev.yml down -v 2>/dev/null || true
-	@docker-compose -f docker-compose.yml -f docker-compose.prod.yml down -v 2>/dev/null || true
+	@$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml down -v 2>/dev/null || true
+	@$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.prod.yml down -v 2>/dev/null || true
 	@echo "$(COLOR_CYAN)Removing mata-node images...$(COLOR_RESET)"
 	@docker images --filter "reference=mata-node*" -q | xargs -r docker rmi -f 2>/dev/null || true
 	@docker images --filter "reference=${COMPOSE_PROJECT_NAME:-mata-node}*" -q | xargs -r docker rmi -f 2>/dev/null || true

@@ -100,7 +100,7 @@ its user can read.
 ## Troubleshooting
 
 - **`network mata-network declared as external, but could not be found`**: you ran
-  `docker-compose` directly; run `make docker-network` once, or use the `make` targets.
+  `docker compose` directly; run `make docker-network` once, or use the `make` targets.
 - **Port 3310 in use**: set `WEB_PORT` in `.env`.
 - **`/health` returns 503 with `configuration_missing`**: run `make bootstrap-config`; all five
   files in `config/` must exist.

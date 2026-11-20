@@ -54,7 +54,7 @@ Every command takes `--json` and prints one JSON document, failures included:
 | `2` | `error` | The node answers `503`, or `/apps` fails with `500`, e.g. a missing file, invalid JSON, or an invalid app entry |
 
 **make exits 2 for any failure.** `make mata` returns `2` whether the command warned or failed.
-Read `status` from `--json`, or call `docker-compose exec -u www-data mata-web php bin/mata-node …`
+Read `status` from `--json`, or call `docker compose exec -u www-data mata-web php bin/mata-node …`
 for the real exit code.
 
 ## `config validate`
