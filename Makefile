@@ -63,7 +63,8 @@ help:
 	@echo "    $(COLOR_GREEN)make logs-app$(COLOR_RESET)      - Follow application log"
 	@echo ""
 	@echo "$(COLOR_BOLD)Docker Production Environment:$(COLOR_RESET)"
-	@echo "  $(COLOR_GREEN)make prod$(COLOR_RESET)            - Deploy production"
+	@echo "  $(COLOR_GREEN)make prod-fix-perms$(COLOR_RESET) - Set bind-mount permissions (once, before prod-start)"
+	@echo "  $(COLOR_GREEN)make prod-start$(COLOR_RESET)      - Deploy production"
 	@echo "  $(COLOR_GREEN)make prod-stop$(COLOR_RESET)       - Stop production"
 	@echo "  $(COLOR_RED)make clean$(COLOR_RESET)           - Remove everything (WARNING!)"
 	@echo ""
@@ -352,6 +353,27 @@ prod-start: docker-network
 	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 	@echo "$(COLOR_GREEN)✅ Production deployed!$(COLOR_RESET)"
 
+# The production container runs as www-data and bind-mounts config/ (read), logs/ and temp/
+# (write). A root container gives the three to group www-data: config/ readable, logs/ and
+# temp/ writable (setgid, so new files keep the group). They stay yours, so you can edit
+# config/ and the image build can still read the checkout. Run once before the first
+# prod-start, or to repair them.
+prod-fix-perms:
+	@set -e; \
+	php_version=$$(awk -F= '/^PHP_VERSION=/{gsub(/["[:space:]]/, "", $$2); print $$2; exit}' .env 2>/dev/null); \
+	mkdir -p logs temp; \
+	docker run --rm \
+		-v "$(CURDIR)/config:/mata/config" \
+		-v "$(CURDIR)/logs:/mata/logs" \
+		-v "$(CURDIR)/temp:/mata/temp" \
+		"php:$${php_version:-8.3.14}-apache" sh -c \
+		'chgrp -R www-data /mata/config /mata/logs /mata/temp \
+		&& find /mata/config -type d -exec chmod 0750 {} + \
+		&& find /mata/config -type f -exec chmod 0640 {} + \
+		&& find /mata/logs /mata/temp -type d -exec chmod 2770 {} + \
+		&& find /mata/logs /mata/temp -type f -exec chmod 0660 {} +'; \
+	echo "$(COLOR_GREEN)✅ Production bind-mount permissions set$(COLOR_RESET)"
+
 # Stop production environment
 prod-stop:
 	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.prod.yml down
@@ -511,7 +533,8 @@ docker-help:
 	@echo "  $(COLOR_GREEN)make dev-rebuild$(COLOR_RESET)     - Rebuild from scratch"
 	@echo ""
 	@echo "$(COLOR_BOLD)Production:$(COLOR_RESET)"
-	@echo "  $(COLOR_GREEN)make prod$(COLOR_RESET)            - Deploy production environment"
+	@echo "  $(COLOR_GREEN)make prod-fix-perms$(COLOR_RESET) - Give the container user access to config/, logs/, temp/"
+	@echo "  $(COLOR_GREEN)make prod-start$(COLOR_RESET)      - Deploy production environment"
 	@echo "  $(COLOR_GREEN)make prod-stop$(COLOR_RESET)       - Stop production"
 	@echo "  $(COLOR_GREEN)make prod-rebuild$(COLOR_RESET)    - Rebuild production"
 	@echo ""
@@ -540,7 +563,7 @@ docker-help:
 	test test-coverage \
 	bootstrap \
 	docker-setup docker-network dev-start dev-logs dev-stop dev-restart dev-recreate dev-rebuild \
-	prod-start prod-stop prod-rebuild \
+	prod-fix-perms prod-start prod-stop prod-rebuild \
 	logs logs-web logs-php logs-app ps \
 	shell shell-www mata \
 	composer-install composer-update composer-rebuild \

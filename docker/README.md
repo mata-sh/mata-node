@@ -37,12 +37,19 @@ Dashboard) if it does not exist yet.
 ```bash
 cp .env.example .env
 make bootstrap-config             # then edit config/
+make prod-fix-perms               # once
 make prod-start
 ```
 
 The image contains the code and production dependencies only. `config/` is mounted read-only;
 `logs/` and `temp/` are mounted writable. Terminate TLS at a reverse proxy in front of the
 container.
+
+The container runs as `www-data` (UID 33). `make prod-fix-perms` gives it access through a
+short-lived root container: `config/` goes to group `www-data` (`0750`/`0640`), and `logs/` and
+`temp/` become group-writable with setgid (`2770`). All three stay owned by you, so you can
+still edit `config/`. Files the container creates belong to `www-data`, so deleting the checkout
+needs root.
 
 ## Monitoring the host from a container
 
@@ -91,6 +98,7 @@ its user can read.
 | `make dev-recreate` | Recreate containers to reload env files |
 | `make dev-rebuild` / `prod-rebuild` | Rebuild without cache |
 | `make prod-start` / `prod-stop` | Start / stop production |
+| `make prod-fix-perms` | Give the container user access to `config/`, `logs/` and `temp/` |
 | `make logs` / `logs-app` / `logs-php` | Container / app / PHP error logs |
 | `make shell` / `shell-www` | Shell as root / `www-data` |
 | `make test` | PHPUnit in the running container |
@@ -105,3 +113,4 @@ its user can read.
 - **`/health` returns 503 with `configuration_missing`**: run `make bootstrap-config`; all five
   files in `config/` must exist.
 - **Config change not picked up**: `make dev-recreate`.
+- **Production cannot read `config/` or write `logs/` or `temp/`**: run `make prod-fix-perms`.

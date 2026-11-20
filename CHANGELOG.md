@@ -5,6 +5,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `make prod-fix-perms` gives the production container's `www-data` read access to `config/` and write access to `logs/` and `temp/`. **Action:** none for a production install that works; run it if the container cannot read or write those directories
+
 ### Changed
 - The Docker `make` targets call `docker compose` (the Compose plugin) instead of `docker-compose`. **Action:** with only the standalone v1 binary installed, pass `DOCKER_COMPOSE=docker-compose`
 
